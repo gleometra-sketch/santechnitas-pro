@@ -22,7 +22,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 | 1. Projekto struktūra | Atlikta |
 | 2. Dizaino sistema ir pagrindiniai puslapiai | Atlikta (Darbai, Kalendorius, Valandos) |
 | 3. Supabase duomenų bazė ir migracijos | Atlikta (žr. `docs/DUOMENU-BAZE.md`) |
-| 4. Autentifikacija | Laukia |
+| 4. Autentifikacija | Atlikta (žr. `docs/AUTENTIFIKACIJA.md`) |
 | 5. Darbuotojo funkcijos su tikrais duomenimis | Laukia |
 | 6. Administratoriaus aplinka ir Medžiagos | Laukia |
 | 7. Stripe prenumeratos | Laukia |
@@ -31,7 +31,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 
 ## Svarbu
 
-- 1–2 etape darbų, kalendoriaus ir valandų duomenys yra **laikini maketo duomenys** (`src/lib/mock-data.ts`, adresai išgalvoti). Nuo 3 etapo juos pakeis Supabase.
+- Nuo 4 etapo reikia Supabase raktų `.env.local` (be jų rodomas nustatymų puslapis). 1–2 etape darbų, kalendoriaus ir valandų duomenys yra **laikini maketo duomenys** (`src/lib/mock-data.ts`, adresai išgalvoti). Nuo 3 etapo juos pakeis Supabase.
 - Darbo pradžios/pertraukos/pabaigos mygtukai ir pastabos kol kas veikia tik naršyklėje ir neišsaugomi.
 - Valandinis įkainis saugomas naršyklėje (`localStorage`).
 - Laiko juosta: visos datos skaičiuojamos pagal `Europe/Vilnius` (`src/lib/dates.ts`).
