@@ -36,3 +36,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 - Laiko juosta: visos datos skaičiuojamos pagal `Europe/Vilnius` (`src/lib/dates.ts`).
 - Logotipas: animuotas, `src/components/AnimatedLogo.tsx`; failai `public/brand/` (logo-intro.mp4/.webm, logo-poster.webp). Norėdami pakeisti animaciją, pakeiskite šiuos failus.
 - Tikrų raktų į kodą nerašyti. Naudokite `.env.local` pagal `.env.example`.
+
+## Greitis
+- `npm run dev` kompiliuoja kiekvieną puslapį pirmą kartą atidarius, todėl lėtas. Tikrą greitį parodys `npm run build` ir `npm run start`.
+- Kiekviena užklausa kreipiasi į Supabase. Projektą kurkite arčiausiai vartotojų esančiame regione (Lietuvai – Frankfurt, `eu-central-1`); regionas keičiamas tik kuriant projektą.
