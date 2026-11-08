@@ -24,14 +24,14 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 | 3. Supabase duomenų bazė ir migracijos | Atlikta (žr. `docs/DUOMENU-BAZE.md`) |
 | 4. Autentifikacija | Atlikta (žr. `docs/AUTENTIFIKACIJA.md`) |
 | 5. Darbuotojo funkcijos su tikrais duomenimis | Atlikta (žr. `docs/DARBUOTOJAS.md`) |
-| 6. Administratoriaus aplinka ir Medžiagos | Laukia |
+| 6. Administratoriaus aplinka ir Medžiagos | Atlikta (žr. `docs/ADMINISTRATORIUS.md`, `docs/MEDZIAGOS.md`) |
 | 7. Stripe prenumeratos | Laukia |
 | 8. Testavimas | Laukia |
 | 9. Publikavimas Vercel | Laukia |
 
 ## Svarbu
 
-- Nuo 4 etapo reikia Supabase raktų `.env.local` (be jų rodomas nustatymų puslapis). Darbuotojo ekranai naudoja tikrus Supabase duomenis. Darbus kol kas gali sukurti tik administratorius (6 etapas); kol jo nėra, juos galima įrašyti rankiniu būdu SQL Editor.
+- Nuo 4 etapo reikia Supabase raktų `.env.local` (be jų rodomas nustatymų puslapis). Darbuotojo ekranai naudoja tikrus Supabase duomenis. Darbus, objektus ir darbuotojus tvarko administratorius (antraštėje „Valdymas“).
 - Valandinis įkainis saugomas naršyklėje (`localStorage`).
 - Laiko juosta: visos datos skaičiuojamos pagal `Europe/Vilnius` (`src/lib/dates.ts`).
 - Logotipas: animuotas, `src/components/AnimatedLogo.tsx`; failai `public/brand/` (logo-intro.mp4/.webm, logo-poster.webp). Norėdami pakeisti animaciją, pakeiskite šiuos failus.
