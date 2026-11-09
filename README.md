@@ -1,4 +1,4 @@
-# SANTECHNITAS PRO
+# DarboRitmas
 
 Darbo laiko, objektų ir užduočių valdymo programa (Next.js, TypeScript, Tailwind CSS).
 
@@ -34,7 +34,8 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 - Nuo 4 etapo reikia Supabase raktų `.env.local` (be jų rodomas nustatymų puslapis). Darbuotojo ekranai naudoja tikrus Supabase duomenis. Darbus, objektus ir darbuotojus tvarko administratorius (antraštėje „Valdymas“).
 - Valandinis įkainis saugomas naršyklėje (`localStorage`).
 - Laiko juosta: visos datos skaičiuojamos pagal `Europe/Vilnius` (`src/lib/dates.ts`).
-- Logotipas: animuotas, `src/components/AnimatedLogo.tsx`; failai `public/brand/` (logo-intro.mp4/.webm, logo-poster.webp). Norėdami pakeisti animaciją, pakeiskite šiuos failus.
+- Prekės ženklas: logotipas `src/components/Logo.tsx` (šviesus ir tamsus variantas), programėlės ikonos `public/icons/`, spalvos `tailwind.config.ts`, šriftai Inter ir Space Grotesk (`src/app/layout.tsx`).
+- Pardavimo puslapis (`/`) matomas neprisijungus; prisijungęs naudotojas nukreipiamas į Darbus. Funkcijų sąrašas: `src/components/marketing/features.ts` (atnaujinkite pridėję naują funkciją). Kainos ir limitai: `src/lib/plans.ts`.
 - Tikrų raktų į kodą nerašyti. Naudokite `.env.local` pagal `.env.example`.
 
 ## Greitis
