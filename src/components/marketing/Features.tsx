@@ -1,4 +1,4 @@
-import { FEATURES } from "./features";
+import { FEATURES } from "./featureList";
 
 export default function Features() {
   return (

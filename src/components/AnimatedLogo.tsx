@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
  * Jei telefone išjungti judesiai arba vaizdo įrašas nepasileidžia (pvz., taupymo režimas),
  * rodomas statinis paskutinis kadras.
  */
-export default function AnimatedLogo({ size = 64, label = "SANTECHNITAS" }: { size?: number; label?: string }) {
+export default function AnimatedLogo({ size = 64, label = "DarboRitmas" }: { size?: number; label?: string }) {
   const [still, setStill] = useState(false);
 
   useEffect(() => {

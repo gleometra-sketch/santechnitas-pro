@@ -35,7 +35,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 - Valandinis įkainis saugomas naršyklėje (`localStorage`).
 - Laiko juosta: visos datos skaičiuojamos pagal `Europe/Vilnius` (`src/lib/dates.ts`).
 - Prekės ženklas: logotipas `src/components/Logo.tsx` (šviesus ir tamsus variantas), programėlės ikonos `public/icons/`, spalvos `tailwind.config.ts`, šriftai Inter ir Space Grotesk (`src/app/layout.tsx`).
-- Pardavimo puslapis (`/`) matomas neprisijungus; prisijungęs naudotojas nukreipiamas į Darbus. Funkcijų sąrašas: `src/components/marketing/features.ts` (atnaujinkite pridėję naują funkciją). Kainos ir limitai: `src/lib/plans.ts`.
+- Pardavimo puslapis (`/`) matomas neprisijungus; prisijungęs naudotojas nukreipiamas į Darbus. Funkcijų sąrašas: `src/components/marketing/featureList.ts` (atnaujinkite pridėję naują funkciją). Kainos ir limitai: `src/lib/plans.ts`.
 - Tikrų raktų į kodą nerašyti. Naudokite `.env.local` pagal `.env.example`.
 
 ## Greitis
