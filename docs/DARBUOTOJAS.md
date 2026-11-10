@@ -23,6 +23,9 @@ Prisijunkite kaip administratorius → antraštėje **Valdymas** → sukurkite o
 Vadovas Valdymas → Darbuotojai nustato įmonės numatytąjį laiko apskaitos būdą (**Tik valandos** arba **Valandos pagal objektą**) ir gali jį keisti bet kada. Kiekvienam darbuotojui galima nustatyti atskirą būdą arba palikti „Pagal įmonės nustatymą“.
 „Pagal objektą“ režime darbuotojas prieš pradėdamas pasirenka objektą (siūlomas paskutinis naudotas), o dirbdamas gali jį **perjungti**: ankstesnis laiko įrašas užbaigiamas, naujas prasideda tą pačią akimirką. Perjungti pertraukos metu negalima. Seni įrašai be objekto lieka kaip buvę. Administratorius Valdymas → Laikas mato valandas pagal objektą ir gali pakeisti įrašo objektą. Migracija: `0008_time_mode.sql`.
 
+## Valandų vientisumas
+Darbo ir pertraukų pradžios bei pabaigos laiką nustato duomenų bazė (serverio laikas), ne naršyklė. Darbuotojas negali pakeisti pradžios, sukurti užbaigto įrašo ar pakeisti kito darbuotojo laiko, net tiesiogiai kreipdamasis į API. Praleistus ar neteisingus įrašus taiso administratorius (Valdymas → Laikas). Migracija: `0009_time_integrity.sql`.
+
 ## Žinomi apribojimai
 - Užbaigtų laiko įrašų darbuotojas keisti negali; pataisymus daro administratorius (Valdymas → Laikas).
 - Neprisijungus (be ryšio) veiksmai neišsaugomi. Offline režimas nenumatytas.

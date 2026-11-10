@@ -105,15 +105,22 @@ update public.task_checklist_items set is_done = true;
 select t.ok(t.n($$select count(*) from public.task_checklist_items where is_done$$) = 1, 'darbuotojas žymi atliktus punktus');
 
 -- 4. Darbo laikas, pertraukos
+-- (Pagrindiniai įrašai su praeities laikais kuriami be vartotojo teisių, nes darbuotojo užklausoms laiką nustato serveris, žr. 8c.)
+reset role;
 insert into public.time_entries (company_id, user_id, started_at) values (t.id('CX'), t.id('W'), now() - interval '2 hours');
+select t.as_user('W');
 select t.err($$insert into public.time_entries (company_id, user_id, started_at) values (t.id('CX'), t.id('W'), now())$$, '23505');
 select t.err($$insert into public.time_entries (company_id, user_id, started_at) values (t.id('CX'), t.id('A'), now() - interval '1 hour')$$, '42501');
+reset role;
 insert into public.breaks (company_id, time_entry_id, user_id, started_at)
   select company_id, id, t.id('B'), now() - interval '30 minutes' from public.time_entries;
+select t.as_user('W');
 select t.ok((select user_id = t.id('W') from public.breaks), 'pertraukos savininką nustato serveris, ne klientas');
 select t.err($$insert into public.breaks (company_id, time_entry_id, started_at) select company_id, id, now() from public.time_entries$$, '23505');
+reset role;
 update public.breaks set ended_at = now() - interval '20 minutes';
 update public.time_entries set ended_at = now();
+select t.as_user('W');
 select t.ok((select worked_minutes between 108 and 111 from public.time_entry_summary), 'dirbtos minutės = laikas − pertrauka (~110 min.)');
 select t.ok(t.rows($$update public.time_entries set ended_at = now() + interval '1 hour'$$) = 0, 'darbuotojas užbaigto laiko įrašo keisti negali');
 select t.as_user('A');
@@ -218,6 +225,27 @@ select t.as_user('A');
 update public.company_members set time_mode = null where user_id = t.id('W');
 select t.as_user('W');
 select t.ok(public.effective_time_mode(t.id('CX')) = 'project', 'be asmeninio nustatymo galioja įmonės režimas');
+
+-- 8c. Darbo laiko vientisumas (migracija 0009)
+select t.as_user('W');
+select t.err($$insert into public.time_entries (company_id, user_id, started_at, ended_at) values (t.id('CX'), t.id('W'), now() - interval '3 hours', now())$$, '42501');
+insert into public.time_entries (company_id, user_id, started_at) values (t.id('CX'), t.id('W'), now() - interval '5 hours');
+select t.ok((select started_at > now() - interval '1 minute' from public.time_entries where user_id = t.id('W') and ended_at is null), 'darbo pradžią nustato serveris, o ne naršyklė');
+select t.err($$update public.time_entries set started_at = now() - interval '9 hours' where ended_at is null$$, '42501');
+select t.err($$update public.time_entries set project_id = null, user_id = t.id('A') where ended_at is null$$, '42501');
+insert into public.breaks (company_id, time_entry_id, started_at) select company_id, id, now() - interval '2 hours' from public.time_entries where ended_at is null;
+select t.ok((select started_at > now() - interval '1 minute' from public.breaks where ended_at is null), 'pertraukos pradžią nustato serveris');
+select t.err($$update public.breaks set started_at = now() - interval '4 hours' where ended_at is null$$, '42501');
+update public.breaks set ended_at = now() + interval '5 hours' where ended_at is null;
+select t.ok(not exists (select 1 from public.breaks where ended_at > now() + interval '1 minute'), 'pertraukos pabaigą nustato serveris');
+update public.time_entries set ended_at = now() + interval '9 hours' where ended_at is null;
+select t.ok(not exists (select 1 from public.time_entries where ended_at > now() + interval '1 minute'), 'darbo pabaigą nustato serveris');
+select t.err($$update public.task_checklist_items set title = 'hack'$$, '42501');
+select t.as_user('A');
+update public.task_checklist_items set title = 'Pakeista administratoriaus';
+select t.ok(t.n($$select count(*) from public.task_checklist_items where title = 'Pakeista administratoriaus'$$) >= 1, 'administratorius keičia punktų pavadinimus');
+insert into public.time_entries (company_id, user_id, started_at, ended_at) values (t.id('CX'), t.id('W'), now() - interval '40 hours', now() - interval '39 hours');
+select t.ok(t.n($$select count(*) from public.time_entries where started_at < now() - interval '30 hours'$$) = 1, 'administratorius gali pridėti praleistą užbaigtą įrašą');
 
 -- 9. Anon neturi prieigos
 set role anon;

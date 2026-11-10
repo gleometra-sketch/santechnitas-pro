@@ -1,6 +1,6 @@
 # DarboRitmas – programos auditas (vizijos dokumento 12 skyrius)
 
-Data: 2026-11-09. Auditas statinis: perskaitytas visas kodas, SQL migracijos ir RLS politikos. **Programa nebuvo paleista naršyklėje ir nebuvo prijungta prie Supabase**, todėl visi vykdymo (runtime) punktai pažymėti BLOCKED.
+Data: 2026-11-09. Atnaujinta: RLS testai (0001–0008) praėjo pas naudotoją; A1 ir M3 taisomi migracija 0009. Auditas statinis: perskaitytas visas kodas, SQL migracijos ir RLS politikos. **Programa nebuvo paleista naršyklėje ir nebuvo prijungta prie Supabase**, todėl visi vykdymo (runtime) punktai pažymėti BLOCKED.
 
 ## 1. Apimtis ir apribojimai
 
@@ -40,7 +40,7 @@ Statusai: **PASS** (kode atrodo teisingai, vykdymas nepatikrintas) · **PARTIAL*
 | Valandos | Pradėti, pertrauka, tęsti, baigti, nedarbo diena | PASS | |
 | Valandos | Laikas pagal objektą, režimas įmonei ir darbuotojui, perjungimas | PASS | Migracija 0008 dar nebuvo paleista duomenų bazėje. |
 | Valandos | Administratoriaus taisymas, pridėjimas, trynimas | PASS | |
-| Valandos | **Valandų vientisumas serveryje** | **FAIL** | Žr. radinį A1. |
+| Valandos | Valandų vientisumas serveryje | PASS po 0009 | Radinys A1 ištaisytas migracija 0009 (paleiskite testus). |
 | Valandos | Valandų patvirtinimas, tarifai, viršvalandžiai | MISSING | Valandinis įkainis tik naršyklėje (`localStorage`). |
 | Valandos | Ataskaita visiems darbuotojams / pagal objektą, eksportas | MISSING | CSV pašalintas pagal prašymą; administratoriui ataskaitos nėra. |
 | Medžiagos | Užsakymas, administratoriaus sąrašas, filtrai, „Nupirkta“, grąžinimas, redagavimas | PASS | Eilutės redagavimas vykdomas kliente, vykdymas BLOCKED. |
@@ -56,13 +56,13 @@ Statusai: **PASS** (kode atrodo teisingai, vykdymas nepatikrintas) · **PARTIAL*
 ## 4. Radiniai pagal rimtumą
 
 ### Aukštas
-**A1. Darbo laiko vientisumas nėra užtikrintas serveryje.** `time_entries` politikos leidžia darbuotojui: (a) įterpti savo įrašą su bet kokiu `started_at` / `ended_at`; (b) pakeisti savo neužbaigto įrašo `started_at`. Nėra jokio gynimo trigerio (`time_entries` turi tik `updated_at`). Naršyklės mygtukai laikus siunčia teisingai, bet tiesioginė užklausa į Supabase API gali pridėti ar pailginti valandas. Tai svarbu, nes jūsų pagrindinė vertė yra valandų apskaita ir mokėjimai.
+**A1. Darbo laiko vientisumas nebuvo užtikrintas serveryje (ištaisyta migracija `0009_time_integrity.sql`).** `time_entries` politikos leidžia darbuotojui: (a) įterpti savo įrašą su bet kokiu `started_at` / `ended_at`; (b) pakeisti savo neužbaigto įrašo `started_at`. Nėra jokio gynimo trigerio (`time_entries` turi tik `updated_at`). Naršyklės mygtukai laikus siunčia teisingai, bet tiesioginė užklausa į Supabase API gali pridėti ar pailginti valandas. Tai svarbu, nes jūsų pagrindinė vertė yra valandų apskaita ir mokėjimai.
 *Siūlomas taisymas:* migracija 0009 – trigeriai `time_entries` ir `breaks`: ne administratoriui `started_at` visada `now()`, `ended_at` leidžiamas tik `now()` (± kelios sekundės), `user_id`, `company_id`, `started_at` nekeičiami po sukūrimo; ta pati taisyklė pertraukoms. Administratorius galimybių nepraranda.
 
 ### Vidutinis
 - **M1. Kvietimų saugumas priklauso nuo Supabase nustatymo.** `claim_invitations` reikalauja patvirtinto el. pašto, bet jei Supabase projekte išjungtas „Confirm email“, bet kas gali užsiregistruoti svetimu el. paštu ir perimti pakvietimą. *Veiksmas:* patikrinkite Authentication → Providers → Email → „Confirm email“ įjungta.
 - **M2. Neuždarytas laikmatis.** Jei darbuotojas pamiršta „Baigti“, įrašas lieka atviras (kitą dieną rodoma milžiniška trukmė, valandų suvestinė išpučiama), automatinio uždarymo ar įspėjimo nėra. Rizika didelė realiame darbe. *Siūlymas:* įspėjimas ir administratoriaus „Užbaigti“ mygtukas sąraše; neuždarytų įrašų riba (pvz. 16 val.).
-- **M3. Užduočių sąrašo punktus darbuotojas gali keisti plačiau nei reikia.** Politika leidžia atnaujinti bet kurį stulpelį (pavadinimą, poziciją), ne tik `is_done`. *Taisymas:* trigeris, ne administratoriui leidžiantis keisti tik `is_done`.
+- **M3. (ištaisyta 0009) Užduočių sąrašo punktus darbuotojas galėjo keisti plačiau nei reikia.** Politika leidžia atnaujinti bet kurį stulpelį (pavadinimą, poziciją), ne tik `is_done`. *Taisymas:* trigeris, ne administratoriui leidžiantis keisti tik `is_done`.
 - **M4. Darbo pabaigos nebuvimas „po vidurnakčio“.** Įrašas priskiriamas pradžios dienai; pamainos per vidurnaktį nesidalija. Tinka daugumai, bet reikia žinoti.
 - **M5. Archyvavimas vs trynimas.** Darbai ištrinami negrįžtamai (su patvirtinimu), istorijos nelieka.
 
