@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { TimeMode } from "@/lib/work/types";
 
 export type Role = "owner" | "admin" | "worker";
 
@@ -8,8 +9,10 @@ export type SessionContext = {
   userId: string;
   email: string;
   fullName: string | null;
-  company: { id: string; name: string; trialEndsAt: string; complimentary: boolean } | null;
+  company: { id: string; name: string; trialEndsAt: string; complimentary: boolean; timeMode: TimeMode } | null;
   role: Role | null;
+  /** Galiojantis šio naudotojo laiko apskaitos režimas (asmeninis nustatymas arba įmonės numatytasis). */
+  timeMode: TimeMode;
   /** Serverio pusėje patikrinta prieiga: bandymas, prenumerata arba nemokama prieiga. */
   hasAccess: boolean;
   /** Aktyvi/bandomoji prenumerata (matoma tik administratoriams). */
@@ -19,7 +22,7 @@ export type SessionContext = {
 async function loadMembership(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
     .from("company_members")
-    .select("role, company:companies(id, name, trial_ends_at, complimentary)")
+    .select("role, time_mode, company:companies(id, name, trial_ends_at, complimentary, time_mode)")
     .eq("user_id", userId)
     .eq("status", "active")
     .order("created_at", { ascending: true })
@@ -29,10 +32,15 @@ async function loadMembership(supabase: Awaited<ReturnType<typeof createClient>>
 }
 
 type Membership = Awaited<ReturnType<typeof loadMembership>>;
+const modeOf = (membership: Membership): TimeMode => {
+  const own = (membership as { time_mode?: string | null } | null)?.time_mode;
+  const co = unwrapCompany(membership)?.time_mode;
+  return (own ?? co) === "project" ? "project" : "hours";
+};
 const unwrapCompany = (membership: Membership) => {
   const raw = membership?.company as unknown;
   return (Array.isArray(raw) ? raw[0] : raw) as
-    | { id: string; name: string; trial_ends_at: string; complimentary: boolean }
+    | { id: string; name: string; trial_ends_at: string; complimentary: boolean; time_mode: TimeMode }
     | null
     | undefined;
 };
@@ -73,8 +81,9 @@ export const getContext = cache(async (): Promise<SessionContext | null> => {
     userId: user.id,
     email: user.email ?? "",
     fullName: profile?.full_name ?? null,
-    company: c ? { id: c.id, name: c.name, trialEndsAt: c.trial_ends_at, complimentary: c.complimentary } : null,
+    company: c ? { id: c.id, name: c.name, trialEndsAt: c.trial_ends_at, complimentary: c.complimentary, timeMode: c.time_mode === "project" ? "project" : "hours" } : null,
     role: (membership?.role as Role | undefined) ?? null,
+    timeMode: modeOf(membership),
     hasAccess,
     subscribed,
   };
@@ -84,13 +93,13 @@ export const getContext = cache(async (): Promise<SessionContext | null> => {
  * Lengvas kontekstas veiksmams (server actions): tik naudotojas, įmonė ir vaidmuo (2 užklausos vietoj 5).
  * Prieigos (bandymo/prenumeratos) taisyklę vis tiek užtikrina RLS (`company_has_access`) kiekvienam rašymui.
  */
-export const getActionContext = cache(async (): Promise<{ userId: string; companyId: string | null; role: Role | null } | null> => {
+export const getActionContext = cache(async (): Promise<{ userId: string; companyId: string | null; role: Role | null; timeMode: TimeMode } | null> => {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
   const membership = await loadMembership(supabase, data.user.id);
   const c = unwrapCompany(membership);
-  return { userId: data.user.id, companyId: c?.id ?? null, role: (membership?.role as Role | undefined) ?? null };
+  return { userId: data.user.id, companyId: c?.id ?? null, role: (membership?.role as Role | undefined) ?? null, timeMode: modeOf(membership) };
 });
 
 export async function requireContext(): Promise<SessionContext> {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import TimeAdmin from "@/components/admin/TimeAdmin";
 import { requireContext } from "@/lib/auth/context";
-import { getMembers, getTimeEntries, memberLabel } from "@/lib/admin/queries";
+import { getMembers, getProjects, getTimeEntries, memberLabel } from "@/lib/admin/queries";
 import { monthKey, monthTitle, shiftMonth, todayKey } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function LaikasPage({ searchParams }: { searchParams: Promi
   const selected = members.find((x) => x.userId === wanted) ?? members.find((x) => x.userId === ctx.userId) ?? members[0];
   if (!selected) return <p className="text-muted">Darbuotojų nėra.</p>;
 
-  const entries = await getTimeEntries(ctx, selected.userId as string, ym);
+  const [entries, projects] = await Promise.all([getTimeEntries(ctx, selected.userId as string, ym), getProjects(ctx)]);
   const nav = "flex h-12 w-12 items-center justify-center rounded-2xl border border-black/10 bg-white";
   const link = (month: string) => `/valdymas/laikas?d=${selected.userId}&m=${month}`;
 
@@ -41,7 +41,7 @@ export default async function LaikasPage({ searchParams }: { searchParams: Promi
         <h2 className="text-xl font-bold">{monthTitle(ym)}</h2>
         {ym === currentYm ? <span aria-hidden className={`${nav} opacity-40`}><ChevronRight /></span> : <Link href={link(shiftMonth(ym, 1))} aria-label="Kitas mėnuo" className={nav}><ChevronRight aria-hidden /></Link>}
       </div>
-      <TimeAdmin key={`${selected.userId}-${ym}`} userId={selected.userId as string} entries={entries} defaultDay={ym === currentYm ? today : `${ym}-01`} />
+      <TimeAdmin key={`${selected.userId}-${ym}`} userId={selected.userId as string} entries={entries} defaultDay={ym === currentYm ? today : `${ym}-01`} projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
     </div>
   );
 }

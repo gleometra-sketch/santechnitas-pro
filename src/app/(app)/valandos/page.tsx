@@ -21,7 +21,7 @@ export default async function ValandosPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-5">
       <h1 className="text-3xl font-extrabold">Valandos</h1>
-      <WorkClock compact status={work.status} workedMsAtRender={work.workedMsAtRender} todayMinutes={work.todayMinutes} />
+      <WorkClock compact status={work.status} workedMsAtRender={work.workedMsAtRender} todayMinutes={work.todayMinutes} mode={work.mode} projects={work.projects} projectId={work.projectId} defaultProjectId={work.defaultProjectId} />
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-white p-4 text-center shadow-card">

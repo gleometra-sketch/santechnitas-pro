@@ -113,13 +113,27 @@ export async function getWorkState(ctx: SessionContext): Promise<WorkState> {
   const supabase = await createClient();
   const today = todayKey();
   const ws = weekStart(today);
+  const byProject = ctx.timeMode === "project" && !!ctx.company;
 
-  const [open, off, todayRows, weekRows] = await Promise.all([
-    supabase.from("time_entries").select("id, started_at").eq("user_id", ctx.userId).is("ended_at", null).maybeSingle(),
+  const [open, off, todayRows, weekRows, options, last] = await Promise.all([
+    supabase.from("time_entries").select("id, started_at, project_id").eq("user_id", ctx.userId).is("ended_at", null).maybeSingle(),
     supabase.from("days_off").select("id").eq("user_id", ctx.userId).eq("day", today).maybeSingle(),
     supabase.from("time_entry_summary").select("worked_minutes").eq("user_id", ctx.userId).eq("work_date", today),
     supabase.from("time_entry_summary").select("worked_minutes").eq("user_id", ctx.userId).gte("work_date", ws).lte("work_date", addDays(ws, 6)),
+    byProject ? supabase.rpc("time_project_options", { cid: ctx.company!.id }) : Promise.resolve({ data: [] as unknown[] }),
+    byProject
+      ? supabase.from("time_entries").select("project_id").eq("user_id", ctx.userId).not("project_id", "is", null).order("started_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  const projects = ((options.data ?? []) as any[]).map((p) => ({ id: p.id as string, name: p.name as string, address: (p.address ?? null) as string | null }));
+  const lastId = (last.data as { project_id?: string } | null)?.project_id ?? null;
+  const extra = {
+    mode: ctx.timeMode,
+    projects,
+    projectId: (open.data?.project_id as string | null | undefined) ?? null,
+    defaultProjectId: lastId && projects.some((p) => p.id === lastId) ? lastId : null,
+  };
 
   const todayMinutes = sum(todayRows.data);
   const weekMinutes = sum(weekRows.data);
@@ -135,10 +149,10 @@ export async function getWorkState(ctx: SessionContext): Promise<WorkState> {
     }
     const end = openBreakStart ?? now;
     const worked = Math.max(0, end - new Date(open.data.started_at).getTime() - closed);
-    return { status: openBreakStart ? "break" : "working", workedMsAtRender: worked, todayMinutes, weekMinutes };
+    return { status: openBreakStart ? "break" : "working", workedMsAtRender: worked, todayMinutes, weekMinutes, ...extra };
   }
-  if (off.data) return { status: "off", workedMsAtRender: 0, todayMinutes, weekMinutes };
-  return { status: (todayRows.data ?? []).length > 0 ? "done" : "idle", workedMsAtRender: 0, todayMinutes, weekMinutes };
+  if (off.data) return { status: "off", workedMsAtRender: 0, todayMinutes, weekMinutes, ...extra };
+  return { status: (todayRows.data ?? []).length > 0 ? "done" : "idle", workedMsAtRender: 0, todayMinutes, weekMinutes, ...extra };
 }
 
 export type DayHours = { date: string; minutes: number; start: string; end: string | null };

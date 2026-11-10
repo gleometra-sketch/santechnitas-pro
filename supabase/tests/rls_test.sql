@@ -204,6 +204,21 @@ reset role;
 select t.ok(public.storage_company_id('nera-uuid/failas.jpg') is null, 'neteisingas failo kelias atmetamas');
 select t.ok(public.storage_company_id(t.id('CX')::text || '/a.jpg') = t.id('CX'), 'failo kelias -> įmonės ID');
 
+-- 8b. Laiko apskaitos režimas
+select t.as_user('A');
+update public.companies set time_mode = 'project' where id = t.id('CX');
+select t.ok((select time_mode = 'project' from public.companies where id = t.id('CX')), 'administratorius keičia įmonės laiko režimą');
+select t.ok(t.rows($$update public.company_members set time_mode = 'hours' where user_id = t.id('W')$$) = 1, 'administratorius nustato darbuotojo režimą');
+select t.err($$update public.company_members set time_mode = 'blogas' where user_id = t.id('W')$$, '23514');
+select t.as_user('W');
+select t.ok(t.rows($$update public.companies set time_mode = 'hours' where id = t.id('CX')$$) = 0, 'darbuotojas įmonės režimo keisti negali');
+select t.ok(t.rows($$update public.company_members set time_mode = 'project' where user_id = t.id('W')$$) = 0, 'darbuotojas savo režimo keisti negali');
+select t.ok(public.effective_time_mode(t.id('CX')) = 'hours', 'galioja darbuotojo nustatymas, o ne įmonės numatytasis');
+select t.as_user('A');
+update public.company_members set time_mode = null where user_id = t.id('W');
+select t.as_user('W');
+select t.ok(public.effective_time_mode(t.id('CX')) = 'project', 'be asmeninio nustatymo galioja įmonės režimas');
+
 -- 9. Anon neturi prieigos
 set role anon;
 do $$ begin

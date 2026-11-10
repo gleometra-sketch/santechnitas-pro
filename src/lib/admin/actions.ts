@@ -234,8 +234,36 @@ export async function restoreMember(memberId: string): Promise<ActionResult> {
   return (data ?? []).length ? ok("Darbuotojas atkurtas.") : fail("Narys nerastas.");
 }
 
+/* ----------------------------------------------------------- laiko apskaitos režimas */
+const modeSchema = z.enum(["hours", "project"]);
+
+/** Įmonės numatytasis režimas (galioja darbuotojams be asmeninio nustatymo). Galima keisti bet kada. */
+export async function setCompanyTimeMode(mode: string): Promise<ActionResult> {
+  const m = modeSchema.safeParse(mode);
+  if (!m.success) return fail("Neteisingas režimas.");
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const { data, error } = await g.db.from("companies").update({ time_mode: m.data }).eq("id", g.companyId).select("id");
+  refresh();
+  if (error) return mapError(error, "Nepavyko pakeisti.");
+  return (data ?? []).length ? ok("Įmonės nustatymas pakeistas.") : fail("Neturite teisės.");
+}
+
+/** Vieno darbuotojo režimas; null – grįžti prie įmonės nustatymo. */
+export async function setMemberTimeMode(memberId: string, mode: string | null): Promise<ActionResult> {
+  if (!uuid.safeParse(memberId).success) return fail("Neteisingas įrašas.");
+  const m = mode === null ? { success: true as const, data: null } : modeSchema.safeParse(mode);
+  if (!m.success) return fail("Neteisingas režimas.");
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const { data, error } = await g.db.from("company_members").update({ time_mode: m.data }).eq("id", memberId).eq("company_id", g.companyId).select("id");
+  refresh();
+  if (error) return mapError(error, "Nepavyko pakeisti.");
+  return (data ?? []).length ? ok("Darbuotojo nustatymas pakeistas.") : fail("Narys nerastas.");
+}
+
 /* ---------------------------------------------------------------- darbo laikas */
-const timeSchema = z.object({ userId: z.string().uuid(), start: z.string(), end: z.string() });
+const timeSchema = z.object({ userId: z.string().uuid(), start: z.string(), end: z.string(), projectId: z.string().uuid().nullable().optional() });
 
 /** Sukuria arba pataiso užbaigtą darbo laiko įrašą (laikai – Lietuvos laiku, „YYYY-MM-DDTHH:mm“). */
 export async function saveTimeEntry(id: string | null, input: unknown): Promise<ActionResult> {
@@ -250,12 +278,12 @@ export async function saveTimeEntry(id: string | null, input: unknown): Promise<
   if (bad(g)) return g;
 
   if (id) {
-    const { data, error } = await g.db.from("time_entries").update({ started_at: start, ended_at: end }).eq("id", id).eq("company_id", g.companyId).select("id");
+    const { data, error } = await g.db.from("time_entries").update({ started_at: start, ended_at: end, project_id: t.data.projectId ?? null }).eq("id", id).eq("company_id", g.companyId).select("id");
     refresh();
     if (error) return mapError(error, "Nepavyko išsaugoti.");
     return (data ?? []).length ? ok("Išsaugota.") : fail("Įrašas nerastas.");
   }
-  const { error } = await g.db.from("time_entries").insert({ company_id: g.companyId, user_id: t.data.userId, started_at: start, ended_at: end });
+  const { error } = await g.db.from("time_entries").insert({ company_id: g.companyId, user_id: t.data.userId, project_id: t.data.projectId ?? null, started_at: start, ended_at: end });
   refresh();
   return error ? mapError(error, "Nepavyko pridėti įrašo.") : ok("Įrašas pridėtas.");
 }

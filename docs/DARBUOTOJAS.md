@@ -19,6 +19,10 @@ Valandinis įkainis saugomas tik jūsų įrenginyje (ne serveryje).
 ## Kaip išbandyti
 Prisijunkite kaip administratorius → antraštėje **Valdymas** → sukurkite objektą, pakvieskite darbuotoją (jis registruojasi tuo pačiu el. paštu) ir sukurkite jam darbą. Žr. `docs/ADMINISTRATORIUS.md`.
 
+## Laikas pagal objektą
+Vadovas Valdymas → Darbuotojai nustato įmonės numatytąjį laiko apskaitos būdą (**Tik valandos** arba **Valandos pagal objektą**) ir gali jį keisti bet kada. Kiekvienam darbuotojui galima nustatyti atskirą būdą arba palikti „Pagal įmonės nustatymą“.
+„Pagal objektą“ režime darbuotojas prieš pradėdamas pasirenka objektą (siūlomas paskutinis naudotas), o dirbdamas gali jį **perjungti**: ankstesnis laiko įrašas užbaigiamas, naujas prasideda tą pačią akimirką. Perjungti pertraukos metu negalima. Seni įrašai be objekto lieka kaip buvę. Administratorius Valdymas → Laikas mato valandas pagal objektą ir gali pakeisti įrašo objektą. Migracija: `0008_time_mode.sql`.
+
 ## Žinomi apribojimai
 - Užbaigtų laiko įrašų darbuotojas keisti negali; pataisymus daro administratorius (Valdymas → Laikas).
 - Neprisijungus (be ryšio) veiksmai neišsaugomi. Offline režimas nenumatytas.

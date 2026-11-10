@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getActionContext, isAdmin } from "@/lib/auth/context";
 import { isValidDayKey, todayKey } from "@/lib/dates";
-import { UNITS, type ActionResult } from "./types";
+import { UNITS, type ActionResult, type TimeMode } from "./types";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -20,25 +20,40 @@ function mapError(e: { code?: string; message?: string } | null, fallback: strin
   return fail(fallback);
 }
 
-async function guard(): Promise<{ db: Db; userId: string; companyId: string; admin: boolean } | ActionResult> {
+async function guard(): Promise<{ db: Db; userId: string; companyId: string; admin: boolean; timeMode: TimeMode } | ActionResult> {
   const ctx = await getActionContext();
   if (!ctx) return fail("Sesija baigėsi. Prisijunkite iš naujo.");
   if (!ctx.companyId) return fail("Pirmiausia sukurkite įmonę.");
-  return { db: await createClient(), userId: ctx.userId, companyId: ctx.companyId, admin: isAdmin(ctx.role) };
+  return { db: await createClient(), userId: ctx.userId, companyId: ctx.companyId, admin: isAdmin(ctx.role), timeMode: ctx.timeMode };
 }
 const bad = (g: unknown): g is ActionResult => typeof g === "object" && g !== null && "ok" in g;
 const refresh = () => revalidatePath("/", "layout");
 
 /* ------------------------------------------------------------ darbo laikas */
-export async function startWork(): Promise<ActionResult> {
+export async function startWork(projectId?: string | null): Promise<ActionResult> {
   const g = await guard();
   if (bad(g)) return g;
+  const byProject = g.timeMode === "project";
+  if (byProject && !projectId) return fail("Pasirinkite objektą, kuriame dirbsite.");
+  if (projectId && !idSchema.safeParse(projectId).success) return fail("Neteisingas objektas.");
   await g.db.from("days_off").delete().eq("user_id", g.userId).eq("day", todayKey());
   const { error } = await g.db
     .from("time_entries")
-    .insert({ company_id: g.companyId, user_id: g.userId, started_at: new Date().toISOString() });
+    .insert({ company_id: g.companyId, user_id: g.userId, project_id: byProject ? projectId : null, started_at: new Date().toISOString() });
   refresh();
   return mapError(error, "Nepavyko pradėti darbo.");
+}
+
+/** Dirbant perjungia į kitą objektą: ankstesnis laiko įrašas užbaigiamas, naujas prasideda tą pačią akimirką. */
+export async function switchWorkProject(projectId: string): Promise<ActionResult> {
+  if (!idSchema.safeParse(projectId).success) return fail("Neteisingas objektas.");
+  const g = await guard();
+  if (bad(g)) return g;
+  if (g.timeMode !== "project") return fail("Objekto pasirinkimas išjungtas.");
+  const { error } = await g.db.rpc("switch_time_project", { p_project: projectId });
+  refresh();
+  if (error?.code === "P0001") return fail(error.message);
+  return error ? mapError(error, "Nepavyko pakeisti objekto.") : ok("Objektas pakeistas.");
 }
 
 async function openEntryId(g: { db: Db; userId: string }) {

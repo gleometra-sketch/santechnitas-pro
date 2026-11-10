@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Mail, UserMinus, UserPlus, Undo2 } from "lucide-react";
-import { inviteMember, removeMember, restoreMember, setMemberRole } from "@/lib/admin/actions";
+import { Mail, Timer, UserMinus, UserPlus, Undo2 } from "lucide-react";
+import { TIME_MODE_LABEL, type TimeMode } from "@/lib/work/types";
+import { inviteMember, removeMember, restoreMember, setCompanyTimeMode, setMemberRole, setMemberTimeMode } from "@/lib/admin/actions";
 import { ROLE_LABEL, type MemberRow } from "@/lib/admin/types";
 import type { ActionResult } from "@/lib/work/types";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "./ui";
 
-function Row({ m, selfId, onMsg }: { m: MemberRow; selfId: string; onMsg: (x: { ok: boolean; text: string } | null) => void }) {
+function Row({ m, selfId, companyMode, onMsg }: { m: MemberRow; selfId: string; companyMode: TimeMode; onMsg: (x: { ok: boolean; text: string } | null) => void }) {
   const [pending, start] = useTransition();
   const run = (fn: () => Promise<ActionResult>) =>
     start(async () => {
@@ -29,6 +30,22 @@ function Row({ m, selfId, onMsg }: { m: MemberRow; selfId: string; onMsg: (x: { 
         </span>
       </div>
       {m.status === "invited" && <p className="mt-2 text-sm text-muted">Laukia registracijos su šiuo el. paštu ({ROLE_LABEL[m.role].toLowerCase()}).</p>}
+
+      {m.status === "active" && (
+        <label className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="flex items-center gap-1.5 font-medium text-muted"><Timer size={15} aria-hidden /> Laiko apskaita</span>
+          <select
+            disabled={pending}
+            value={m.timeMode ?? "default"}
+            onChange={(e) => run(() => setMemberTimeMode(m.id, e.target.value === "default" ? null : e.target.value))}
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-black/15 bg-white px-3"
+          >
+            <option value="default">Pagal įmonės nustatymą ({TIME_MODE_LABEL[companyMode]})</option>
+            <option value="hours">{TIME_MODE_LABEL.hours}</option>
+            <option value="project">{TIME_MODE_LABEL.project}</option>
+          </select>
+        </label>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {m.status === "active" && !locked && (
@@ -52,7 +69,7 @@ function Row({ m, selfId, onMsg }: { m: MemberRow; selfId: string; onMsg: (x: { 
   );
 }
 
-export default function MembersAdmin({ members, selfId }: { members: MemberRow[]; selfId: string }) {
+export default function MembersAdmin({ members, selfId, companyMode }: { members: MemberRow[]; selfId: string; companyMode: TimeMode }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"worker" | "admin">("worker");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -64,11 +81,43 @@ export default function MembersAdmin({ members, selfId }: { members: MemberRow[]
       if (r.ok) setEmail("");
     });
 
+  const [mode, setMode] = useState<TimeMode>(companyMode);
+  const [modePending, startMode] = useTransition();
+  const changeMode = (next: TimeMode) => {
+    const prev = mode;
+    setMode(next);
+    startMode(async () => {
+      const r = await setCompanyTimeMode(next);
+      setMsg(r.ok ? { ok: true, text: r.message ?? "Išsaugota." } : { ok: false, text: r.error });
+      if (!r.ok) setMode(prev);
+    });
+  };
+
   const current = members.filter((m) => m.status !== "removed");
   const removed = members.filter((m) => m.status === "removed");
 
   return (
     <div className="space-y-4">
+      <section className="rounded-card bg-white p-5 shadow-card">
+        <h2 className="flex items-center gap-2 text-lg font-bold"><Timer size={22} aria-hidden /> Laiko apskaita</h2>
+        <p className="mt-1 text-sm text-muted">Numatytasis būdas visiems darbuotojams. Jį galima keisti bet kada, o konkrečiam darbuotojui nustatyti kitą žemiau.</p>
+        <div role="radiogroup" aria-label="Laiko apskaitos būdas" className="mt-3 grid gap-2 sm:grid-cols-2">
+          {(["hours", "project"] as const).map((v) => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={mode === v}
+              disabled={modePending}
+              onClick={() => mode !== v && changeMode(v)}
+              className={`rounded-2xl border-2 p-3 text-left disabled:opacity-60 ${mode === v ? "border-accent bg-accent-soft" : "border-black/10"}`}
+            >
+              <span className="block font-semibold">{TIME_MODE_LABEL[v]}</span>
+              <span className="block text-sm text-muted">{v === "hours" ? "Darbuotojas tik pradeda ir baigia darbą." : "Prieš pradėdamas darbuotojas pasirenka objektą, o laikas skaičiuojamas kiekvienam objektui."}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-card bg-white p-5 shadow-card">
         <details>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold"><UserPlus size={22} aria-hidden /> Pridėti darbuotoją</summary>
@@ -86,11 +135,11 @@ export default function MembersAdmin({ members, selfId }: { members: MemberRow[]
         </details>
       </section>
       <Msg msg={msg} />
-      <ul className="space-y-3">{current.map((m) => <Row key={m.id} m={m} selfId={selfId} onMsg={setMsg} />)}</ul>
+      <ul className="space-y-3">{current.map((m) => <Row key={m.id} m={m} selfId={selfId} companyMode={mode} onMsg={setMsg} />)}</ul>
       {removed.length > 0 && (
         <details>
           <summary className="min-h-11 cursor-pointer font-bold text-muted">Pašalinti ({removed.length})</summary>
-          <ul className="mt-3 space-y-3">{removed.map((m) => <Row key={m.id} m={m} selfId={selfId} onMsg={setMsg} />)}</ul>
+          <ul className="mt-3 space-y-3">{removed.map((m) => <Row key={m.id} m={m} selfId={selfId} companyMode={mode} onMsg={setMsg} />)}</ul>
         </details>
       )}
     </div>

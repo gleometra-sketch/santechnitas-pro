@@ -7,6 +7,8 @@ export type MemberRow = {
   name: string | null;
   role: "owner" | "admin" | "worker";
   status: "invited" | "active" | "removed";
+  /** Asmeninis laiko režimas; null – pagal įmonės nustatymą. */
+  timeMode: "hours" | "project" | null;
 };
 
 export type AdminTask = {
@@ -22,6 +24,6 @@ export type AdminTask = {
   items: { id: string; title: string; isDone: boolean }[];
 };
 
-export type TimeRow = { id: string; startedAt: string; endedAt: string | null; minutes: number };
+export type TimeRow = { id: string; startedAt: string; endedAt: string | null; minutes: number; projectId: string | null };
 
 export const ROLE_LABEL: Record<MemberRow["role"], string> = { owner: "Savininkas", admin: "Administratorius", worker: "Darbuotojas" };

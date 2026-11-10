@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { CheckCircle2, Coffee, Play, Square } from "lucide-react";
-import { finishWork, markDayOff, pauseWork, resumeWork, startWork, undoDayOff } from "@/lib/work/actions";
-import type { ActionResult, WorkStatus } from "@/lib/work/types";
+import { ArrowRightLeft, CheckCircle2, Coffee, MapPin, Play, Square } from "lucide-react";
+import { finishWork, markDayOff, pauseWork, resumeWork, startWork, switchWorkProject, undoDayOff } from "@/lib/work/actions";
+import type { ActionResult, TimeMode, TimeProject, WorkStatus } from "@/lib/work/types";
 import { formatDuration } from "@/lib/dates";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -12,12 +12,30 @@ function clockParts(ms: number) {
   return { hm: `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}`, sec: pad(s % 60) };
 }
 
-export default function WorkClock(props: { status: WorkStatus; workedMsAtRender: number; todayMinutes: number; compact?: boolean }) {
-  const { status, workedMsAtRender, todayMinutes, compact = false } = props;
+type Props = {
+  status: WorkStatus;
+  workedMsAtRender: number;
+  todayMinutes: number;
+  /** „project“ – prieš pradedant reikia pasirinkti objektą. */
+  mode?: TimeMode;
+  projects?: TimeProject[];
+  projectId?: string | null;
+  defaultProjectId?: string | null;
+  compact?: boolean;
+};
+
+const optionLabel = (p: TimeProject) => (p.address ? `${p.name} – ${p.address}` : p.name);
+
+export default function WorkClock(props: Props) {
+  const { status, workedMsAtRender, todayMinutes, compact = false, mode = "hours", projects = [], projectId = null, defaultProjectId = null } = props;
+  const byProject = mode === "project";
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
   const [base, setBase] = useState({ ms: workedMsAtRender, at: 0 });
   const [now, setNow] = useState(0);
+  const [chosen, setChosen] = useState(defaultProjectId ?? (projects.length === 1 ? projects[0].id : ""));
+  const [switching, setSwitching] = useState(false);
+  const [target, setTarget] = useState("");
 
   useEffect(() => {
     const t = Date.now();
@@ -31,13 +49,22 @@ export default function WorkClock(props: { status: WorkStatus; workedMsAtRender:
     return () => clearInterval(id);
   }, [status]);
 
+  useEffect(() => {
+    if (!chosen && defaultProjectId) setChosen(defaultProjectId);
+  }, [defaultProjectId, chosen]);
+
+  useEffect(() => {
+    if (status !== "working") setSwitching(false);
+  }, [status]);
+
   const live = status === "working" ? base.ms + Math.max(0, now - base.at) : base.ms;
   const totalToday = todayMinutes + Math.floor(Math.max(0, live - workedMsAtRender) / 60000);
 
-  const run = (fn: () => Promise<ActionResult>) =>
+  const run = (fn: () => Promise<ActionResult>, after?: () => void) =>
     start(async () => {
       const r = await fn();
       setError(r.ok ? "" : r.error);
+      if (r.ok) after?.();
     });
 
   const t = clockParts(live);
@@ -50,11 +77,13 @@ export default function WorkClock(props: { status: WorkStatus; workedMsAtRender:
       : "border border-black/5 bg-white";
   const ghost = dark ? "border border-white/25 bg-white/10 text-white" : "border border-black/10 bg-white";
   const btn = "flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition active:scale-[.98] disabled:opacity-60";
+  const select = "min-h-12 w-full rounded-xl border border-black/15 bg-white px-3 text-ink";
 
   const label =
     status === "off" ? "Nedarbo diena" : status === "idle" ? "Darbas nepradėtas" : status === "working" ? "Darbas vyksta" : status === "break" ? "Pertrauka" : "Darbas baigtas";
-  const dot =
-    status === "working" ? "bg-go" : status === "break" ? "bg-accent" : status === "done" ? "bg-go" : "bg-muted/40";
+  const dot = status === "working" ? "bg-go" : status === "break" ? "bg-accent" : status === "done" ? "bg-go" : "bg-muted/40";
+  const currentProject = projects.find((p) => p.id === projectId);
+  const canStart = !byProject || !!chosen;
 
   return (
     <section className={`rounded-card ${compact ? "p-3.5" : "p-4"} shadow-card ${tone}`} aria-live="polite">
@@ -84,6 +113,41 @@ export default function WorkClock(props: { status: WorkStatus; workedMsAtRender:
             {t.hm}
             <span className={`ml-1 text-xl font-medium ${dark ? "text-white/50" : "text-muted"}`}>:{t.sec}</span>
           </p>
+
+          {byProject && !switching && (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className={`flex min-w-0 items-center gap-1.5 text-sm ${dark ? "text-white/80" : "text-muted"}`}>
+                <MapPin size={15} aria-hidden className="shrink-0" />
+                <span className="truncate">{currentProject ? currentProject.name : projectId ? "Objektas" : "Objektas nepasirinktas"}</span>
+              </p>
+              {status === "working" && projects.length > 0 && (
+                <button
+                  disabled={pending}
+                  onClick={() => { setTarget(""); setSwitching(true); }}
+                  className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ${dark ? "bg-white/10 text-white" : "border border-black/10 bg-white"}`}
+                >
+                  <ArrowRightLeft size={14} aria-hidden /> {projectId ? "Keisti objektą" : "Pasirinkti objektą"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {byProject && switching && (
+            <div className="mt-3 space-y-2">
+              <select aria-label="Naujas objektas" value={target} onChange={(e) => setTarget(e.target.value)} className={select}>
+                <option value="">Pasirinkite objektą</option>
+                {projects.filter((p) => p.id !== projectId).map((p) => <option key={p.id} value={p.id}>{optionLabel(p)}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button disabled={pending || !target} onClick={() => run(() => switchWorkProject(target), () => setSwitching(false))} className={`${btn} bg-accent text-white`}>
+                  <ArrowRightLeft size={16} aria-hidden /> Perjungti
+                </button>
+                <button disabled={pending} onClick={() => setSwitching(false)} className={`${btn} ${ghost}`}>Atšaukti</button>
+              </div>
+              <p className="text-xs text-white/60">Iki šiol dirbtas laikas lieka ankstesniame objekte.</p>
+            </div>
+          )}
+
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             {status === "working" ? (
               <button disabled={pending} onClick={() => run(pauseWork)} className={`${btn} ${ghost}`}>
@@ -102,24 +166,35 @@ export default function WorkClock(props: { status: WorkStatus; workedMsAtRender:
       )}
 
       {(status === "idle" || status === "done") && (
-        <div className={`mt-3 grid gap-2.5 ${status === "idle" && !compact ? "grid-cols-[1fr_auto]" : "grid-cols-1"}`}>
-          <button
-            disabled={pending}
-            onClick={() => run(startWork)}
-            className={`${btn} min-h-14 text-lg ${status === "done" ? "border-2 border-go-dark text-go-dark" : "bg-gradient-to-br from-[#74d684] to-go-dark text-white shadow-[0_6px_16px_rgba(63,154,74,.3)]"}`}
-          >
-            {status === "done" ? <CheckCircle2 size={20} aria-hidden /> : <Play size={20} fill="currentColor" aria-hidden />}
-            {status === "done" ? "Pradėti vėl" : "Pradėti darbą"}
-          </button>
-          {status === "idle" && !compact && (
-            <button disabled={pending} onClick={() => run(markDayOff)} className={`${btn} min-h-14 border border-black/10 bg-white text-sm`}>
-              Šiandien nedirbu
-            </button>
+        <div className="mt-3 space-y-2.5">
+          {byProject && (
+            <div>
+              <select aria-label="Objektas" value={chosen} onChange={(e) => setChosen(e.target.value)} className={select}>
+                <option value="">Pasirinkite objektą</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{optionLabel(p)}</option>)}
+              </select>
+              {projects.length === 0 && <p className="mt-1.5 text-sm text-muted">Aktyvių objektų nėra. Paprašykite biuro sukurti objektą.</p>}
+            </div>
           )}
+          <div className={`grid gap-2.5 ${status === "idle" && !compact ? "grid-cols-[1fr_auto]" : "grid-cols-1"}`}>
+            <button
+              disabled={pending || !canStart}
+              onClick={() => run(() => startWork(byProject ? chosen : null))}
+              className={`${btn} min-h-14 text-lg ${status === "done" ? "border-2 border-go-dark text-go-dark" : "bg-gradient-to-br from-[#74d684] to-go-dark text-white shadow-[0_6px_16px_rgba(63,154,74,.3)]"}`}
+            >
+              {status === "done" ? <CheckCircle2 size={20} aria-hidden /> : <Play size={20} fill="currentColor" aria-hidden />}
+              {status === "done" ? "Pradėti vėl" : "Pradėti darbą"}
+            </button>
+            {status === "idle" && !compact && (
+              <button disabled={pending} onClick={() => run(markDayOff)} className={`${btn} min-h-14 border border-black/10 bg-white text-sm`}>
+                Šiandien nedirbu
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {error && <p role="alert" className="mt-3 font-medium text-danger">{error}</p>}
+      {error && <p role="alert" className={`mt-3 font-medium ${dark ? "text-brand-red-light" : "text-danger"}`}>{error}</p>}
     </section>
   );
 }

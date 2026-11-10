@@ -23,7 +23,7 @@ export const getMembers = cache(async (ctx: SessionContext): Promise<MemberRow[]
   const supabase = await createClient();
   const { data } = await supabase
     .from("company_members")
-    .select("id, user_id, email, role, status")
+    .select("id, user_id, email, role, status, time_mode")
     .eq("company_id", ctx.company!.id)
     .order("created_at", { ascending: true });
   const rows = (data ?? []) as any[];
@@ -33,7 +33,7 @@ export const getMembers = cache(async (ctx: SessionContext): Promise<MemberRow[]
     const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", ids);
     for (const p of profiles ?? []) if (p.full_name?.trim()) names.set(p.id, p.full_name.trim());
   }
-  return rows.map((r) => ({ id: r.id, userId: r.user_id, email: r.email, name: r.user_id ? names.get(r.user_id) ?? null : null, role: r.role, status: r.status }));
+  return rows.map((r) => ({ id: r.id, userId: r.user_id, email: r.email, name: r.user_id ? names.get(r.user_id) ?? null : null, role: r.role, status: r.status, timeMode: r.time_mode === "project" || r.time_mode === "hours" ? r.time_mode : null }));
 });
 
 export const memberLabel = (m: Pick<MemberRow, "name" | "email">) => m.name ?? m.email;
@@ -73,12 +73,12 @@ export async function getTimeEntries(ctx: SessionContext, userId: string, ym: st
   const { from, to } = monthRange(ym);
   const { data } = await supabase
     .from("time_entry_summary")
-    .select("id, started_at, ended_at, worked_minutes")
+    .select("id, started_at, ended_at, worked_minutes, project_id")
     .eq("company_id", ctx.company!.id)
     .eq("user_id", userId)
     .gte("work_date", from)
     .lte("work_date", to)
     .order("started_at", { ascending: false })
     .limit(500);
-  return (data ?? []).map((r: any) => ({ id: r.id, startedAt: r.started_at, endedAt: r.ended_at, minutes: Number(r.worked_minutes) }));
+  return (data ?? []).map((r: any) => ({ id: r.id, startedAt: r.started_at, endedAt: r.ended_at, minutes: Number(r.worked_minutes), projectId: r.project_id ?? null }));
 }

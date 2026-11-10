@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 
 export default async function DarbuotojaiPage() {
   const ctx = await requireContext();
-  return <MembersAdmin members={await getMembers(ctx)} selfId={ctx.userId} />;
+  return <MembersAdmin members={await getMembers(ctx)} selfId={ctx.userId} companyMode={ctx.company?.timeMode ?? "hours"} />;
 }

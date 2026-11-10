@@ -27,8 +27,21 @@ export type MaterialRequestView = {
 
 export type WorkStatus = "idle" | "working" | "break" | "done" | "off";
 
+export type TimeMode = "hours" | "project";
+export const TIME_MODE_LABEL: Record<TimeMode, string> = { hours: "Tik valandos", project: "Valandos pagal objektą" };
+
+export type TimeProject = { id: string; name: string; address: string | null };
+
 export type WorkState = {
   status: WorkStatus;
+  /** Galiojantis režimas: ar prieš darbą reikia pasirinkti objektą. */
+  mode: TimeMode;
+  /** Objektai, iš kurių galima rinktis (tik „pagal objektą“ režime). */
+  projects: TimeProject[];
+  /** Objektas, kuriame dabar dirbama (neužbaigtas įrašas). */
+  projectId: string | null;
+  /** Paskutinis naudotas objektas – siūlomas pradedant. */
+  defaultProjectId: string | null;
   /** Dirbta (be pertraukų) einamajame neužbaigtame įraše, ms, serverio skaičiavimu. */
   workedMsAtRender: number;
   todayMinutes: number;
