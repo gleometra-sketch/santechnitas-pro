@@ -31,6 +31,7 @@ function EntryForm({ userId, entry, defaultDay, projects, onDone }: { userId: st
         <Field label="Pradžia"><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} className={inputCls} /></Field>
         <Field label="Pabaiga"><input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} className={inputCls} /></Field>
       </div>
+      {entry && !entry.endedAt && <p className="text-sm font-medium text-danger">Šis įrašas neuždarytas. Įrašykite tikrą darbo pabaigą.</p>}
       <Field label="Objektas">
         <select value={pid} onChange={(e) => setPid(e.target.value)} className={inputCls}>
           <option value="">Be objekto</option>
@@ -63,7 +64,7 @@ function EntryRow({ e, userId, projects, onMsg }: { e: TimeRow; userId: string; 
       ) : (
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="font-semibold">{fmt(e.startedAt)} – {e.endedAt ? fmt(e.endedAt) : "vyksta"}</p>
+            <p className="font-semibold">{fmt(e.startedAt)} – {e.endedAt ? fmt(e.endedAt) : "vyksta"}{e.stale && <span className="ml-2 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-danger">Neuždarytas</span>}</p>
             <p className="text-muted">Dirbta: {formatDuration(e.minutes)}</p>
             {e.projectId && <p className="flex items-center gap-1 text-sm text-muted"><MapPin size={14} aria-hidden />{projects.find((p) => p.id === e.projectId)?.name ?? "Objektas"}</p>}
           </div>

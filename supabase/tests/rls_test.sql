@@ -247,6 +247,15 @@ select t.ok(t.n($$select count(*) from public.task_checklist_items where title =
 insert into public.time_entries (company_id, user_id, started_at, ended_at) values (t.id('CX'), t.id('W'), now() - interval '40 hours', now() - interval '39 hours');
 select t.ok(t.n($$select count(*) from public.time_entries where started_at < now() - interval '30 hours'$$) = 1, 'administratorius gali pridėti praleistą užbaigtą įrašą');
 
+-- 8d. Neuždaryto laikmačio riba (migracija 0010)
+reset role;
+insert into public.time_entries (company_id, user_id, started_at) values (t.id('CX'), t.id('A'), now() - interval '40 hours');
+select t.ok((select worked_minutes = 960 from public.time_entry_summary where user_id = t.id('A') and ended_at is null), 'neuždaryto įrašo trukmė ribojama iki 16 val.');
+insert into public.breaks (company_id, time_entry_id, started_at) select company_id, id, now() - interval '39 hours' from public.time_entries where user_id = t.id('A') and ended_at is null;
+select t.ok((select worked_minutes between 60 and 61 from public.time_entry_summary where user_id = t.id('A') and ended_at is null), 'neuždaryta pertrauka irgi ribojama (~1 val. dirbta prieš pertrauką)');
+delete from public.breaks where time_entry_id in (select id from public.time_entries where user_id = t.id('A') and ended_at is null);
+delete from public.time_entries where user_id = t.id('A') and ended_at is null;
+
 -- 9. Anon neturi prieigos
 set role anon;
 do $$ begin

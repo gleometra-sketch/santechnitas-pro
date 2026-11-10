@@ -61,7 +61,7 @@ Statusai: **PASS** (kode atrodo teisingai, vykdymas nepatikrintas) · **PARTIAL*
 
 ### Vidutinis
 - **M1. Kvietimų saugumas priklauso nuo Supabase nustatymo.** `claim_invitations` reikalauja patvirtinto el. pašto, bet jei Supabase projekte išjungtas „Confirm email“, bet kas gali užsiregistruoti svetimu el. paštu ir perimti pakvietimą. *Veiksmas:* patikrinkite Authentication → Providers → Email → „Confirm email“ įjungta.
-- **M2. Neuždarytas laikmatis.** Jei darbuotojas pamiršta „Baigti“, įrašas lieka atviras (kitą dieną rodoma milžiniška trukmė, valandų suvestinė išpučiama), automatinio uždarymo ar įspėjimo nėra. Rizika didelė realiame darbe. *Siūlymas:* įspėjimas ir administratoriaus „Užbaigti“ mygtukas sąraše; neuždarytų įrašų riba (pvz. 16 val.).
+- **M2. (ištaisyta migracija 0010 ir programoje) Neuždarytas laikmatis.** Jei darbuotojas pamiršta „Baigti“, įrašas lieka atviras (kitą dieną rodoma milžiniška trukmė, valandų suvestinė išpučiama), automatinio uždarymo ar įspėjimo nėra. Rizika didelė realiame darbe. *Siūlymas:* įspėjimas ir administratoriaus „Užbaigti“ mygtukas sąraše; neuždarytų įrašų riba (pvz. 16 val.).
 - **M3. (ištaisyta 0009) Užduočių sąrašo punktus darbuotojas galėjo keisti plačiau nei reikia.** Politika leidžia atnaujinti bet kurį stulpelį (pavadinimą, poziciją), ne tik `is_done`. *Taisymas:* trigeris, ne administratoriui leidžiantis keisti tik `is_done`.
 - **M4. Darbo pabaigos nebuvimas „po vidurnakčio“.** Įrašas priskiriamas pradžios dienai; pamainos per vidurnaktį nesidalija. Tinka daugumai, bet reikia žinoti.
 - **M5. Archyvavimas vs trynimas.** Darbai ištrinami negrįžtamai (su patvirtinimu), istorijos nelieka.

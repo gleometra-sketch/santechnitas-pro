@@ -24,6 +24,8 @@ export type AdminTask = {
   items: { id: string; title: string; isDone: boolean }[];
 };
 
-export type TimeRow = { id: string; startedAt: string; endedAt: string | null; minutes: number; projectId: string | null };
+export type TimeRow = { id: string; startedAt: string; endedAt: string | null; minutes: number; projectId: string | null; stale: boolean };
+
+export type StaleEntry = { id: string; userId: string; name: string; startedAt: string };
 
 export const ROLE_LABEL: Record<MemberRow["role"], string> = { owner: "Savininkas", admin: "Administratorius", worker: "Darbuotojas" };

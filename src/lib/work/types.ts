@@ -27,6 +27,10 @@ export type MaterialRequestView = {
 
 export type WorkStatus = "idle" | "working" | "break" | "done" | "off";
 
+/** Neuždarytas darbas laikomas „užmirštu“ po tiek valandų (ta pati riba duomenų bazėje: migracija 0010). */
+export const STALE_ENTRY_HOURS = 16;
+export const STALE_ENTRY_MS = STALE_ENTRY_HOURS * 3_600_000;
+
 export type TimeMode = "hours" | "project";
 export const TIME_MODE_LABEL: Record<TimeMode, string> = { hours: "Tik valandos", project: "Valandos pagal objektą" };
 
@@ -42,6 +46,9 @@ export type WorkState = {
   projectId: string | null;
   /** Paskutinis naudotas objektas – siūlomas pradedant. */
   defaultProjectId: string | null;
+  /** Neuždaryto darbo pradžia (ISO) ir ar jis jau per ilgas (greičiausiai pamirštas „Baigti“). */
+  startedAt: string | null;
+  stale: boolean;
   /** Dirbta (be pertraukų) einamajame neužbaigtame įraše, ms, serverio skaičiavimu. */
   workedMsAtRender: number;
   todayMinutes: number;

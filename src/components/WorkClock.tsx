@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { ArrowRightLeft, CheckCircle2, Coffee, MapPin, Play, Square } from "lucide-react";
-import { finishWork, markDayOff, pauseWork, resumeWork, startWork, switchWorkProject, undoDayOff } from "@/lib/work/actions";
-import type { ActionResult, TimeMode, TimeProject, WorkStatus } from "@/lib/work/types";
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Coffee, MapPin, Play, Square } from "lucide-react";
+import { addNote, finishWork, markDayOff, pauseWork, resumeWork, startWork, switchWorkProject, undoDayOff } from "@/lib/work/actions";
+import { STALE_ENTRY_HOURS, type ActionResult, type TimeMode, type TimeProject, type WorkStatus } from "@/lib/work/types";
 import { formatDuration } from "@/lib/dates";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -21,13 +21,19 @@ type Props = {
   projects?: TimeProject[];
   projectId?: string | null;
   defaultProjectId?: string | null;
+  /** Neuždaryto darbo pradžia ir ar jis jau per ilgas (greičiausiai pamirštas „Baigti“). */
+  startedAt?: string | null;
+  stale?: boolean;
   compact?: boolean;
 };
+
+const fmtStart = (iso: string) =>
+  new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 
 const optionLabel = (p: TimeProject) => (p.address ? `${p.name} – ${p.address}` : p.name);
 
 export default function WorkClock(props: Props) {
-  const { status, workedMsAtRender, todayMinutes, compact = false, mode = "hours", projects = [], projectId = null, defaultProjectId = null } = props;
+  const { status, workedMsAtRender, todayMinutes, compact = false, mode = "hours", projects = [], projectId = null, defaultProjectId = null, startedAt = null, stale = false } = props;
   const byProject = mode === "project";
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
@@ -36,6 +42,7 @@ export default function WorkClock(props: Props) {
   const [chosen, setChosen] = useState(defaultProjectId ?? (projects.length === 1 ? projects[0].id : ""));
   const [switching, setSwitching] = useState(false);
   const [target, setTarget] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const t = Date.now();
@@ -107,7 +114,29 @@ export default function WorkClock(props: Props) {
         </div>
       )}
 
-      {active && (
+      {active && stale && (
+        <div role="alert" className="mt-3 rounded-xl bg-white p-3 text-ink">
+          <p className="flex items-center gap-2 font-bold text-brand-red"><AlertTriangle size={18} aria-hidden /> Darbas atviras per ilgai</p>
+          <p className="mt-1 text-sm">
+            Pradėtas {startedAt ? fmtStart(startedAt) : ""}. Greičiausiai pamiršote paspausti „Baigti“. Suvestinėje laikas skaičiuojamas ne ilgiau kaip {STALE_ENTRY_HOURS} val., o tikrą pabaigą pataisys biuras.
+          </p>
+          {notice && <p className="mt-2 text-sm font-semibold text-go-dark">{notice}</p>}
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            <button
+              disabled={pending || !!notice}
+              onClick={() => run(() => addNote(`Pamiršau užbaigti darbą (pradėtas ${startedAt ? fmtStart(startedAt) : ""}). Prašau pataisyti pabaigos laiką.`), () => setNotice("Biurui pranešta."))}
+              className={`${btn} border border-black/10 bg-white`}
+            >
+              Pranešti biurui
+            </button>
+            <button disabled={pending} onClick={() => run(finishWork)} className={`${btn} bg-brand-red text-white`}>
+              <Square size={16} fill="currentColor" aria-hidden /> Baigti dabar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {active && !stale && (
         <>
           <p className={`mt-2 font-display font-bold tabular-nums leading-none tracking-tight ${compact ? "text-4xl" : "text-5xl"} ${status === "break" ? "text-ink/60" : ""}`}>
             {t.hm}

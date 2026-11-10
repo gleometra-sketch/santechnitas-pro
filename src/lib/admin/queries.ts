@@ -2,7 +2,8 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { SessionContext } from "@/lib/auth/context";
 import { monthRange } from "@/lib/dates";
-import type { AdminTask, MemberRow, ProjectRow, TimeRow } from "./types";
+import { STALE_ENTRY_MS } from "@/lib/work/types";
+import type { AdminTask, MemberRow, ProjectRow, StaleEntry, TimeRow } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const one = (v: any) => (Array.isArray(v) ? v[0] : v);
@@ -80,5 +81,23 @@ export async function getTimeEntries(ctx: SessionContext, userId: string, ym: st
     .lte("work_date", to)
     .order("started_at", { ascending: false })
     .limit(500);
-  return (data ?? []).map((r: any) => ({ id: r.id, startedAt: r.started_at, endedAt: r.ended_at, minutes: Number(r.worked_minutes), projectId: r.project_id ?? null }));
+  return (data ?? []).map((r: any) => ({ id: r.id, startedAt: r.started_at, endedAt: r.ended_at, minutes: Number(r.worked_minutes), projectId: r.project_id ?? null, stale: !r.ended_at && Date.now() - new Date(r.started_at).getTime() > STALE_ENTRY_MS }));
+}
+
+/** Neuždaryti darbo laiko įrašai, kurie atviri ilgiau nei riba (greičiausiai pamirštas „Baigti“). */
+export async function getStaleEntries(ctx: SessionContext): Promise<StaleEntry[]> {
+  const supabase = await createClient();
+  const [{ data }, members] = await Promise.all([
+    supabase
+      .from("time_entries")
+      .select("id, user_id, started_at")
+      .eq("company_id", ctx.company!.id)
+      .is("ended_at", null)
+      .lt("started_at", new Date(Date.now() - STALE_ENTRY_MS).toISOString())
+      .order("started_at", { ascending: true })
+      .limit(50),
+    getMembers(ctx),
+  ]);
+  const names = new Map(members.filter((m) => m.userId).map((m) => [m.userId as string, memberLabel(m)] as const));
+  return ((data ?? []) as any[]).map((r) => ({ id: r.id, userId: r.user_id, name: names.get(r.user_id) ?? "Darbuotojas", startedAt: r.started_at }));
 }

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SessionContext } from "@/lib/auth/context";
 import { addDays, formatTime, monthKey, monthRange, shiftMonth, todayKey, weekStart } from "@/lib/dates";
+import { STALE_ENTRY_MS } from "./types";
 import type { MaterialRequestView, NoteView, TaskView, WorkState } from "./types";
 
 const TASK_SELECT =
@@ -128,7 +129,11 @@ export async function getWorkState(ctx: SessionContext): Promise<WorkState> {
 
   const projects = ((options.data ?? []) as any[]).map((p) => ({ id: p.id as string, name: p.name as string, address: (p.address ?? null) as string | null }));
   const lastId = (last.data as { project_id?: string } | null)?.project_id ?? null;
+  const startedAt = (open.data?.started_at as string | undefined) ?? null;
+  const stale = !!startedAt && Date.now() - new Date(startedAt).getTime() > STALE_ENTRY_MS;
   const extra = {
+    startedAt,
+    stale,
     mode: ctx.timeMode,
     projects,
     projectId: (open.data?.project_id as string | null | undefined) ?? null,
@@ -148,7 +153,7 @@ export async function getWorkState(ctx: SessionContext): Promise<WorkState> {
       else openBreakStart = new Date(b.started_at).getTime();
     }
     const end = openBreakStart ?? now;
-    const worked = Math.max(0, end - new Date(open.data.started_at).getTime() - closed);
+    const worked = Math.min(STALE_ENTRY_MS, Math.max(0, end - new Date(open.data.started_at).getTime() - closed));
     return { status: openBreakStart ? "break" : "working", workedMsAtRender: worked, todayMinutes, weekMinutes, ...extra };
   }
   if (off.data) return { status: "off", workedMsAtRender: 0, todayMinutes, weekMinutes, ...extra };

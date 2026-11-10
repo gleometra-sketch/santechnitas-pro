@@ -42,7 +42,7 @@ export default async function DarbaiPage() {
   return (
     <div className="space-y-5">
       <h1 className="text-3xl font-extrabold">Darbai</h1>
-      <WorkClock status={work.status} workedMsAtRender={work.workedMsAtRender} todayMinutes={work.todayMinutes} mode={work.mode} projects={work.projects} projectId={work.projectId} defaultProjectId={work.defaultProjectId} />
+      <WorkClock status={work.status} workedMsAtRender={work.workedMsAtRender} todayMinutes={work.todayMinutes} mode={work.mode} projects={work.projects} projectId={work.projectId} defaultProjectId={work.defaultProjectId} startedAt={work.startedAt} stale={work.stale} />
       <OfficeNote notes={notes} />
       <MaterialRequest projects={projects} requests={requests} />
 

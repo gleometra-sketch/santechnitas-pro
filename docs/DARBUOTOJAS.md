@@ -26,6 +26,9 @@ Vadovas Valdymas → Darbuotojai nustato įmonės numatytąjį laiko apskaitos b
 ## Valandų vientisumas
 Darbo ir pertraukų pradžios bei pabaigos laiką nustato duomenų bazė (serverio laikas), ne naršyklė. Darbuotojas negali pakeisti pradžios, sukurti užbaigto įrašo ar pakeisti kito darbuotojo laiko, net tiesiogiai kreipdamasis į API. Praleistus ar neteisingus įrašus taiso administratorius (Valdymas → Laikas). Migracija: `0009_time_integrity.sql`.
 
+## Neuždarytas laikmatis
+Jei darbas atviras ilgiau nei 16 val. (greičiausiai pamirštas „Baigti“), darbuotojas mato įspėjimą su mygtukais „Pranešti biurui“ (nusiunčia pastabą) ir „Baigti dabar“, o administratorius Valdymo skiltyje mato raudoną įspėjimą su nuoroda „Taisyti“. Valandų suvestinėje neuždarytas įrašas skaičiuojamas ne ilgiau kaip 16 val. Riba yra `STALE_ENTRY_HOURS` (`src/lib/work/types.ts`) ir duomenų bazėje (`0010_stale_time_entries.sql`).
+
 ## Žinomi apribojimai
 - Užbaigtų laiko įrašų darbuotojas keisti negali; pataisymus daro administratorius (Valdymas → Laikas).
 - Neprisijungus (be ryšio) veiksmai neišsaugomi. Offline režimas nenumatytas.
