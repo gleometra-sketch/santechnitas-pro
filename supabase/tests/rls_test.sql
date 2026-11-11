@@ -256,6 +256,63 @@ select t.ok((select worked_minutes between 60 and 61 from public.time_entry_summ
 delete from public.breaks where time_entry_id in (select id from public.time_entries where user_id = t.id('A') and ended_at is null);
 delete from public.time_entries where user_id = t.id('A') and ended_at is null;
 
+-- 8e. Valandiniai įkainiai (migracija 0011)
+select t.as_user('A');
+insert into public.member_rates (company_id, user_id, hourly_rate_cents, effective_from) values (t.id('CX'), t.id('W'), 1250, current_date);
+select t.ok(t.n($$select count(*) from public.member_rates$$) = 1, 'administratorius mato ir kuria įkainius');
+select t.err($$insert into public.member_rates (company_id, user_id, hourly_rate_cents, effective_from) values (t.id('CX'), t.id('W'), -5, current_date + 1)$$, '23514');
+select t.err($$insert into public.member_rates (company_id, user_id, hourly_rate_cents, effective_from) values (t.id('CX'), t.id('W'), 1300, current_date)$$, '23505');
+select t.as_user('W');
+select t.ok(t.n($$select count(*) from public.member_rates$$) = 0, 'darbuotojas įkainių nemato');
+select t.err($$insert into public.member_rates (company_id, user_id, hourly_rate_cents, effective_from) values (t.id('CX'), t.id('W'), 9999, current_date + 2)$$, '42501');
+select t.ok(t.rows($$update public.member_rates set hourly_rate_cents = 1$$) = 0, 'darbuotojas įkainio keisti negali');
+select t.as_user('B');
+select t.ok(t.n($$select count(*) from public.member_rates$$) = 0, 'kita įmonė įkainių nemato');
+
+-- 8f. Mėnesio valandų patvirtinimas (migracija 0012)
+reset role;
+insert into public.time_entries (id, company_id, user_id, started_at, ended_at)
+  values ('50000000-0000-0000-0000-000000000001', t.id('CX'), t.id('W'), timestamptz '2025-03-10 08:00+02', timestamptz '2025-03-10 16:00+02');
+select t.as_user('A');
+select t.err($$insert into public.time_approvals (company_id, user_id, month, minutes) values (t.id('CX'), t.id('W'), '2025-03-01', 1)$$, 'P0001');
+select t.err($$insert into public.time_approvals (company_id, user_id, month, minutes) values (t.id('CX'), t.id('W'), date_trunc('month', current_date)::date, 0)$$, 'P0001');
+insert into public.time_approvals (company_id, user_id, month, minutes, snapshot) values (t.id('CX'), t.id('W'), '2025-03-01', 480, '{"minutes":480}');
+select t.ok(t.n($$select count(*) from public.time_approvals$$) = 1, 'administratorius patvirtina praėjusį mėnesį (480 min.)');
+select t.err($$update public.time_entries set ended_at = ended_at + interval '1 hour' where id = '50000000-0000-0000-0000-000000000001'$$, 'P0001');
+select t.err($$delete from public.time_entries where id = '50000000-0000-0000-0000-000000000001'$$, 'P0001');
+select t.err($$insert into public.time_entries (company_id, user_id, started_at, ended_at) values (t.id('CX'), t.id('W'), timestamptz '2025-03-20 08:00+02', timestamptz '2025-03-20 09:00+02')$$, 'P0001');
+select t.as_user('W');
+select t.ok(t.n($$select count(*) from public.time_approvals$$) = 0, 'darbuotojas patvirtinimo duomenų (su įkainiais) nemato');
+select t.ok(t.n($$select count(*) from public.approved_months(t.id('CX'))$$) = 1, 'darbuotojas mato, kad jo mėnuo patvirtintas');
+select t.err($$insert into public.time_approvals (company_id, user_id, month, minutes) values (t.id('CX'), t.id('W'), '2025-02-01', 0)$$, '42501');
+select t.as_user('B');
+select t.ok(t.n($$select count(*) from public.approved_months(t.id('CX'))$$) = 0, 'kita įmonė patvirtinimų nemato');
+select t.as_user('A');
+delete from public.time_approvals where month = '2025-03-01';
+update public.time_entries set ended_at = ended_at + interval '1 hour' where id = '50000000-0000-0000-0000-000000000001';
+select t.ok((select ended_at = timestamptz '2025-03-10 17:00+02' from public.time_entries where id = '50000000-0000-0000-0000-000000000001'), 'atšaukus patvirtinimą įrašą vėl galima taisyti');
+reset role;
+delete from public.time_entries where id = '50000000-0000-0000-0000-000000000001';
+
+-- 8g. Objekto kortelė: klientas ir failai (migracija 0013)
+select t.as_user('A');
+select t.ok(t.rows($$update public.projects set client_name = 'Jonas Jonaitis', client_phone = '+37060000000' where id = '10000000-0000-0000-0000-000000000001'$$) = 1, 'administratorius pildo kliento duomenis');
+select t.err($$update public.projects set client_phone = repeat('1', 50) where id = '10000000-0000-0000-0000-000000000001'$$, '23514');
+insert into public.attachments (company_id, uploaded_by, project_id, storage_path, file_name, mime_type, size_bytes)
+  values (t.id('CX'), t.id('A'), '10000000-0000-0000-0000-000000000001', t.id('CX')::text || '/proj-file.pdf', 'sutartis.pdf', 'application/pdf', 1000);
+insert into public.attachments (company_id, uploaded_by, project_id, task_id, storage_path, file_name, mime_type, size_bytes)
+  values (t.id('CX'), t.id('A'), '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', t.id('CX')::text || '/task-photo.jpg', 'foto.jpg', 'image/jpeg', 2000);
+select t.err($$insert into public.attachments (company_id, uploaded_by, project_id, storage_path, file_name, mime_type, size_bytes) values (t.id('CX'), t.id('A'), '10000000-0000-0000-0000-000000000001', 'kitas/x.pdf', 'x.pdf', 'application/pdf', 10)$$, '23514');
+select t.as_user('W');
+select t.ok((select client_name = 'Jonas Jonaitis' from public.projects where id = '10000000-0000-0000-0000-000000000001'), 'darbuotojas mato savo objekto kliento vardą');
+select t.ok(t.n($$select count(*) from public.attachments$$) = 1, 'darbuotojas mato tik savo darbo failus, ne viso objekto');
+insert into public.attachments (company_id, uploaded_by, project_id, task_id, storage_path, file_name, mime_type, size_bytes)
+  values (t.id('CX'), t.id('W'), '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', t.id('CX')::text || '/w-photo.jpg', 'darbuotojo.jpg', 'image/jpeg', 3000);
+select t.ok(t.n($$select count(*) from public.attachments$$) = 2, 'darbuotojas gali pridėti nuotrauką prie savo darbo');
+select t.as_user('B');
+select t.ok(t.n($$select count(*) from public.attachments$$) = 0, 'kita įmonė failų nemato');
+select t.ok(t.n($$select count(*) from public.projects where client_name is not null$$) = 0, 'kita įmonė kliento duomenų nemato');
+
 -- 9. Anon neturi prieigos
 set role anon;
 do $$ begin

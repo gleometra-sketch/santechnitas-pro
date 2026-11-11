@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCheck, MapPin, Navigation } from "lucide-react";
+import { CheckCheck, MapPin, Navigation, Phone, User } from "lucide-react";
+import FileUploader from "@/components/FileUploader";
 import { moveTask, setTaskStatus, toggleChecklistItem } from "@/lib/work/actions";
 import type { ActionResult, TaskView } from "@/lib/work/types";
 
@@ -46,6 +47,18 @@ export default function TaskCard({ task, today }: { task: TaskView; today: strin
         <div className="space-y-4 border-t border-black/10 p-5">
           {task.description && <p className="whitespace-pre-line">{task.description}</p>}
 
+          {(task.clientName || task.clientPhone) && (
+            <div className="rounded-2xl bg-surface p-3">
+              <p className="flex items-center gap-2 text-sm text-muted"><User size={16} aria-hidden /> Klientas</p>
+              {task.clientName && <p className="font-semibold">{task.clientName}</p>}
+              {task.clientPhone && (
+                <a href={`tel:${task.clientPhone.replace(/[^\d+]/g, "")}`} className="mt-1 inline-flex min-h-11 items-center gap-2 font-semibold text-accent-dark">
+                  <Phone size={18} aria-hidden /> {task.clientPhone}
+                </a>
+              )}
+            </div>
+          )}
+
           {task.items.length > 0 && (
             <ul className="space-y-1">
               {task.items.map((i) => (
@@ -75,6 +88,23 @@ export default function TaskCard({ task, today }: { task: TaskView; today: strin
               <Navigation size={18} aria-hidden /> Atidaryti žemėlapyje
             </a>
           )}
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-muted">Nuotraukos</p>
+            {task.photos.length > 0 && (
+              <ul className="mb-2 grid grid-cols-3 gap-2">
+                {task.photos.map((p) => (
+                  <li key={p.id}>
+                    <a href={p.url} target="_blank" rel="noopener noreferrer" aria-label={`Atidaryti nuotrauką: ${p.name}`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.url} alt={p.name} loading="lazy" className="h-24 w-full rounded-lg object-cover" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <FileUploader companyId={task.companyId} projectId={task.projectId} taskId={task.id} accept="image/*" label="Pridėti nuotrauką" photo />
+          </div>
 
           <div className="flex gap-3">
             <button

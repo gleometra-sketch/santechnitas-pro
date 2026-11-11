@@ -8,10 +8,15 @@ export type TaskView = {
   description: string | null;
   date: string | null;
   status: "planned" | "in_progress" | "done";
+  companyId: string;
   projectId: string | null;
   projectName: string | null;
   address: string | null;
   orderNo: string | null;
+  clientName: string | null;
+  clientPhone: string | null;
+  /** Šio darbo nuotraukos (su laikinomis nuorodomis). */
+  photos: { id: string; url: string; name: string }[];
   items: ChecklistItem[];
 };
 

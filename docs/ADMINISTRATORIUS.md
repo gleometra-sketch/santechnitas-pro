@@ -8,6 +8,11 @@ Prieinama `owner` ir `admin` vaidmenims: antraštėje mygtukas **Valdymas** (`/v
 - **Darbuotojai** – pakviesti pagal el. paštą (darbuotojas arba administratorius), keisti vaidmenį, atšaukti pakvietimą, pašalinti ir atkurti. Savininko ir savęs pašalinti ar pažeminti negalima.
 - **Laikas** – pasirinkti darbuotoją ir mėnesį, pataisyti pradžią/pabaigą, pridėti praleistą įrašą, ištrinti. Laikai įvedami Lietuvos laiku.
 
+## Ataskaita ir įkainiai
+- **Darbuotojai:** prie kiekvieno darbuotojo galima nustatyti valandinį įkainį (€/val.) ir datą, nuo kurios jis galioja. Įkainį mato ir keičia tik administratoriai (lentelė `member_rates`, darbuotojai jos nemato). Pakeitus įkainį ankstesnės dienos skaičiuojamos pagal tada galiojusį.
+- **Ataskaita:** mėnesio valandos ir suma kiekvienam darbuotojui, išskaidyta pagal objektą, plius visų darbuotojų suma pagal objektą. Suma yra valandos × įkainis, be mokesčių ir priedų. Jei kuriam nors laikui įkainis nenustatytas, jis neįtraukiamas ir parodomas įspėjimas.
+- **Eksportas:** CSV su kabliataškiais ir kableliu (atsidaro lietuviškame Excel). Migracija: `0011_member_rates.sql`.
+
 ## Pastabos
 - Pakvietimas laiško nesiunčia: darbuotojas užsiregistruoja tuo pačiu el. paštu ir jis prijungiamas automatiškai (`claim_invitations`).
 - Pašalintas darbuotojas praranda prieigą, bet jo laikas, darbai ir medžiagų prašymai lieka istorijoje.

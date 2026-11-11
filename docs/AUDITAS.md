@@ -32,7 +32,7 @@ Statusai: **PASS** (kode atrodo teisingai, vykdymas nepatikrintas) · **PARTIAL*
 | Prisijungimas | Kvietimai pagal el. paštą | PASS (sąlyga) | Veikia tik jei Supabase įjungtas **„Confirm email“** (žr. radinį M1). |
 | Objektai | Kūrimas, redagavimas, archyvavimas | PASS | |
 | Objektai | Trynimas, paieška, filtrai, rikiavimas, puslapiavimas | MISSING | Tik archyvavimas. |
-| Objektai | Klientas, terminas, atsakingas asmuo | MISSING | Objektas neturi kliento laukų. |
+| Objektai | Klientas (vardas, telefonas, el. paštas) | PASS po 0013 | Terminas ir atsakingas asmuo – MISSING. |
 | Darbai | Kūrimas, priskyrimas, data, punktų sąrašas, redagavimas, trynimas | PASS | |
 | Darbai | Būsenos, data, užbaigimas darbuotojui | PASS | |
 | Darbai | Pasikartojantys darbai, prioritetai, terminai | MISSING | |
@@ -41,11 +41,12 @@ Statusai: **PASS** (kode atrodo teisingai, vykdymas nepatikrintas) · **PARTIAL*
 | Valandos | Laikas pagal objektą, režimas įmonei ir darbuotojui, perjungimas | PASS | Migracija 0008 dar nebuvo paleista duomenų bazėje. |
 | Valandos | Administratoriaus taisymas, pridėjimas, trynimas | PASS | |
 | Valandos | Valandų vientisumas serveryje | PASS po 0009 | Radinys A1 ištaisytas migracija 0009 (paleiskite testus). |
-| Valandos | Valandų patvirtinimas, tarifai, viršvalandžiai | MISSING | Valandinis įkainis tik naršyklėje (`localStorage`). |
+| Valandos | Valandų patvirtinimas | PASS po 0012 | Migracija 0012, žr. `docs/OBJEKTAS.md`. |
+| Valandos | Tarifai administratoriui, ataskaita | PASS po 0011 | Viršvalandžiai ir priedai nerealizuoti. |
 | Valandos | Ataskaita visiems darbuotojams / pagal objektą, eksportas | MISSING | CSV pašalintas pagal prašymą; administratoriui ataskaitos nėra. |
 | Medžiagos | Užsakymas, administratoriaus sąrašas, filtrai, „Nupirkta“, grąžinimas, redagavimas | PASS | Eilutės redagavimas vykdomas kliente, vykdymas BLOCKED. |
 | Medžiagos | Kainos, tiekėjai, medžiagų katalogas | MISSING | |
-| Failai | Nuotraukos, dokumentai prie objekto | MISSING | DB lentelė `attachments` ir `storage` politikos paruoštos, bet **UI nėra**. |
+| Failai | Nuotraukos, dokumentai prie objekto ir darbo | PASS po 0013 | Vykdymas BLOCKED (reikia Supabase Storage). |
 | Pastabos | Pastaba biurui (tekstas, diktavimas) | PASS | Garso įrašo saugojimo nėra. |
 | Dokumentai | Sąmatos, sąskaitos (atidėta), PDF | MISSING | |
 | Pranešimai | Push / el. paštas | MISSING | |

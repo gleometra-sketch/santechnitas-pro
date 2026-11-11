@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { getActionContext, isAdmin } from "@/lib/auth/context";
+import { getActionContext, getContext, isAdmin } from "@/lib/auth/context";
+import { computeMonthReport, getMonthReport } from "@/lib/admin/queries";
 import { fromLocalInput, isValidDayKey } from "@/lib/dates";
+import { parseEuroToCents } from "@/lib/money";
 import type { ActionResult } from "@/lib/work/types";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -15,6 +17,7 @@ const uuid = z.string().uuid();
 
 function mapError(e: { code?: string; message?: string } | null, fallback: string): ActionResult {
   if (!e) return ok();
+  if (e.code === "P0001" && e.message) return fail(e.message);
   if (e.code === "23505") return fail("Toks įrašas jau egzistuoja.");
   if (e.code === "42501") return fail("Neturite teisės arba įmonės prieiga sustabdyta.");
   if (e.code === "23503") return fail("Susijęs įrašas nerastas (pvz., darbuotojas ar objektas).");
@@ -38,6 +41,14 @@ const projectSchema = z.object({
   address: z.string().trim().max(300, "Adresas per ilgas.").optional(),
   orderNo: z.string().trim().max(60, "Užsakymo nr. per ilgas.").optional(),
   notes: z.string().trim().max(4000, "Pastabos per ilgos.").optional(),
+  clientName: z.string().trim().max(160, "Kliento vardas per ilgas.").optional(),
+  clientPhone: z
+    .string()
+    .trim()
+    .max(40, "Telefono numeris per ilgas.")
+    .regex(/^[0-9+()\-\s.]*$/, "Telefono numeryje gali būti tik skaitmenys, +, tarpai, skliaustai ir brūkšniai.")
+    .optional(),
+  clientEmail: z.union([z.literal(""), z.string().trim().email("Neteisingas kliento el. paštas.").max(200, "El. paštas per ilgas.")]).optional(),
 });
 
 export async function createProject(input: unknown): Promise<ActionResult> {
@@ -51,6 +62,9 @@ export async function createProject(input: unknown): Promise<ActionResult> {
     address: emptyToNull(p.data.address),
     order_no: emptyToNull(p.data.orderNo),
     notes: emptyToNull(p.data.notes),
+    client_name: emptyToNull(p.data.clientName),
+    client_phone: emptyToNull(p.data.clientPhone),
+    client_email: emptyToNull(p.data.clientEmail),
     created_by: g.userId,
   });
   refresh();
@@ -65,7 +79,7 @@ export async function updateProject(id: string, input: unknown): Promise<ActionR
   if (bad(g)) return g;
   const { data, error } = await g.db
     .from("projects")
-    .update({ name: p.data.name, address: emptyToNull(p.data.address), order_no: emptyToNull(p.data.orderNo), notes: emptyToNull(p.data.notes) })
+    .update({ name: p.data.name, address: emptyToNull(p.data.address), order_no: emptyToNull(p.data.orderNo), notes: emptyToNull(p.data.notes), client_name: emptyToNull(p.data.clientName), client_phone: emptyToNull(p.data.clientPhone), client_email: emptyToNull(p.data.clientEmail) })
     .eq("id", id)
     .eq("company_id", g.companyId)
     .select("id");
@@ -234,6 +248,22 @@ export async function restoreMember(memberId: string): Promise<ActionResult> {
   return (data ?? []).length ? ok("Darbuotojas atkurtas.") : fail("Narys nerastas.");
 }
 
+/* -------------------------------------------------------------- valandiniai įkainiai */
+/** Nustato darbuotojo valandinį įkainį nuo nurodytos dienos (tą pačią dieną perrašo). Įkainio darbuotojas nemato. */
+export async function setMemberRate(userId: string, euros: string, from: string): Promise<ActionResult> {
+  if (!uuid.safeParse(userId).success) return fail("Neteisingas darbuotojas.");
+  const cents = parseEuroToCents(euros);
+  if (cents === null) return fail("Įkainis turi būti skaičius nuo 0 iki 1000 € su ne daugiau kaip 2 skaitmenimis po kablelio.");
+  if (!isValidDayKey(from)) return fail("Neteisinga data.");
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const { error } = await g.db
+    .from("member_rates")
+    .upsert({ company_id: g.companyId, user_id: userId, hourly_rate_cents: cents, effective_from: from }, { onConflict: "company_id,user_id,effective_from" });
+  refresh();
+  return error ? mapError(error, "Nepavyko išsaugoti įkainio.") : ok("Įkainis išsaugotas.");
+}
+
 /* ----------------------------------------------------------- laiko apskaitos režimas */
 const modeSchema = z.enum(["hours", "project"]);
 
@@ -296,4 +326,80 @@ export async function deleteTimeEntry(id: string): Promise<ActionResult> {
   refresh();
   if (error) return mapError(error, "Nepavyko ištrinti.");
   return (data ?? []).length ? ok("Įrašas ištrintas.") : fail("Įrašas nerastas.");
+}
+
+/* ---------------------------------------------------------- valandų patvirtinimas */
+const ymSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Neteisingas mėnuo.");
+
+/** Patvirtina darbuotojo praėjusio mėnesio valandas ir užšaldo ataskaitos skaičius (įkainį, sumą). */
+export async function approveMonth(userId: string, ym: string): Promise<ActionResult> {
+  if (!uuid.safeParse(userId).success) return fail("Neteisingas darbuotojas.");
+  const m = ymSchema.safeParse(ym);
+  if (!m.success) return fail(m.error.issues[0].message);
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const ctx = await getContext();
+  if (!ctx?.company) return fail("Sesija baigėsi. Prisijunkite iš naujo.");
+  const live = await computeMonthReport(ctx, ym);
+  const row = live.rows.find((r) => r.userId === userId);
+  if (!row || row.minutes === 0) return fail("Šį mėnesį darbo laiko įrašų nėra.");
+  if (row.openCount > 0) return fail("Yra neuždarytų darbo laiko įrašų. Pirmiausia juos užbaikite.");
+  const { error } = await g.db.from("time_approvals").insert({
+    company_id: g.companyId,
+    user_id: userId,
+    month: `${ym}-01`,
+    minutes: row.minutes,
+    snapshot: { name: row.name, minutes: row.minutes, amountCents: row.amountCents, missingRateMinutes: row.missingRateMinutes, rateCents: row.rateCents, byProject: row.byProject },
+  });
+  refresh();
+  if (error?.code === "23505") return fail("Šis mėnuo jau patvirtintas.");
+  return error ? mapError(error, "Nepavyko patvirtinti.") : ok(`${row.name}: valandos patvirtintos.`);
+}
+
+/** Patvirtina visų darbuotojų mėnesį, išskyrus tuos, kurie turi neuždarytų įrašų. */
+export async function approveMonthAll(ym: string): Promise<ActionResult> {
+  const m = ymSchema.safeParse(ym);
+  if (!m.success) return fail(m.error.issues[0].message);
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const ctx = await getContext();
+  if (!ctx?.company) return fail("Sesija baigėsi. Prisijunkite iš naujo.");
+  const report = await getMonthReport(ctx, ym);
+  let done = 0;
+  let skipped = 0;
+  let lastError = "";
+  for (const r of report.rows) {
+    if (r.approvedAt || r.minutes === 0) continue;
+    if (r.openCount > 0) {
+      skipped += 1;
+      continue;
+    }
+    const { error } = await g.db.from("time_approvals").insert({
+      company_id: g.companyId,
+      user_id: r.userId,
+      month: `${ym}-01`,
+      minutes: r.minutes,
+      snapshot: { name: r.name, minutes: r.minutes, amountCents: r.amountCents, missingRateMinutes: r.missingRateMinutes, rateCents: r.rateCents, byProject: r.byProject },
+    });
+    if (error) {
+      skipped += 1;
+      lastError = error.code === "P0001" ? error.message : "Nepavyko patvirtinti.";
+    } else done += 1;
+  }
+  refresh();
+  if (done === 0 && skipped > 0) return fail(lastError || "Visi likę darbuotojai turi neuždarytų įrašų.");
+  return ok(skipped ? `Patvirtinta: ${done}. Praleista: ${skipped} (neuždaryti įrašai).` : `Patvirtinta: ${done}.`);
+}
+
+/** Atšaukia mėnesio patvirtinimą, kad įrašus vėl būtų galima taisyti. */
+export async function revokeMonthApproval(userId: string, ym: string): Promise<ActionResult> {
+  if (!uuid.safeParse(userId).success) return fail("Neteisingas darbuotojas.");
+  const m = ymSchema.safeParse(ym);
+  if (!m.success) return fail(m.error.issues[0].message);
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const { data, error } = await g.db.from("time_approvals").delete().eq("company_id", g.companyId).eq("user_id", userId).eq("month", `${ym}-01`).select("id");
+  refresh();
+  if (error) return mapError(error, "Nepavyko atšaukti.");
+  return (data ?? []).length ? ok("Patvirtinimas atšauktas.") : fail("Patvirtinimo nerasta.");
 }

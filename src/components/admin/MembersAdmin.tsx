@@ -1,14 +1,46 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Mail, Timer, UserMinus, UserPlus, Undo2 } from "lucide-react";
+import { Euro, Mail, Timer, UserMinus, UserPlus, Undo2 } from "lucide-react";
 import { TIME_MODE_LABEL, type TimeMode } from "@/lib/work/types";
-import { inviteMember, removeMember, restoreMember, setCompanyTimeMode, setMemberRole, setMemberTimeMode } from "@/lib/admin/actions";
+import { inviteMember, removeMember, restoreMember, setCompanyTimeMode, setMemberRate, setMemberRole, setMemberTimeMode } from "@/lib/admin/actions";
+import { formatMoney } from "@/lib/money";
 import { ROLE_LABEL, type MemberRow } from "@/lib/admin/types";
 import type { ActionResult } from "@/lib/work/types";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "./ui";
 
-function Row({ m, selfId, companyMode, onMsg }: { m: MemberRow; selfId: string; companyMode: TimeMode; onMsg: (x: { ok: boolean; text: string } | null) => void }) {
+function RateEditor({ m, today, onMsg }: { m: MemberRow; today: string; onMsg: (x: { ok: boolean; text: string } | null) => void }) {
+  const [value, setValue] = useState(m.rateCents === null ? "" : String(m.rateCents / 100).replace(".", ","));
+  const [from, setFrom] = useState(today);
+  const [pending, start] = useTransition();
+  const save = () =>
+    start(async () => {
+      const r = await setMemberRate(m.userId as string, value, from);
+      onMsg(r.ok ? { ok: true, text: `${m.name ?? m.email}: ${r.message ?? "išsaugota."}` } : { ok: false, text: r.error });
+    });
+  return (
+    <div className="mt-3 rounded-xl bg-surface p-3">
+      <p className="flex items-center gap-1.5 text-sm font-medium text-muted">
+        <Euro size={15} aria-hidden /> Valandinis įkainis
+        <span className="font-normal">{m.rateCents === null ? "(nenustatytas)" : `(dabar ${formatMoney(m.rateCents)}/val.)`}</span>
+      </p>
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <label className="block">
+          <span className="text-xs text-muted">€ / val.</span>
+          <input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="pvz. 12,50" className="mt-0.5 min-h-11 w-28 rounded-lg border border-black/15 bg-white px-3" />
+        </label>
+        <label className="block">
+          <span className="text-xs text-muted">Taikyti nuo</span>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-0.5 min-h-11 rounded-lg border border-black/15 bg-white px-3" />
+        </label>
+        <button disabled={pending || !value.trim()} onClick={save} className="min-h-11 rounded-xl bg-accent px-4 font-semibold text-white disabled:opacity-60">{pending ? "Saugoma..." : "Išsaugoti"}</button>
+      </div>
+      <p className="mt-1.5 text-xs text-muted">Įkainį mato tik administratoriai. Ankstesnių dienų suma skaičiuojama pagal tada galiojusį įkainį.</p>
+    </div>
+  );
+}
+
+function Row({ m, selfId, companyMode, today, onMsg }: { m: MemberRow; selfId: string; companyMode: TimeMode; today: string; onMsg: (x: { ok: boolean; text: string } | null) => void }) {
   const [pending, start] = useTransition();
   const run = (fn: () => Promise<ActionResult>) =>
     start(async () => {
@@ -47,6 +79,8 @@ function Row({ m, selfId, companyMode, onMsg }: { m: MemberRow; selfId: string; 
         </label>
       )}
 
+      {m.status === "active" && m.userId && <RateEditor m={m} today={today} onMsg={onMsg} />}
+
       <div className="mt-3 flex flex-wrap gap-2">
         {m.status === "active" && !locked && (
           <>
@@ -69,7 +103,7 @@ function Row({ m, selfId, companyMode, onMsg }: { m: MemberRow; selfId: string; 
   );
 }
 
-export default function MembersAdmin({ members, selfId, companyMode }: { members: MemberRow[]; selfId: string; companyMode: TimeMode }) {
+export default function MembersAdmin({ members, selfId, companyMode, today }: { members: MemberRow[]; selfId: string; companyMode: TimeMode; today: string }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"worker" | "admin">("worker");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -135,11 +169,11 @@ export default function MembersAdmin({ members, selfId, companyMode }: { members
         </details>
       </section>
       <Msg msg={msg} />
-      <ul className="space-y-3">{current.map((m) => <Row key={m.id} m={m} selfId={selfId} companyMode={mode} onMsg={setMsg} />)}</ul>
+      <ul className="space-y-3">{current.map((m) => <Row key={m.id} m={m} selfId={selfId} companyMode={mode} today={today} onMsg={setMsg} />)}</ul>
       {removed.length > 0 && (
         <details>
           <summary className="min-h-11 cursor-pointer font-bold text-muted">Pašalinti ({removed.length})</summary>
-          <ul className="mt-3 space-y-3">{removed.map((m) => <Row key={m.id} m={m} selfId={selfId} companyMode={mode} onMsg={setMsg} />)}</ul>
+          <ul className="mt-3 space-y-3">{removed.map((m) => <Row key={m.id} m={m} selfId={selfId} companyMode={mode} today={today} onMsg={setMsg} />)}</ul>
         </details>
       )}
     </div>

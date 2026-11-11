@@ -4,7 +4,7 @@ import WorkClock from "@/components/WorkClock";
 import WageCalculator from "@/components/WageCalculator";
 import { requireContext } from "@/lib/auth/context";
 import { formatDuration, monthKey, monthTitle, shiftMonth, shortDay, todayKey } from "@/lib/dates";
-import { getMonthHours, getMonthTotals, getWorkState } from "@/lib/work/queries";
+import { getApprovedMonths, getMonthHours, getMonthTotals, getWorkState } from "@/lib/work/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function ValandosPage({ searchParams }: { searchParams: Pro
   const { m } = await searchParams;
   const ym = m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m) && m <= currentYm ? m : currentYm;
 
-  const [work, month, history] = await Promise.all([getWorkState(ctx), getMonthHours(ctx, ym), getMonthTotals(ctx, currentYm)]);
+  const [work, month, history, approved] = await Promise.all([getWorkState(ctx), getMonthHours(ctx, ym), getMonthTotals(ctx, currentYm), getApprovedMonths(ctx)]);
   const isCurrent = ym === currentYm;
   const nav = "flex h-12 w-12 items-center justify-center rounded-2xl border border-black/10 bg-white";
 
@@ -36,7 +36,7 @@ export default async function ValandosPage({ searchParams }: { searchParams: Pro
 
       <div className="flex items-center justify-between">
         <Link href={`/valandos?m=${shiftMonth(ym, -1)}`} aria-label="Ankstesnis mėnuo" className={nav}><ChevronLeft aria-hidden /></Link>
-        <h2 className="text-xl font-bold">{monthTitle(ym)}</h2>
+        <h2 className="text-xl font-bold">{monthTitle(ym)}{approved.has(`${ym}-01`) && <span className="ml-2 rounded-full bg-go-soft px-2.5 py-0.5 align-middle text-sm font-semibold text-go-dark">Patvirtinta</span>}</h2>
         {isCurrent ? (
           <span aria-hidden className={`${nav} opacity-40`}><ChevronRight /></span>
         ) : (

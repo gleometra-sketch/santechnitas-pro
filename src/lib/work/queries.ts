@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SessionContext } from "@/lib/auth/context";
 import { addDays, formatTime, monthKey, monthRange, shiftMonth, todayKey, weekStart } from "@/lib/dates";
+import { signPaths } from "@/lib/files/server";
 import { STALE_ENTRY_MS } from "./types";
 import type { MaterialRequestView, NoteView, TaskView, WorkState } from "./types";
 
 const TASK_SELECT =
-  "id, title, description, scheduled_date, status, project:projects(id, name, address, order_no), task_checklist_items(id, title, is_done, position)";
+  "id, company_id, title, description, scheduled_date, status, project:projects(id, name, address, order_no, client_name, client_phone), task_checklist_items(id, title, is_done, position)";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapTask(r: any): TaskView {
@@ -17,15 +18,44 @@ function mapTask(r: any): TaskView {
     description: r.description,
     date: r.scheduled_date,
     status: r.status,
+    companyId: r.company_id,
     projectId: p?.id ?? null,
     projectName: p?.name ?? null,
     address: p?.address ?? null,
     orderNo: p?.order_no ?? null,
+    clientName: p?.client_name ?? null,
+    clientPhone: p?.client_phone ?? null,
+    photos: [],
     items: items.map((i: any) => ({ id: i.id, title: i.title, isDone: i.is_done })),
   };
 }
 
 /** Darbuotojui paskirti darbai: neužbaigti + neseniai užbaigti. */
+/** Prideda prie darbų jų nuotraukas (tik paveikslėlius) su laikinomis nuorodomis. */
+async function withPhotos(tasks: TaskView[]): Promise<TaskView[]> {
+  if (tasks.length === 0) return tasks;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("attachments")
+    .select("id, task_id, file_name, storage_path")
+    .in("task_id", tasks.map((t) => t.id))
+    .like("mime_type", "image/%")
+    .order("created_at", { ascending: true })
+    .limit(500);
+  const rows = (data ?? []) as any[];
+  if (rows.length === 0) return tasks;
+  const urls = await signPaths(rows.map((r) => r.storage_path as string));
+  const byTask = new Map<string, TaskView["photos"]>();
+  for (const r of rows) {
+    const url = urls.get(r.storage_path);
+    if (!url) continue;
+    const list = byTask.get(r.task_id) ?? [];
+    list.push({ id: r.id, url, name: r.file_name });
+    byTask.set(r.task_id, list);
+  }
+  return tasks.map((t) => ({ ...t, photos: byTask.get(t.id) ?? [] }));
+}
+
 export async function getTasksForList(ctx: SessionContext): Promise<TaskView[]> {
   const supabase = await createClient();
   const since = addDays(todayKey(), -14);
@@ -36,7 +66,7 @@ export async function getTasksForList(ctx: SessionContext): Promise<TaskView[]> 
     .or(`status.neq.done,scheduled_date.gte.${since}`)
     .order("scheduled_date", { ascending: true, nullsFirst: false })
     .limit(300);
-  return (data ?? []).map(mapTask);
+  return withPhotos((data ?? []).map(mapTask));
 }
 
 export async function getTasksForCalendar(ctx: SessionContext): Promise<TaskView[]> {
@@ -51,7 +81,7 @@ export async function getTasksForCalendar(ctx: SessionContext): Promise<TaskView
     .or(`scheduled_date.is.null,and(scheduled_date.gte.${from},scheduled_date.lte.${to})`)
     .order("scheduled_date", { ascending: true, nullsFirst: false })
     .limit(500);
-  return (data ?? []).map(mapTask);
+  return withPhotos((data ?? []).map(mapTask));
 }
 
 export async function getMyNotes(ctx: SessionContext): Promise<NoteView[]> {
@@ -203,4 +233,12 @@ export async function getMonthTotals(ctx: SessionContext, currentYm: string, cou
     const ym = shiftMonth(currentYm, -i);
     return { ym, minutes: totals.get(ym) ?? 0 };
   });
+}
+
+/** Mėnesiai (YYYY-MM-01), kuriuos administratorius jau patvirtino šiam darbuotojui. */
+export async function getApprovedMonths(ctx: SessionContext): Promise<Set<string>> {
+  if (!ctx.company) return new Set();
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("approved_months", { cid: ctx.company.id });
+  return new Set(((data ?? []) as any[]).map((r) => String(r.month)));
 }
