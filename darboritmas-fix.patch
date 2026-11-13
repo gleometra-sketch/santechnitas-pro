@@ -1,0 +1,2359 @@
+diff --git a/.env.example b/.env.example
+index e07c725..1e46424 100644
+--- a/.env.example
++++ b/.env.example
+@@ -14,3 +14,16 @@ STRIPE_SECRET_KEY=
+ STRIPE_WEBHOOK_SECRET=
+ STRIPE_PRICE_MONTHLY=
+ STRIPE_PRICE_YEARLY=
++
++# --- Telegram botas (pranešimai administratoriams) ---
++# Token iš @BotFather. Slaptas, tik serveriui.
++TELEGRAM_BOT_TOKEN=
++# Boto vartotojo vardas be @ (pvz. DarboRitmasBot). Naudojamas prijungimo nuorodai.
++TELEGRAM_BOT_USERNAME=
++# Bet kokia ilga atsitiktinė eilutė (A-Z a-z 0-9 _ -), tą pačią nurodysite setWebhook. Žr. docs/TELEGRAM.md
++TELEGRAM_WEBHOOK_SECRET=
++
++# --- Pranešimų eilė ir automobilių priminimai ---
++# Ilga atsitiktinė eilutė. Naudoja Supabase webhook (/api/notifications/dispatch) ir GitHub cron (/api/cars/reminders):
++# antraštė "Authorization: Bearer <CRON_SECRET>". Žr. docs/PRANESIMAI.md
++CRON_SECRET=
+diff --git a/.github/workflows/car-reminders.yml b/.github/workflows/car-reminders.yml
+index 4e037d1..95e9501 100644
+--- a/.github/workflows/car-reminders.yml
++++ b/.github/workflows/car-reminders.yml
+@@ -9,6 +9,10 @@ jobs:
+   run:
+     runs-on: ubuntu-latest
+     steps:
+-      - run: |
+-          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cars/reminders" \
+-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
++      - name: Iškviesti priminimų maršrutą
++        run: |
++          # Nepavykus (401, 307 į prisijungimą, 500) darbas turi baigtis klaida, o ne tyliai.
++          code=$(curl -sS -o response.txt -w "%{http_code}" -X POST "${{ secrets.APP_URL }}/api/cars/reminders" \
++            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
++          cat response.txt; echo
++          test "$code" = "200"
+diff --git a/.gitignore b/.gitignore
+index 943a231..44a9e46 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,3 +6,6 @@ node_modules
+ next-env.d.ts
+ /test-results/
+ /playwright-report/
++.open-next
++.wrangler
++.dev.vars
+diff --git a/New Text Document.txt b/New Text Document.txt
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/README.md b/README.md
+index 7809729..eab9186 100644
+--- a/README.md
++++ b/README.md
+@@ -26,6 +26,9 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
+ | 5. Darbuotojo funkcijos su tikrais duomenimis | Atlikta (žr. `docs/DARBUOTOJAS.md`) |
+ | 6. Administratoriaus aplinka ir Medžiagos | Atlikta (žr. `docs/ADMINISTRATORIUS.md`, `docs/MEDZIAGOS.md`) |
+ | 7. Stripe prenumeratos | Laukia |
++| Telegram pranešimai administratoriams | Atlikta (žr. `docs/TELEGRAM.md`) |
++| Pranešimų sistema (varpelis, eilė) | Atlikta (žr. `docs/PRANESIMAI.md`) |
++| Automobiliai ir priminimai | Atlikta (žr. `docs/AUTOMOBILIAI.md`) |
+ | 8. Testavimas | Laukia |
+ | 9. Publikavimas Vercel | Laukia |
+ 
+diff --git a/docs/PRANESIMAI.md b/docs/PRANESIMAI.md
+new file mode 100644
+index 0000000..3c73c81
+--- /dev/null
++++ b/docs/PRANESIMAI.md
+@@ -0,0 +1,37 @@
++# Pranešimai: programa, Telegram, automobilių priminimai
++
++## Kaip tai veikia
++```
++Veiksmas programoje ──► DB triggeris ──► notification_outbox ──► /api/notifications/dispatch ──► notify()
++ (darbas priskirtas,                      (eilė, tik serveriui)    (Supabase webhook)             │
++  medžiagų prašymas,                                                                              ├─► programos varpelis (notifications)
++  valandos patvirtintos,                                                                          └─► Telegram (tik administratoriams)
++  automobilių priminimai)
++```
++- **Programos varpelis** (`NotificationBell`, antraštėje): visi naudotojai. Nustatymai: `/pranesimai`.
++- **Telegram**: tik administratoriai (Valdymas → Telegram), žr. `docs/TELEGRAM.md`.
++- **Automobilių priminimai**: kasdien 07:00 GitHub Actions kviečia `POST /api/cars/reminders`, žr. `docs/AUTOMOBILIAI.md`.
++
++## Slaptieji kintamieji (Cloudflare → Settings → Variables and Secrets)
++| Kintamasis | Kam |
++|---|---|
++| `SUPABASE_SERVICE_ROLE_KEY` | serverio klientas (eilė, Telegram) |
++| `CRON_SECRET` | apsaugo `/api/notifications/dispatch` ir `/api/cars/reminders` |
++| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` | Telegram botas |
++| `NEXT_PUBLIC_APP_URL` | nuorodos Telegram žinutėse (build metu) |
++
++GitHub → Settings → Secrets → Actions: `APP_URL` (pvz. `https://darboritmas.gleometra.workers.dev`, be `/` gale) ir `CRON_SECRET`.
++
++## Supabase webhook (vieną kartą)
++Database → Webhooks → Create: lentelė `notification_outbox`, įvykis **Insert**, HTTP Request **POST**
++`https://<DOMENAS>/api/notifications/dispatch`, antraštė `Authorization: Bearer <CRON_SECRET>`.
++Kiekvienas naujas įrašas eilėje iškart išsiunčiamas. Be webhook pranešimai kaupiasi eilėje ir nesiunčiami.
++
++## Middleware išimtys (`src/middleware.ts`)
++Šie keliai neturi naudotojo sesijos, todėl yra `PUBLIC` sąraše, o patys apsaugoti slaptažodžiu:
++`/api/telegram` (Telegram webhook), `/api/cars/reminders` (GitHub cron), `/api/notifications/dispatch` (Supabase webhook).
++**Jei kas nors iš jų dingsta, atitinkama funkcija nustoja veikti be klaidos pranešimo (gaunamas 307 į prisijungimą).**
++
++## Keičiant bendrus failus
++`middleware.ts`, `AdminTabs.tsx`, `AppHeader.tsx`, `work/actions.ts`, `events.ts` keičia keli moduliai. Juos redaguokite tik smulkiais
++pakeitimais (`git diff`, `git apply`), o ne perrašydami visu failu, ir prieš tai paleiskite `npm run check` bei `npm run test:db`.
+diff --git a/docs/TELEGRAM.md b/docs/TELEGRAM.md
+index 8a0859d..e74454c 100644
+--- a/docs/TELEGRAM.md
++++ b/docs/TELEGRAM.md
+@@ -10,13 +10,13 @@ Darbuotojai botui neprijungiami.
+ | `medziagos` | Darbuotojas išsiunčia medžiagų poreikį |
+ | `pastabos` | Darbuotojas parašo pastabą biurui |
+ | `darbas` | Darbuotojas pradeda, baigia darbą arba pakeičia objektą |
++| `automobiliai` | Automobilio terminai (TA, kelių mokestis, draudimas) ir tepalų keitimas |
+ 
+ Paties veiksmo autorius pranešimo negauna (jei administratorius pats pradeda darbą, jam nerašoma).
+ Kiekvienas administratorius gali išjungti kategorijas botui parašęs `/isjungti darbas`.
+ 
+-**Dar neįgyvendinta** (programoje tokių funkcijų kol kas nėra): automobilių dokumentų galiojimas
+-(kelių mokestis, draudimas, kasko), vairuotojų kilometražas, darbo sutarčių ir sąmatų siuntimas bei patvirtinimas.
+-Pranešimų sistema tam paruošta: pakanka pridėti kategoriją `src/lib/telegram/core.ts` ir iškviesti `notifyAdmins(...)`.
++**Dar neįgyvendinta:** darbo sutarčių ir sąmatų siuntimas bei patvirtinimas (įvykis `document_status` paruoštas, programoje tokios funkcijos dar nėra).
++Naują kategoriją pridėkite į `src/lib/telegram/core.ts`, o žinutę siųskite per `notifyAdmins(...)` arba per pranešimų eilę (`docs/PRANESIMAI.md`).
+ 
+ ## Diegimas (vieną kartą)
+ 
+@@ -67,5 +67,12 @@ Botas atsako tik privačiuose pokalbiuose (grupėse nieko neprijungia).
+ - Jei vartotojas užblokuoja botą, prijungimas automatiškai pašalinamas.
+ - Žinutėse naudotojų įvestas tekstas apsaugotas nuo HTML interpretavimo.
+ 
++## Du siuntimo keliai (abu tik administratoriams)
++- **Tiesioginis:** `src/lib/telegram/notify.ts` (`notifyAdmins`), kviečiamas iš `src/lib/work/actions.ts`: medžiagos, pastabos, darbo pradžia ir pabaiga.
++- **Per pranešimų eilę:** automobilių terminai ir kiti įvykiai eina per `notification_outbox` → `notify()` → Telegram adapteris
++  (`src/lib/notifications/adapters/telegram.ts`). Jis siunčia tik tiems, kas prijungti lentelėje `telegram_links`, ir vaidmuo tikrinamas kiekvieną kartą.
++
++Telegram prijungimas yra vienas (`telegram_links`, skiltis Valdymas → Telegram). Darbuotojai Telegram neprijungiami.
++
+ ## Senasis Python botas
+ Atskiras `bot.py` (kuris buvo sukurtas pirmame pokalbyje) šiai programai nebereikalingas: webhook veikia pačioje programoje.
+diff --git a/npm b/npm
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/app/(app)/kalendorius/page.tsx b/src/app/(app)/kalendorius/page.tsx
+index 1563aac..c1b7491 100644
+--- a/src/app/(app)/kalendorius/page.tsx
++++ b/src/app/(app)/kalendorius/page.tsx
+@@ -1,5 +1,7 @@
++import CarReminders from "@/components/CarReminders";
+ import MonthCalendar from "@/components/MonthCalendar";
+ import { requireContext } from "@/lib/auth/context";
++import { getCars } from "@/lib/cars/queries";
+ import { todayKey } from "@/lib/dates";
+ import { getTasksForCalendar } from "@/lib/work/queries";
+ 
+@@ -7,6 +9,12 @@ export const dynamic = "force-dynamic";
+ 
+ export default async function KalendoriusPage() {
+   const ctx = await requireContext();
+-  const tasks = await getTasksForCalendar(ctx);
+-  return <MonthCalendar today={todayKey()} tasks={tasks} />;
++  const [tasks, cars] = await Promise.all([getTasksForCalendar(ctx), getCars(ctx)]);
++  const today = todayKey();
++  return (
++    <>
++      <CarReminders cars={cars} today={today} userId={ctx.userId} />
++      <MonthCalendar today={today} tasks={tasks} />
++    </>
++  );
+ }
+diff --git a/src/app/(app)/pranesimai/page.tsx b/src/app/(app)/pranesimai/page.tsx
+index 0596da0..3311ba7 100644
+--- a/src/app/(app)/pranesimai/page.tsx
++++ b/src/app/(app)/pranesimai/page.tsx
+@@ -1,16 +1,24 @@
++import Link from "next/link";
+ import NotificationSettings from "@/components/notifications/NotificationSettings";
+-import TelegramConnect from "@/components/notifications/TelegramConnect";
+-import { requireContext } from "@/lib/auth/context";
++import { isAdmin, requireContext } from "@/lib/auth/context";
+ 
+ export const dynamic = "force-dynamic";
+ 
+ export default async function PranesimaiPage() {
+-  await requireContext();
++  const ctx = await requireContext();
++  const admin = isAdmin(ctx.role);
+   return (
+     <div className="space-y-6">
+       <h1 className="text-3xl font-extrabold">Pranešimai</h1>
+-      <TelegramConnect />
+-      <div className="rounded-2xl bg-white p-4 shadow-card"><NotificationSettings /></div>
++      {admin && (
++        <p className="rounded-2xl bg-white p-4 text-sm shadow-card">
++          Telegram pranešimus (medžiagos, pastabos, darbo pradžia, automobiliai) prijungiate skiltyje{" "}
++          <Link href="/valdymas/telegram" className="font-semibold text-accent underline">Valdymas → Telegram</Link>.
++        </p>
++      )}
++      <div className="rounded-2xl bg-white p-4 shadow-card">
++        <NotificationSettings isAdmin={admin} />
++      </div>
+     </div>
+   );
+ }
+diff --git a/src/app/api/cars/reminders/route.ts b/src/app/api/cars/reminders/route.ts
+index 0476aec..2695bd7 100644
+--- a/src/app/api/cars/reminders/route.ts
++++ b/src/app/api/cars/reminders/route.ts
+@@ -20,7 +20,8 @@ async function handle(req: Request) {
+     const admin = createAdminClient();
+     const { data, error } = await admin.rpc("car_reminders_run");
+     if (error) throw new Error(error.message);
+-    const dispatched = await dispatchOutbox(admin);
++    // Cloudflare riboja užklausų skaičių per kvietimą: išsiunčiame dalį, likusias paima Supabase webhook (žr. docs/PRANESIMAI.md).
++    const dispatched = await dispatchOutbox(admin, 5);
+     return NextResponse.json({ enqueued: data ?? 0, dispatched });
+   } catch (e) {
+     return NextResponse.json({ error: e instanceof Error ? e.message : "klaida" }, { status: 500 });
+diff --git a/src/components/AppHeader.tsx b/src/components/AppHeader.tsx
+index a7905f6..d083aa3 100644
+--- a/src/components/AppHeader.tsx
++++ b/src/components/AppHeader.tsx
+@@ -2,6 +2,7 @@ import Link from "next/link";
+ import { Settings } from "lucide-react";
+ import { signOut } from "@/lib/auth/actions";
+ import Logo from "./Logo";
++import NotificationBell from "./notifications/NotificationBell";
+ 
+ export default function AppHeader({ name, company, admin = false }: { name: string; company?: string; admin?: boolean }) {
+   return (
+@@ -9,6 +10,7 @@ export default function AppHeader({ name, company, admin = false }: { name: stri
+       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-2">
+         <Link href="/darbai" aria-label="DarboRitmas – Darbai" className="shrink-0"><Logo size={40} variant="dark" wordmarkClassName="hidden min-[480px]:inline" /></Link>
+         <div className="flex min-w-0 items-center gap-3">
++          <NotificationBell />
+           <div className="min-w-0 text-right leading-tight">
+             <p className="truncate text-sm font-medium">{name}</p>
+             {company && <p className="truncate text-xs text-white/70">{company}</p>}
+diff --git a/src/components/NotificationBell.tsx b/src/components/NotificationBell.tsx
+deleted file mode 100644
+index e10e1fc..0000000
+--- a/src/components/NotificationBell.tsx
++++ /dev/null
+@@ -1,177 +0,0 @@
+-"use client";
+-
+-import { useCallback, useEffect, useRef, useState } from "react";
+-import Link from "next/link";
+-import { Bell } from "lucide-react";
+-import { createClient } from "@/lib/supabase/client";
+-
+-type Item = {
+-  id: string;
+-  title: string;
+-  body: string;
+-  event_type: string;
+-  read_at: string | null;
+-  created_at: string;
+-};
+-
+-function ago(iso: string): string {
+-  const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+-  const abs = Math.abs(seconds);
+-  const rtf = new Intl.RelativeTimeFormat("lt", { numeric: "auto" });
+-  if (abs < 60) return "ką tik";
+-  if (abs < 3600) return rtf.format(Math.round(seconds / 60), "minute");
+-  if (abs < 86400) return rtf.format(Math.round(seconds / 3600), "hour");
+-  return rtf.format(Math.round(seconds / 86400), "day");
+-}
+-
+-export default function NotificationBell() {
+-  const [supabase] = useState(() => createClient());
+-  const [userId, setUserId] = useState<string | null>(null);
+-  const [items, setItems] = useState<Item[]>([]);
+-  const [unread, setUnread] = useState(0);
+-  const [open, setOpen] = useState(false);
+-  const [error, setError] = useState(false);
+-  const wrapRef = useRef<HTMLDivElement>(null);
+-
+-  const load = useCallback(async () => {
+-    const [list, count] = await Promise.all([
+-      supabase
+-        .from("notifications")
+-        .select("id, title, body, event_type, read_at, created_at")
+-        .order("created_at", { ascending: false })
+-        .limit(20),
+-      supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+-    ]);
+-    if (list.error || count.error) return setError(true);
+-    setError(false);
+-    setItems((list.data ?? []) as Item[]);
+-    setUnread(count.count ?? 0);
+-  }, [supabase]);
+-
+-  // Naudotojas ir pirmas įkėlimas
+-  useEffect(() => {
+-    supabase.auth.getUser().then(({ data }) => {
+-      if (data.user) setUserId(data.user.id);
+-    });
+-  }, [supabase]);
+-
+-  useEffect(() => {
+-    if (!userId) return;
+-    load();
+-    // Naujas pranešimas -> perkrauti sąrašą (RLS leidžia matyti tik savo)
+-    const channel = supabase
+-      .channel(`notifications:${userId}`)
+-      .on(
+-        "postgres_changes",
+-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+-        () => load(),
+-      )
+-      .subscribe();
+-    return () => {
+-      supabase.removeChannel(channel);
+-    };
+-  }, [supabase, userId, load]);
+-
+-  // Uždaryti paspaudus šalia arba Escape
+-  useEffect(() => {
+-    if (!open) return;
+-    const onDown = (e: MouseEvent) => {
+-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+-    };
+-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+-    document.addEventListener("mousedown", onDown);
+-    document.addEventListener("keydown", onKey);
+-    return () => {
+-      document.removeEventListener("mousedown", onDown);
+-      document.removeEventListener("keydown", onKey);
+-    };
+-  }, [open]);
+-
+-  async function markRead(id: string) {
+-    const target = items.find((i) => i.id === id);
+-    if (!target || target.read_at) return;
+-    const now = new Date().toISOString();
+-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, read_at: now } : i)));
+-    setUnread((n) => Math.max(0, n - 1));
+-    const { error: err } = await supabase.from("notifications").update({ read_at: now }).eq("id", id);
+-    if (err) load();
+-  }
+-
+-  async function markAllRead() {
+-    const now = new Date().toISOString();
+-    setItems((prev) => prev.map((i) => ({ ...i, read_at: i.read_at ?? now })));
+-    setUnread(0);
+-    const { error: err } = await supabase.from("notifications").update({ read_at: now }).is("read_at", null);
+-    if (err) load();
+-  }
+-
+-  return (
+-    <div ref={wrapRef} className="relative">
+-      <button
+-        type="button"
+-        onClick={() => setOpen((v) => !v)}
+-        aria-label={unread > 0 ? `Pranešimai, neskaitytų: ${unread}` : "Pranešimai"}
+-        aria-expanded={open}
+-        className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+-      >
+-        <Bell size={20} aria-hidden />
+-        {unread > 0 && (
+-          <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-[#D92D20] px-1 text-xs font-bold leading-5 text-white ring-2 ring-navy">
+-            {unread > 99 ? "99+" : unread}
+-          </span>
+-        )}
+-      </button>
+-
+-      {open && (
+-        <div className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 overflow-hidden rounded-2xl border border-black/10 bg-white text-black shadow-card sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
+-          <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-2">
+-            <h2 className="font-display text-base font-bold">Pranešimai</h2>
+-            {unread > 0 && (
+-              <button
+-                type="button"
+-                onClick={markAllRead}
+-                className="min-h-11 text-sm font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+-              >
+-                Pažymėti visus skaitytais
+-              </button>
+-            )}
+-          </div>
+-
+-          {error && <p role="alert" className="px-4 py-3 text-sm text-[#B42318]">Nepavyko įkelti pranešimų. Bandykite dar kartą.</p>}
+-
+-          {!error && items.length === 0 && (
+-            <p className="px-4 py-8 text-center text-sm text-muted">Pranešimų kol kas nėra.</p>
+-          )}
+-
+-          <ul className="max-h-[60dvh] overflow-y-auto">
+-            {items.map((n) => (
+-              <li key={n.id}>
+-                <button
+-                  type="button"
+-                  onClick={() => markRead(n.id)}
+-                  className={`block min-h-11 w-full border-b border-black/10 px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+-                    n.read_at ? "" : "bg-black/5"
+-                  }`}
+-                >
+-                  <span className="flex items-start justify-between gap-3">
+-                    <span className={`text-sm ${n.read_at ? "font-normal" : "font-semibold"}`}>{n.title}</span>
+-                    <span className="shrink-0 text-xs text-muted">{ago(n.created_at)}</span>
+-                  </span>
+-                  {n.body && <span className="mt-0.5 block text-sm text-muted">{n.body}</span>}
+-                </button>
+-              </li>
+-            ))}
+-          </ul>
+-
+-          <Link
+-            href="/nustatymai/pranesimai"
+-            onClick={() => setOpen(false)}
+-            className="flex min-h-11 items-center justify-center text-sm font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+-          >
+-            Pranešimų nustatymai
+-          </Link>
+-        </div>
+-      )}
+-    </div>
+-  );
+-}
+diff --git a/src/components/admin/AdminTabs.tsx b/src/components/admin/AdminTabs.tsx
+index b8be528..a9b34a7 100644
+--- a/src/components/admin/AdminTabs.tsx
++++ b/src/components/admin/AdminTabs.tsx
+@@ -9,6 +9,8 @@ const TABS = [
+   { href: "/valdymas/darbuotojai", label: "Darbuotojai" },
+   { href: "/valdymas/laikas", label: "Laikas" },
+   { href: "/valdymas/ataskaita", label: "Ataskaita" },
++  { href: "/valdymas/automobiliai", label: "Automobiliai" },
++  { href: "/valdymas/telegram", label: "Telegram" },
+ ];
+ 
+ export default function AdminTabs() {
+diff --git a/src/components/notifications/NotificationBell.tsx b/src/components/notifications/NotificationBell.tsx
+index 1d852d6..e10f747 100644
+--- a/src/components/notifications/NotificationBell.tsx
++++ b/src/components/notifications/NotificationBell.tsx
+@@ -1,7 +1,9 @@
+ "use client";
+ 
+ import { useCallback, useEffect, useRef, useState } from "react";
+-import { createClient } from "@/lib/supabase/client"; // PRITAIKYKITE: jūsų naršyklės Supabase kliento kelias
++import Link from "next/link";
++import { Bell } from "lucide-react";
++import { createClient } from "@/lib/supabase/client";
+ 
+ type Item = {
+   id: string;
+@@ -110,56 +112,64 @@ export default function NotificationBell() {
+         onClick={() => setOpen((v) => !v)}
+         aria-label={unread > 0 ? `Pranešimai, neskaitytų: ${unread}` : "Pranešimai"}
+         aria-expanded={open}
+-        className="relative rounded-md p-2 text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
++        className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+       >
+-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+-          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+-          <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+-        </svg>
++        <Bell size={20} aria-hidden />
+         {unread > 0 && (
+-          <span className="absolute -right-0.5 -top-0.5 flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold leading-[1.1rem] text-white">
++          <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-brand-red px-1 text-xs font-bold leading-5 text-white ring-2 ring-navy">
+             {unread > 99 ? "99+" : unread}
+           </span>
+         )}
+       </button>
+ 
+       {open && (
+-        <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+-          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+-            <h2 className="text-sm font-semibold">Pranešimai</h2>
++        <div className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 overflow-hidden rounded-2xl border border-black/10 bg-white text-ink shadow-card sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
++          <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-1">
++            <h2 className="font-display text-base font-bold">Pranešimai</h2>
+             {unread > 0 && (
+-              <button type="button" onClick={markAllRead} className="text-xs text-blue-700 hover:underline">
++              <button
++                type="button"
++                onClick={markAllRead}
++                className="min-h-11 text-sm font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
++              >
+                 Pažymėti visus skaitytais
+               </button>
+             )}
+           </div>
+ 
+-          {error && <p role="alert" className="px-3 py-3 text-sm text-red-700">Nepavyko įkelti pranešimų.</p>}
++          {error && <p role="alert" className="px-4 py-3 text-sm text-danger">Nepavyko įkelti pranešimų. Bandykite dar kartą.</p>}
+ 
+           {!error && items.length === 0 && (
+-            <p className="px-3 py-6 text-center text-sm text-slate-500">Pranešimų kol kas nėra.</p>
++            <p className="px-4 py-8 text-center text-sm text-muted">Pranešimų kol kas nėra.</p>
+           )}
+ 
+-          <ul className="max-h-96 overflow-y-auto">
++          <ul className="max-h-[60dvh] overflow-y-auto">
+             {items.map((n) => (
+               <li key={n.id}>
+                 <button
+                   type="button"
+                   onClick={() => markRead(n.id)}
+-                  className={`block w-full border-b border-slate-100 px-3 py-2.5 text-left hover:bg-slate-50 ${
+-                    n.read_at ? "" : "bg-blue-50/60"
++                  className={`block min-h-11 w-full border-b border-black/10 px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
++                    n.read_at ? "" : "bg-black/5"
+                   }`}
+                 >
+-                  <span className="flex items-start justify-between gap-2">
++                  <span className="flex items-start justify-between gap-3">
+                     <span className={`text-sm ${n.read_at ? "font-normal" : "font-semibold"}`}>{n.title}</span>
+-                    <span className="shrink-0 text-xs text-slate-500">{ago(n.created_at)}</span>
++                    <span className="shrink-0 text-xs text-muted">{ago(n.created_at)}</span>
+                   </span>
+-                  {n.body && <span className="mt-0.5 block text-sm text-slate-600">{n.body}</span>}
++                  {n.body && <span className="mt-0.5 block text-sm text-muted">{n.body}</span>}
+                 </button>
+               </li>
+             ))}
+           </ul>
++
++          <Link
++            href="/pranesimai"
++            onClick={() => setOpen(false)}
++            className="flex min-h-11 items-center justify-center text-sm font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
++          >
++            Pranešimų nustatymai
++          </Link>
+         </div>
+       )}
+     </div>
+diff --git a/src/components/notifications/NotificationSettings.tsx b/src/components/notifications/NotificationSettings.tsx
+index 0923d92..dba4c8e 100644
+--- a/src/components/notifications/NotificationSettings.tsx
++++ b/src/components/notifications/NotificationSettings.tsx
+@@ -1,13 +1,16 @@
+ "use client";
+ 
+ import { useEffect, useState } from "react";
+-import { createClient } from "@/lib/supabase/client"; // PRITAIKYKITE: jūsų naršyklės Supabase kliento kelias
+-import { CHANNELS, EVENTS, type Channel, type EventType } from "@/lib/notifications/events";
++import Link from "next/link";
++import { createClient } from "@/lib/supabase/client";
++import { CHANNELS, EVENTS, eventDef, type Channel, type EventType } from "@/lib/notifications/events";
+ 
+ type Pref = Record<string, boolean>; // raktas: "event:channel"
+ const key = (e: string, c: string) => `${e}:${c}`;
++const field = "min-h-12 rounded-xl border border-black/15 bg-white px-3";
+ 
+-export default function NotificationSettings() {
++/** isAdmin: tik administratoriai mato Telegram stulpelį ir administratoriams skirtus pranešimus. */
++export default function NotificationSettings({ isAdmin }: { isAdmin: boolean }) {
+   const [supabase] = useState(() => createClient());
+   const [userId, setUserId] = useState<string | null>(null);
+   const [prefs, setPrefs] = useState<Pref>({});
+@@ -18,29 +21,34 @@ export default function NotificationSettings() {
+   const [error, setError] = useState<string | null>(null);
+   const [loading, setLoading] = useState(true);
+ 
++  const channels = CHANNELS.filter((c) => c.available && (!c.adminOnly || isAdmin));
++  const events = (Object.keys(EVENTS) as EventType[]).filter((e) => isAdmin || !eventDef(e).adminOnly);
++
+   useEffect(() => {
+     (async () => {
+       const { data: auth } = await supabase.auth.getUser();
+       if (!auth.user) return setLoading(false);
+-      const uid = auth.user.id;
+-      setUserId(uid);
+-      const [p, s, c] = await Promise.all([
++      setUserId(auth.user.id);
++      const [p, s, c, tg] = await Promise.all([
+         supabase.from("notification_preferences").select("event_type, channel, enabled"),
+         supabase.from("notification_settings").select("*").maybeSingle(),
+         supabase.from("notification_channels").select("channel, verified"),
++        isAdmin ? supabase.from("telegram_links").select("id").limit(1) : Promise.resolve({ data: [], error: null }),
+       ]);
+-      if (p.error || s.error || c.error) setError("Nepavyko įkelti nustatymų. Perkraukite puslapį.");
++      if (p.error || s.error || c.error || tg.error) setError("Nepavyko įkelti nustatymų. Perkraukite puslapį.");
+       setPrefs(Object.fromEntries((p.data ?? []).map((r) => [key(r.event_type, r.channel), r.enabled])));
+-      setConnected(new Set(["inapp", ...(c.data ?? []).filter((x) => x.verified).map((x) => x.channel)]));
++      const on = new Set<string>(["inapp"]);
++      for (const x of c.data ?? []) if (x.verified && x.channel !== "telegram") on.add(x.channel);
++      if ((tg.data ?? []).length > 0) on.add("telegram");
++      setConnected(on);
+       setQuietStart(s.data?.quiet_start?.slice(0, 5) ?? "");
+       setQuietEnd(s.data?.quiet_end?.slice(0, 5) ?? "");
+       setFallback(s.data?.fallback_channel ?? "");
+       setLoading(false);
+     })();
+-  }, [supabase]);
++  }, [supabase, isAdmin]);
+ 
+-  const isOn = (e: EventType, c: Channel) =>
+-    prefs[key(e, c)] ?? (EVENTS[e].defaults as readonly Channel[]).includes(c);
++  const isOn = (e: EventType, c: Channel) => prefs[key(e, c)] ?? eventDef(e).defaults.includes(c);
+ 
+   async function toggle(e: EventType, c: Channel) {
+     if (!userId) return;
+@@ -58,60 +66,56 @@ export default function NotificationSettings() {
+ 
+   async function saveSettings(patch: Record<string, string | null>) {
+     if (!userId) return;
+-    const { error: err } = await supabase
+-      .from("notification_settings")
+-      .upsert({ user_id: userId, ...patch });
++    const { error: err } = await supabase.from("notification_settings").upsert({ user_id: userId, ...patch });
+     setError(err ? "Nepavyko išsaugoti nustatymų. Bandykite dar kartą." : null);
+   }
+ 
+-  if (loading) return <p className="text-sm text-slate-500">Kraunama…</p>;
++  if (loading) return <p className="text-sm text-muted">Kraunama…</p>;
+ 
+-  const external = CHANNELS.filter((c) => c.id !== "inapp" && c.available && connected.has(c.id));
++  const external = channels.filter((c) => c.id !== "inapp" && connected.has(c.id));
+ 
+   return (
+-    <section className="space-y-8">
+-      <div>
+-        <h2 className="text-xl font-semibold">Pranešimai</h2>
+-        <p className="mt-1 text-sm text-slate-600">Pasirinkite, kur gauti kiekvieną pranešimo rūšį.</p>
+-      </div>
++    <section className="space-y-6">
++      {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-danger">{error}</p>}
+ 
+-      {error && <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
++      {isAdmin && !connected.has("telegram") && (
++        <p className="rounded-xl bg-accent-soft p-3 text-sm">
++          Telegram dar neprijungtas.{" "}
++          <Link href="/valdymas/telegram" className="font-semibold text-accent underline">Prijungti</Link>
++        </p>
++      )}
+ 
+       <div className="overflow-x-auto">
+-        <table className="w-full min-w-[32rem] text-left text-sm">
++        <table className="w-full min-w-[20rem] text-left text-sm">
+           <thead>
+-            <tr className="border-b border-slate-200">
+-              <th scope="col" className="py-2 pr-4 font-medium">Pranešimas</th>
+-              {CHANNELS.map((c) => (
+-                <th key={c.id} scope="col" className="px-2 py-2 text-center font-medium">
+-                  {c.label}
+-                  {!c.available && <span className="block text-xs font-normal text-slate-400">Netrukus</span>}
+-                  {c.available && !connected.has(c.id) && (
+-                    <span className="block text-xs font-normal text-slate-400">Neprijungta</span>
+-                  )}
+-                </th>
++            <tr className="border-b border-black/10">
++              <th scope="col" className="py-2 pr-4 font-semibold">Pranešimas</th>
++              {channels.map((c) => (
++                <th key={c.id} scope="col" className="px-2 py-2 text-center font-semibold">{c.label}</th>
+               ))}
+             </tr>
+           </thead>
+           <tbody>
+-            {(Object.keys(EVENTS) as EventType[]).map((e) => (
+-              <tr key={e} className="border-b border-slate-100">
++            {events.map((e) => (
++              <tr key={e} className="border-b border-black/10">
+                 <th scope="row" className="py-3 pr-4 font-normal">
+-                  <span className="block font-medium">{EVENTS[e].label}</span>
+-                  <span className="block text-xs text-slate-500">{EVENTS[e].description}</span>
++                  <span className="block font-semibold">{eventDef(e).label}</span>
++                  <span className="block text-xs text-muted">{eventDef(e).description}</span>
+                 </th>
+-                {CHANNELS.map((c) => {
+-                  const usable = c.available && connected.has(c.id);
++                {channels.map((c) => {
++                  const usable = connected.has(c.id);
+                   return (
+-                    <td key={c.id} className="px-2 py-3 text-center">
+-                      <input
+-                        type="checkbox"
+-                        className="h-5 w-5 accent-blue-600 disabled:opacity-30"
+-                        checked={usable && isOn(e, c.id)}
+-                        disabled={!usable}
+-                        onChange={() => toggle(e, c.id)}
+-                        aria-label={`${EVENTS[e].label}: ${c.label}`}
+-                      />
++                    <td key={c.id} className="px-2 py-1 text-center">
++                      <label className="flex min-h-11 min-w-11 items-center justify-center">
++                        <input
++                          type="checkbox"
++                          className="h-6 w-6 accent-accent disabled:opacity-30"
++                          checked={usable && isOn(e, c.id)}
++                          disabled={!usable}
++                          onChange={() => toggle(e, c.id)}
++                          aria-label={`${eventDef(e).label}: ${c.label}`}
++                        />
++                      </label>
+                     </td>
+                   );
+                 })}
+@@ -123,33 +127,35 @@ export default function NotificationSettings() {
+ 
+       <div className="grid gap-4 sm:grid-cols-2">
+         <fieldset>
+-          <legend className="text-sm font-medium">Tylos valandos</legend>
+-          <p className="mb-2 text-xs text-slate-500">
+-            Šiuo metu išoriniai pranešimai nesiunčiami. Sąmatų ir sutarčių pranešimai vis tiek ateis.
++          <legend className="text-sm font-semibold">Tylos valandos</legend>
++          <p className="mb-2 text-xs text-muted">
++            Šiuo metu pranešimai už programos ribų nesiunčiami. Skubūs (terminai, sąmatos) vis tiek ateis.
+           </p>
+           <div className="flex items-center gap-2">
+             <input type="time" value={quietStart} aria-label="Tylos valandų pradžia"
+               onChange={(ev) => setQuietStart(ev.target.value)}
+               onBlur={() => saveSettings({ quiet_start: quietStart || null })}
+-              className="rounded-md border border-slate-300 px-2 py-1" />
++              className={field} />
+             <span aria-hidden>–</span>
+             <input type="time" value={quietEnd} aria-label="Tylos valandų pabaiga"
+               onChange={(ev) => setQuietEnd(ev.target.value)}
+               onBlur={() => saveSettings({ quiet_end: quietEnd || null })}
+-              className="rounded-md border border-slate-300 px-2 py-1" />
++              className={field} />
+           </div>
+         </fieldset>
+ 
+-        <div>
+-          <label htmlFor="fallback" className="text-sm font-medium">Atsarginis kanalas</label>
+-          <p className="mb-2 text-xs text-slate-500">Naudojamas, jei pranešimo nepavyko pristatyti pasirinktu kanalu.</p>
+-          <select id="fallback" value={fallback}
+-            onChange={(ev) => { setFallback(ev.target.value); saveSettings({ fallback_channel: ev.target.value || null }); }}
+-            className="rounded-md border border-slate-300 px-2 py-1">
+-            <option value="">Nenaudoti</option>
+-            {external.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+-          </select>
+-        </div>
++        {external.length > 0 && (
++          <div>
++            <label htmlFor="fallback" className="text-sm font-semibold">Atsarginis kanalas</label>
++            <p className="mb-2 text-xs text-muted">Naudojamas, jei pranešimo nepavyko pristatyti pasirinktu kanalu.</p>
++            <select id="fallback" value={fallback}
++              onChange={(ev) => { setFallback(ev.target.value); saveSettings({ fallback_channel: ev.target.value || null }); }}
++              className={field}>
++              <option value="">Nenaudoti</option>
++              {external.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
++            </select>
++          </div>
++        )}
+       </div>
+     </section>
+   );
+diff --git a/src/components/notifications/TelegramConnect.tsx b/src/components/notifications/TelegramConnect.tsx
+deleted file mode 100644
+index 1e6aa2e..0000000
+--- a/src/components/notifications/TelegramConnect.tsx
++++ /dev/null
+@@ -1,54 +0,0 @@
+-"use client";
+-
+-import { useCallback, useEffect, useState, useTransition } from "react";
+-import { createClient } from "@/lib/supabase/client";
+-import { createTelegramLink, disconnectTelegram } from "@/lib/notifications/telegram-actions";
+-
+-export default function TelegramConnect() {
+-  const [supabase] = useState(() => createClient());
+-  const [connected, setConnected] = useState<boolean | null>(null);
+-  const [link, setLink] = useState<string | null>(null);
+-  const [error, setError] = useState<string | null>(null);
+-  const [pending, start] = useTransition();
+-
+-  const refresh = useCallback(async () => {
+-    const { data } = await supabase.from("notification_channels").select("verified").eq("channel", "telegram").maybeSingle();
+-    setConnected(data?.verified === true);
+-  }, [supabase]);
+-
+-  useEffect(() => { void refresh(); }, [refresh]);
+-
+-  const connect = () =>
+-    start(async () => {
+-      setError(null);
+-      const r = await createTelegramLink();
+-      if (r.ok) setLink(r.url); else setError(r.error);
+-    });
+-  const disconnect = () =>
+-    start(async () => {
+-      const r = await disconnectTelegram();
+-      if (r.ok) { setLink(null); setConnected(false); } else setError(r.error ?? "Klaida.");
+-    });
+-
+-  return (
+-    <section className="rounded-2xl bg-white p-4 shadow-card">
+-      <h2 className="text-xl font-bold">Telegram</h2>
+-      <p className="mt-1 text-sm text-muted">Gaukite visus DarboRitmo pranešimus Telegram programėlėje.</p>
+-      {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-medium text-danger">{error}</p>}
+-      {connected ? (
+-        <div className="mt-3 flex flex-wrap items-center gap-3">
+-          <span className="rounded-full bg-go-soft px-3 py-1 text-sm font-semibold text-go-dark">Prijungta</span>
+-          <button disabled={pending} onClick={disconnect} className="min-h-12 rounded-2xl border border-black/15 px-4 font-semibold disabled:opacity-60">Atjungti</button>
+-        </div>
+-      ) : link ? (
+-        <div className="mt-3 space-y-2">
+-          <a href={link} target="_blank" rel="noopener noreferrer" className="flex min-h-12 items-center justify-center rounded-2xl bg-accent px-5 font-semibold text-white">Atidaryti Telegram ir paspausti Start</a>
+-          <button onClick={() => void refresh()} className="min-h-12 w-full rounded-2xl border border-black/15 px-4 font-semibold">Patikrinti, ar prijungta</button>
+-          <p className="text-xs text-muted">Nuoroda galioja 15 minučių.</p>
+-        </div>
+-      ) : (
+-        <button disabled={pending || connected === null} onClick={connect} className="mt-3 min-h-12 rounded-2xl bg-accent px-5 font-semibold text-white disabled:opacity-60">Prijungti Telegram</button>
+-      )}
+-    </section>
+-  );
+-}
+diff --git a/src/lib/notifications/adapters/telegram.ts b/src/lib/notifications/adapters/telegram.ts
+index 63e3a19..e410990 100644
+--- a/src/lib/notifications/adapters/telegram.ts
++++ b/src/lib/notifications/adapters/telegram.ts
+@@ -1,36 +1,30 @@
+ import type { ChannelAdapter } from "../notify";
+-import { TelegramError, escapeHtml, sendTelegram } from "../telegram";
++import { sendMessage } from "@/lib/telegram/api";
++import { clip, esc } from "@/lib/telegram/core";
+ 
+-// Kur nuveda nuoroda pranešime pagal įvykį.
++// Kur nuveda nuoroda pranešime pagal įvykį (Telegram gauna tik administratoriai).
+ const PATH: Record<string, string> = {
+-  task_assigned: "/darbai",
+-  work_reminder: "/darbai",
+-  daily_digest: "/kalendorius",
+-  car_deadline: "/kalendorius",
+-  car_km: "/kalendorius",
+-  car_oil: "/kalendorius",
+-  hours_missing: "/valandos",
+-  weekly_hours: "/valandos",
+-  hours_approved: "/valandos",
+-  material_request: "/valdymas",
++  car_deadline: "/valdymas/automobiliai",
++  car_oil: "/valdymas/automobiliai",
+   document_status: "/valdymas",
+ };
+ 
+-export const telegramAdapter: ChannelAdapter = async ({ supabase, userId, address, event, payload }) => {
+-  const chatId = address.chat_id;
+-  if (typeof chatId !== "string" && typeof chatId !== "number") throw new Error("Telegram chat_id nerastas");
++/**
++ * Telegram kanalas pranešimų sistemoje. Gavėjas jau patikrintas notify(): aktyvus įmonės administratorius,
++ * turintis prijungimą lentelėje telegram_links (address = { chat_id, muted }).
++ */
++export const telegramAdapter: ChannelAdapter = async ({ supabase, companyId, userId, address, event, payload }) => {
++  const chatId = Number(address.chat_id);
++  if (!Number.isFinite(chatId)) throw new Error("Telegram chat_id nerastas");
+ 
+   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+   const link = base && PATH[event] ? `\n<a href="${base}${PATH[event]}">Atidaryti programoje</a>` : "";
+-  const text = `<b>${escapeHtml(payload.title)}</b>${payload.body ? `\n${escapeHtml(payload.body)}` : ""}${link}`;
++  const text = `<b>${esc(payload.title)}</b>${payload.body ? `\n${esc(clip(payload.body, 3000))}` : ""}${link}`;
+ 
+-  try {
+-    await sendTelegram(chatId, text);
+-  } catch (e) {
+-    // 403: naudotojas užblokavo botą arba ištrynė pokalbį – kanalą išjungiame, kad nebebandytume.
+-    if (e instanceof TelegramError && e.code === 403) {
+-      await supabase.from("notification_channels").update({ verified: false }).eq("user_id", userId).eq("channel", "telegram");
+-    }
+-    throw e;
++  const r = await sendMessage(chatId, text);
++  if (!r.ok) {
++    // Naudotojas užblokavo botą arba ištrynė pokalbį: prijungimą pašaliname, kad nebebandytume.
++    if (r.blocked) await supabase.from("telegram_links").delete().eq("company_id", companyId).eq("user_id", userId);
++    throw new Error(r.error);
+   }
+ };
+diff --git a/src/lib/notifications/events.ts b/src/lib/notifications/events.ts
+index b9b1784..d6adb06 100644
+--- a/src/lib/notifications/events.ts
++++ b/src/lib/notifications/events.ts
+@@ -1,72 +1,96 @@
++import type { Category } from "@/lib/telegram/core";
++
+ export type Channel = "inapp" | "push" | "telegram" | "email" | "sms";
+ 
+-export const CHANNELS: { id: Channel; label: string; available: boolean }[] = [
++/**
++ * Telegram skirtas TIK įmonės administratoriams (prijungiama Valdymas → Telegram, lentelė telegram_links).
++ * `adminOnly` kanalas nerodomas darbuotojams.
++ */
++export const CHANNELS: { id: Channel; label: string; available: boolean; adminOnly?: boolean }[] = [
+   { id: "inapp", label: "Programa", available: true },
+-  { id: "telegram", label: "Telegram", available: true },
+-  { id: "email", label: "El. paštas", available: false }, // 3 žingsnis
++  { id: "telegram", label: "Telegram", available: true, adminOnly: true },
++  { id: "email", label: "El. paštas", available: false },
+   { id: "push", label: "Telefono pranešimai", available: false },
+   { id: "sms", label: "SMS", available: false },
+ ];
+ 
++export type EventDef = {
++  label: string;
++  description: string;
++  /** Kanalai, kuriais siunčiama, kol naudotojas nepasirinko kitaip. */
++  defaults: readonly Channel[];
++  /** Skubus: siunčiamas ir tylos valandomis. */
++  urgent: boolean;
++  /** Įvykis aktualus tik administratoriams (darbuotojams nerodomas nustatymuose). */
++  adminOnly?: boolean;
++  /** Telegram kategorija, kurią administratorius gali išjungti botui parašęs /isjungti. */
++  telegramCategory?: Category;
++};
++
+ export const EVENTS = {
+   task_assigned: {
+     label: "Nauja užduotis",
+     description: "Jums priskirta ar pakeista užduotis",
+-    defaults: ["inapp", "telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
+   daily_digest: {
+     label: "Rytinė apžvalga",
+     description: "Šiandienos objektai ir užduotys",
+-    defaults: ["telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
+   work_reminder: {
+     label: "Priminimas apie darbą",
+     description: "Prieš darbo pradžią",
+-    defaults: ["inapp", "telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
+   hours_missing: {
+     label: "Neužregistruotos valandos",
+     description: "Pamiršta baigti ar įrašyti darbo dieną",
+-    defaults: ["inapp", "telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
+   weekly_hours: {
+     label: "Savaitės valandų suvestinė",
+     description: "Praėjusios savaitės valandos",
+-    defaults: ["email", "telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
++  // Medžiagų poreikio Telegram žinutę administratoriams siunčia src/lib/telegram/notify.ts tiesiogiai (su sąrašu),
++  // todėl čia tik programos varpelis: kitaip administratorius gautų dvi žinutes.
+   material_request: {
+-    label: "Medžiagų užklausa",
+-    description: "Nauja ar pasibaigusi medžiaga",
+-    defaults: ["inapp", "telegram"],
++    label: "Medžiagų prašymas",
++    description: "Darbuotojas pateikė naują medžiagų prašymą",
++    defaults: ["inapp"],
+     urgent: false,
++    adminOnly: true,
+   },
+   hours_approved: {
+     label: "Valandos patvirtintos",
+     description: "Administratorius patvirtino jūsų mėnesio valandas",
+-    defaults: ["inapp", "telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
+   document_status: {
+     label: "Sąmatos ir sutartys",
+     description: "Išsiųsta, patvirtinta, atmesta ar atšaukta",
+-    defaults: ["inapp", "telegram", "email"],
++    defaults: ["inapp", "telegram"],
+     urgent: true,
++    adminOnly: true,
+   },
+   car_deadline: {
+     label: "Automobilio terminai",
+     description: "Techninė apžiūra, kelių mokestis ar draudimas baigiasi",
+     defaults: ["inapp", "telegram"],
+     urgent: true,
++    telegramCategory: "automobiliai",
+   },
+   car_km: {
+     label: "Kilometražo priminimas",
+     description: "Laikas įvesti automobilio kilometražą",
+-    defaults: ["inapp", "telegram"],
++    defaults: ["inapp"],
+     urgent: false,
+   },
+   car_oil: {
+@@ -74,10 +98,10 @@ export const EVENTS = {
+     description: "Artėja arba pavėluotas automobilio tepalų keitimas",
+     defaults: ["inapp", "telegram"],
+     urgent: false,
++    telegramCategory: "automobiliai",
+   },
+-} as const satisfies Record<
+-  string,
+-  { label: string; description: string; defaults: readonly Channel[]; urgent: boolean }
+->;
++} as const satisfies Record<string, EventDef>;
+ 
+ export type EventType = keyof typeof EVENTS;
++
++export const eventDef = (e: EventType): EventDef => EVENTS[e];
+diff --git a/src/lib/notifications/notify.ts b/src/lib/notifications/notify.ts
+index 3117a9c..f833644 100644
+--- a/src/lib/notifications/notify.ts
++++ b/src/lib/notifications/notify.ts
+@@ -1,5 +1,5 @@
+ import type { SupabaseClient } from "@supabase/supabase-js";
+-import { EVENTS, type Channel, type EventType } from "./events";
++import { eventDef, type Channel, type EventType } from "./events";
+ import { inappAdapter } from "./adapters/inapp";
+ import { telegramAdapter } from "./adapters/telegram";
+ 
+@@ -56,24 +56,30 @@ export async function notify(
+   args: { companyId: string; userId: string; event: EventType; payload: Payload },
+ ) {
+   const { companyId, userId, event, payload } = args;
+-  const def = EVENTS[event];
++  const def = eventDef(event);
+   if (!def) throw new Error(`Nežinomas įvykis: ${event}`);
+ 
+-  const { data: member } = await supabase.from("company_members").select("id")
++  const { data: member } = await supabase.from("company_members").select("role")
+     .eq("company_id", companyId).eq("user_id", userId).eq("status", "active").maybeSingle();
+   if (!member) return [];
++  const isAdmin = member.role === "owner" || member.role === "admin";
+ 
+-  const [prefsRes, settingsRes, channelsRes] = await Promise.all([
++  const [prefsRes, settingsRes, channelsRes, tgRes] = await Promise.all([
+     supabase.from("notification_preferences").select("channel, enabled")
+       .eq("user_id", userId).eq("event_type", event),
+     supabase.from("notification_settings").select("*").eq("user_id", userId).maybeSingle(),
+     supabase.from("notification_channels").select("channel, address, verified").eq("user_id", userId),
++    // Telegram prijungiamas tik administratoriams (Valdymas → Telegram), todėl imame iš telegram_links.
++    isAdmin
++      ? supabase.from("telegram_links").select("chat_id, muted").eq("company_id", companyId).eq("user_id", userId).maybeSingle()
++      : Promise.resolve({ data: null }),
+   ]);
+ 
+   const explicit = new Map<string, boolean>((prefsRes.data ?? []).map((r) => [r.channel, r.enabled]));
+   const connected = new Map<string, Record<string, unknown>>(
+-    (channelsRes.data ?? []).filter((c) => c.verified).map((c) => [c.channel, c.address ?? {}]),
++    (channelsRes.data ?? []).filter((c) => c.verified && c.channel !== "telegram").map((c) => [c.channel, c.address ?? {}]),
+   );
++  if (tgRes.data) connected.set("telegram", { chat_id: tgRes.data.chat_id, muted: tgRes.data.muted ?? [] });
+   const settings = settingsRes.data;
+   const quiet = isQuietNow(settings?.quiet_start ?? null, settings?.quiet_end ?? null, settings?.timezone ?? "Europe/Vilnius");
+ 
+@@ -99,9 +105,13 @@ export async function notify(
+   }
+ 
+   for (const ch of wanted) {
+-    if (ch !== "inapp" && !connected.has(ch)) {
+-      log.push({ ...base, channel: ch, status: "skipped", detail: "kanalas neprijungtas" });
+-      continue;
++    if (ch !== "inapp" && !connected.has(ch)) continue; // kanalas neprijungtas: nieko nerašome į žurnalą
++    if (ch === "telegram" && def.telegramCategory) {
++      const muted = (connected.get("telegram")?.muted ?? []) as string[];
++      if (muted.includes(def.telegramCategory)) {
++        log.push({ ...base, channel: ch, status: "skipped", detail: `išjungta botu: ${def.telegramCategory}` });
++        continue;
++      }
+     }
+     if (!adapters[ch]) {
+       log.push({ ...base, channel: ch, status: "skipped", detail: "adapteris dar neįdiegtas" });
+diff --git a/src/lib/notifications/telegram-actions.ts b/src/lib/notifications/telegram-actions.ts
+deleted file mode 100644
+index 1da7e8b..0000000
+--- a/src/lib/notifications/telegram-actions.ts
++++ /dev/null
+@@ -1,34 +0,0 @@
+-"use server";
+-
+-import { randomBytes } from "node:crypto";
+-import { getActionContext } from "@/lib/auth/context";
+-import { createAdminClient } from "@/lib/supabase/admin";
+-import { hashToken } from "./telegram";
+-
+-export type LinkResult = { ok: true; url: string } | { ok: false; error: string };
+-
+-/** Sukuria vienkartinę (15 min.) nuorodą į botą, kuri prijungia Telegram prie šio naudotojo. */
+-export async function createTelegramLink(): Promise<LinkResult> {
+-  const bot = process.env.TELEGRAM_BOT_USERNAME;
+-  if (!bot || !process.env.TELEGRAM_BOT_TOKEN) return { ok: false, error: "Telegram botas dar nesukonfigūruotas." };
+-  const ctx = await getActionContext();
+-  if (!ctx) return { ok: false, error: "Sesija baigėsi. Prisijunkite iš naujo." };
+-
+-  const token = randomBytes(24).toString("base64url");
+-  const admin = createAdminClient();
+-  await admin.from("telegram_link_tokens").delete().eq("user_id", ctx.userId);
+-  const { error } = await admin.from("telegram_link_tokens").insert({
+-    token_hash: hashToken(token),
+-    user_id: ctx.userId,
+-    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+-  });
+-  if (error) return { ok: false, error: "Nepavyko sukurti nuorodos. Bandykite dar kartą." };
+-  return { ok: true, url: `https://t.me/${bot.replace(/^@/, "")}?start=${token}` };
+-}
+-
+-export async function disconnectTelegram(): Promise<{ ok: boolean; error?: string }> {
+-  const ctx = await getActionContext();
+-  if (!ctx) return { ok: false, error: "Sesija baigėsi. Prisijunkite iš naujo." };
+-  const { error } = await createAdminClient().from("notification_channels").delete().eq("user_id", ctx.userId).eq("channel", "telegram");
+-  return error ? { ok: false, error: "Nepavyko atjungti." } : { ok: true };
+-}
+diff --git a/src/lib/notifications/telegram.ts b/src/lib/notifications/telegram.ts
+deleted file mode 100644
+index d933ada..0000000
+--- a/src/lib/notifications/telegram.ts
++++ /dev/null
+@@ -1,30 +0,0 @@
+-import { createHash } from "node:crypto";
+-
+-const API = "https://api.telegram.org";
+-
+-export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
+-
+-export const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+-
+-export class TelegramError extends Error {
+-  code: number;
+-  constructor(message: string, code: number) {
+-    super(message);
+-    this.code = code;
+-  }
+-}
+-
+-/** Išsiunčia tekstą (HTML) į Telegram pokalbį. Meta TelegramError, jei Telegram atmeta (pvz. 403 – botas užblokuotas). */
+-export async function sendTelegram(chatId: string | number, html: string): Promise<void> {
+-  const token = process.env.TELEGRAM_BOT_TOKEN;
+-  if (!token) throw new Error("TELEGRAM_BOT_TOKEN nenustatytas");
+-  const res = await fetch(`${API}/bot${token}/sendMessage`, {
+-    method: "POST",
+-    headers: { "content-type": "application/json" },
+-    body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: "HTML", disable_web_page_preview: true }),
+-  });
+-  if (!res.ok) {
+-    const j = (await res.json().catch(() => null)) as { description?: string } | null;
+-    throw new TelegramError(j?.description ?? `Telegram klaida ${res.status}`, res.status);
+-  }
+-}
+diff --git a/src/lib/telegram/core.ts b/src/lib/telegram/core.ts
+index ef1a9d3..695bb07 100644
+--- a/src/lib/telegram/core.ts
++++ b/src/lib/telegram/core.ts
+@@ -7,6 +7,7 @@ export const CATEGORIES = {
+   medziagos: "Medžiagų poreikiai",
+   pastabos: "Pastabos biurui",
+   darbas: "Darbo pradžia ir pabaiga",
++  automobiliai: "Automobilių terminai ir tepalai",
+ } as const;
+ export type Category = keyof typeof CATEGORIES;
+ export const isCategory = (v: string): v is Category => Object.prototype.hasOwnProperty.call(CATEGORIES, v);
+diff --git a/src/lib/telegram/webhook.ts b/src/lib/telegram/webhook.ts
+index 6b7eac1..828cd5b 100644
+--- a/src/lib/telegram/webhook.ts
++++ b/src/lib/telegram/webhook.ts
+@@ -140,5 +140,5 @@ async function linkChat(
+     return void (await reply("Nepavyko prijungti. Bandykite dar kartą."));
+   }
+   const { data: company } = await db.from("companies").select("name").eq("id", tok.company_id).maybeSingle();
+-  await reply(`✅ Prijungta${company?.name ? `: <b>${esc(company.name)}</b>` : ""}.\nČia gausite pranešimus apie medžiagas, pastabas ir darbo pradžią bei pabaigą.\n\n/pagalba – komandos`);
++  await reply(`✅ Prijungta${company?.name ? `: <b>${esc(company.name)}</b>` : ""}.\nČia gausite pranešimus apie medžiagas, pastabas, darbo pradžią bei pabaigą ir automobilių terminus.\n\n/pagalba – komandos`);
+ }
+diff --git a/src/lib/work/actions.ts b/src/lib/work/actions.ts
+index 46655d4..ad7518b 100644
+--- a/src/lib/work/actions.ts
++++ b/src/lib/work/actions.ts
+@@ -5,6 +5,7 @@ import { z } from "zod";
+ import { createClient } from "@/lib/supabase/server";
+ import { getActionContext, isAdmin } from "@/lib/auth/context";
+ import { isValidDayKey, todayKey } from "@/lib/dates";
++import { notifyLater, notifyMaterialRequest, notifyNote, notifyWorkFinished, notifyWorkStarted } from "@/lib/telegram/notify";
+ import { UNITS, type ActionResult, type TimeMode } from "./types";
+ 
+ type Db = Awaited<ReturnType<typeof createClient>>;
+@@ -41,6 +42,7 @@ export async function startWork(projectId?: string | null): Promise<ActionResult
+     .from("time_entries")
+     .insert({ company_id: g.companyId, user_id: g.userId, project_id: byProject ? projectId : null, started_at: new Date().toISOString() });
+   refresh();
++  if (!error) notifyLater(() => notifyWorkStarted({ companyId: g.companyId, userId: g.userId, projectId: byProject ? projectId : null }));
+   return mapError(error, "Nepavyko pradėti darbo.");
+ }
+ 
+@@ -53,6 +55,7 @@ export async function switchWorkProject(projectId: string): Promise<ActionResult
+   const { error } = await g.db.rpc("switch_time_project", { p_project: projectId });
+   refresh();
+   if (error?.code === "P0001") return fail(error.message);
++  if (!error) notifyLater(() => notifyWorkStarted({ companyId: g.companyId, userId: g.userId, projectId, switched: true }));
+   return error ? mapError(error, "Nepavyko pakeisti objekto.") : ok("Objektas pakeistas.");
+ }
+ 
+@@ -96,6 +99,7 @@ export async function finishWork(): Promise<ActionResult> {
+   await g.db.from("breaks").update({ ended_at: now }).eq("time_entry_id", entryId).is("ended_at", null);
+   const { error } = await g.db.from("time_entries").update({ ended_at: now }).eq("id", entryId);
+   refresh();
++  if (!error) notifyLater(() => notifyWorkFinished({ companyId: g.companyId, userId: g.userId, entryId }));
+   return mapError(error, "Nepavyko baigti darbo.");
+ }
+ 
+@@ -159,6 +163,7 @@ export async function addNote(body: string, kind: "text" | "voice" = "text"): Pr
+     .from("notes")
+     .insert({ company_id: g.companyId, author_id: g.userId, kind: kind === "voice" ? "voice" : "text", body: parsed.data });
+   refresh();
++  if (!error) notifyLater(() => notifyNote({ companyId: g.companyId, userId: g.userId, body: parsed.data, voice: kind === "voice" }));
+   return mapError(error, "Nepavyko išsiųsti pastabos.");
+ }
+ 
+@@ -204,6 +209,11 @@ export async function createMaterialRequest(input: unknown): Promise<ActionResul
+     p_items: parsed.data.items.map((i) => ({ name: i.name, quantity: Math.round(i.quantity * 100) / 100, unit: i.unit })),
+   });
+   refresh();
++  if (!error) {
++    notifyLater(() =>
++      notifyMaterialRequest({ companyId: g.companyId, userId: g.userId, projectId: parsed.data.projectId, comment: parsed.data.comment, items: parsed.data.items }),
++    );
++  }
+   return error ? mapError(error, "Nepavyko išsiųsti prašymo.") : ok("Išsiųsta biurui.");
+ }
+ 
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 20de14e..d7eb4e1 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -3,7 +3,8 @@ import { updateSession } from "@/lib/supabase/middleware";
+ import { supabaseConfigured } from "@/lib/supabase/env";
+ 
+ const AUTH_PAGES = ["/prisijungimas", "/registracija", "/pamirsau-slaptazodi"];
+-const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota"];
++// /api/* išimtys neturi naudotojo sesijos (kviečia Telegram, Supabase webhook ir GitHub cron); kiekvieną saugo savo slaptažodis.
++const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota", "/api/telegram", "/api/cars/reminders", "/api/notifications/dispatch"];
+ 
+ const matches = (path: string, list: string[]) => list.some((p) => path === p || path.startsWith(p + "/"));
+ 
+diff --git a/supabase/migrations/0016_telegram.sql b/supabase/migrations/0016_telegram.sql
+deleted file mode 100644
+index 10e189c..0000000
+--- a/supabase/migrations/0016_telegram.sql
++++ /dev/null
+@@ -1,12 +0,0 @@
+--- DarboRitmas · 0016 · Telegram: vienkartiniai prijungimo kodai
+--- Naudotojas programoje paspaudžia „Prijungti Telegram“, serveris sukuria vienkartinį kodą (saugoma tik jo maišos reikšmė),
+--- o botas, gavęs /start <kodas>, įrašo chat_id į notification_channels. Lentelę mato tik serveris (service_role).
+-create table public.telegram_link_tokens (
+-  token_hash text primary key,
+-  user_id    uuid not null references public.profiles (id) on delete cascade,
+-  expires_at timestamptz not null,
+-  created_at timestamptz not null default now()
+-);
+-create index telegram_link_tokens_user_idx on public.telegram_link_tokens (user_id);
+-alter table public.telegram_link_tokens enable row level security;   -- be politikų: tik service_role
+-revoke all on public.telegram_link_tokens from anon, authenticated;
+diff --git a/supabase/tests/rls_test.sql b/supabase/tests/rls_test.sql
+index 2e4e5b5..2c517f9 100644
+--- a/supabase/tests/rls_test.sql
++++ b/supabase/tests/rls_test.sql
+@@ -313,6 +313,72 @@ select t.as_user('B');
+ select t.ok(t.n($$select count(*) from public.attachments$$) = 0, 'kita įmonė failų nemato');
+ select t.ok(t.n($$select count(*) from public.projects where client_name is not null$$) = 0, 'kita įmonė kliento duomenų nemato');
+ 
++-- 8c. Telegram prijungimai: rašo tik serveris, naudotojas mato tik savo
++reset role;
++insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('A'), t.id('CX'), 1001);
++insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('W'), t.id('CX'), 1002);
++insert into public.telegram_link_tokens (token_hash, user_id, company_id, expires_at) values ('abc', t.id('A'), t.id('CX'), now() + interval '15 minutes');
++select t.as_user('A');
++select t.ok(t.n($$select count(*) from public.telegram_links$$) = 1, 'naudotojas mato tik savo Telegram prijungimą');
++select t.err($$insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('A'), t.id('CX'), 1003)$$, '42501');
++select t.err($$update public.telegram_links set chat_id = 5$$, '42501');
++select t.err($$select count(*) from public.telegram_link_tokens$$, '42501');
++select t.as_user('B');
++select t.ok(t.n($$select count(*) from public.telegram_links$$) = 0, 'kita įmonė Telegram prijungimų nemato');
++reset role;
++delete from public.telegram_link_tokens;
++delete from public.telegram_links;
++
++-- 10. Pranešimai (0014): eilė, programos pranešimai, nustatymai
++-- Medžiagų prašymą (6 skyrius) sukūrė W: pranešimas eilėje skirtas administratoriui, ne autoriui.
++reset role;
++select t.ok(t.n($$select count(*) from public.notification_outbox where event_type = 'material_request' and user_id = t.id('A')$$) >= 1,
++            'medžiagų prašymas sukuria pranešimą administratoriui');
++select t.ok(t.n($$select count(*) from public.notification_outbox where event_type = 'material_request' and user_id = t.id('W')$$) = 0,
++            'medžiagų prašymo autorius pats sau nepraneša');
++-- Valandų patvirtinimas (8 skyrius): pranešimas darbuotojui.
++select t.ok(t.n($$select count(*) from public.notification_outbox where event_type = 'hours_approved' and user_id = t.id('W')$$) >= 1,
++            'valandų patvirtinimas sukuria pranešimą darbuotojui');
++
++-- Darbo priskyrimas sukuria pranešimą darbuotojui; sau paties nepranešama.
++select t.as_user('A');
++insert into public.tasks (company_id, project_id, title, assigned_to)
++  values (t.id('CX'), '10000000-0000-0000-0000-000000000001', 'Pranešimo testas', t.id('W'));
++insert into public.tasks (company_id, project_id, title, assigned_to)
++  values (t.id('CX'), '10000000-0000-0000-0000-000000000001', 'Pats sau', t.id('A'));
++reset role;
++select t.ok(t.n($$select count(*) from public.notification_outbox where user_id = t.id('W') and event_type = 'task_assigned' and body like 'Pranešimo testas%'$$) = 1,
++            'darbo priskyrimas sukuria pranešimą eilėje');
++select t.ok(t.n($$select count(*) from public.notification_outbox where user_id = t.id('A') and event_type = 'task_assigned'$$) = 0,
++            'administratorius nepraneša pats sau');
++
++-- Eilė, žurnalas ir kanalų rašymas naršyklei uždrausti.
++select t.as_user('W');
++select t.err($$select count(*) from public.notification_outbox$$, '42501');
++select t.err($$select count(*) from public.notification_log$$, '42501');
++select t.err($$insert into public.notification_channels (user_id, channel, address, verified) values (t.id('W'), 'email', '{"x": 1}', true)$$, '42501');
++select t.err($$insert into public.notifications (company_id, user_id, event_type, title) values (t.id('CX'), t.id('W'), 'task_assigned', 'Netikras')$$, '42501');
++select t.err($$select public.claim_notification_outbox(10)$$, '42501');
++select t.err($$select public.enqueue_notification(t.id('CX'), t.id('W'), 'task_assigned', 'x', 'y', '{}'::jsonb)$$, '42501');
++
++-- Nustatymai: tik savo.
++insert into public.notification_preferences (user_id, event_type, channel, enabled) values (t.id('W'), 'task_assigned', 'inapp', false);
++select t.err($$insert into public.notification_preferences (user_id, event_type, channel, enabled) values (t.id('A'), 'task_assigned', 'inapp', false)$$, '42501');
++
++-- Programos pranešimai: mato tik savo, keisti gali tik read_at.
++reset role;
++insert into public.notifications (company_id, user_id, event_type, title)
++  values (t.id('CX'), t.id('W'), 'task_assigned', 'W pranešimas');
++select t.as_user('W');
++select t.ok(t.n($$select count(*) from public.notifications$$) = 1, 'darbuotojas mato savo pranešimą');
++select t.ok(t.rows($$update public.notifications set read_at = now()$$) = 1, 'darbuotojas gali pažymėti pranešimą skaitytu');
++select t.err($$update public.notifications set title = 'Pakeista'$$, '42501');
++select t.as_user('A');
++select t.ok(t.n($$select count(*) from public.notifications$$) = 0, 'administratorius svetimų pranešimų nemato');
++select t.as_user('B');
++select t.ok(t.n($$select count(*) from public.notifications$$) = 0, 'kita įmonė pranešimų nemato');
++reset role;
++
+ -- 9. Anon neturi prieigos
+ set role anon;
+ do $$ begin
+diff --git a/telegram-webhook.patch b/telegram-webhook.patch
+deleted file mode 100644
+index 9aa4e80..0000000
+--- a/telegram-webhook.patch
++++ /dev/null
+@@ -1,847 +0,0 @@
+-diff --git a/.env.example b/.env.example
+-index e07c725..9aea006 100644
+---- a/.env.example
+-+++ b/.env.example
+-@@ -14,3 +14,11 @@ STRIPE_SECRET_KEY=
+- STRIPE_WEBHOOK_SECRET=
+- STRIPE_PRICE_MONTHLY=
+- STRIPE_PRICE_YEARLY=
+-+
+-+# --- Telegram botas (pranešimai administratoriams) ---
+-+# Token iš @BotFather. Slaptas, tik serveriui.
+-+TELEGRAM_BOT_TOKEN=
+-+# Boto vartotojo vardas be @ (pvz. DarboRitmasBot). Naudojamas prijungimo nuorodai.
+-+TELEGRAM_BOT_USERNAME=
+-+# Bet kokia ilga atsitiktinė eilutė (A-Z a-z 0-9 _ -), tą pačią nurodysite setWebhook. Žr. docs/TELEGRAM.md
+-+TELEGRAM_WEBHOOK_SECRET=
+-diff --git a/README.md b/README.md
+-index 3ab7b34..725e8f2 100644
+---- a/README.md
+-+++ b/README.md
+-@@ -26,6 +26,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
+- | 5. Darbuotojo funkcijos su tikrais duomenimis | Atlikta (žr. `docs/DARBUOTOJAS.md`) |
+- | 6. Administratoriaus aplinka ir Medžiagos | Atlikta (žr. `docs/ADMINISTRATORIUS.md`, `docs/MEDZIAGOS.md`) |
+- | 7. Stripe prenumeratos | Laukia |
+-+| Telegram pranešimai administratoriams | Atlikta (žr. `docs/TELEGRAM.md`) |
+- | 8. Testavimas | Laukia |
+- | 9. Publikavimas Vercel | Laukia |
+- 
+-diff --git a/docs/TELEGRAM.md b/docs/TELEGRAM.md
+-new file mode 100644
+-index 0000000..8a0859d
+---- /dev/null
+-+++ b/docs/TELEGRAM.md
+-@@ -0,0 +1,71 @@
+-+# Telegram pranešimai administratoriams
+-+
+-+Botas siunčia **tik įmonės administratoriams** (savininkui ir administratoriams) pranešimus iš programos.
+-+Darbuotojai botui neprijungiami.
+-+
+-+## Kokie pranešimai veikia dabar
+-+
+-+| Kategorija | Kada ateina |
+-+|---|---|
+-+| `medziagos` | Darbuotojas išsiunčia medžiagų poreikį |
+-+| `pastabos` | Darbuotojas parašo pastabą biurui |
+-+| `darbas` | Darbuotojas pradeda, baigia darbą arba pakeičia objektą |
+-+
+-+Paties veiksmo autorius pranešimo negauna (jei administratorius pats pradeda darbą, jam nerašoma).
+-+Kiekvienas administratorius gali išjungti kategorijas botui parašęs `/isjungti darbas`.
+-+
+-+**Dar neįgyvendinta** (programoje tokių funkcijų kol kas nėra): automobilių dokumentų galiojimas
+-+(kelių mokestis, draudimas, kasko), vairuotojų kilometražas, darbo sutarčių ir sąmatų siuntimas bei patvirtinimas.
+-+Pranešimų sistema tam paruošta: pakanka pridėti kategoriją `src/lib/telegram/core.ts` ir iškviesti `notifyAdmins(...)`.
+-+
+-+## Diegimas (vieną kartą)
+-+
+-+### 1. Duomenų bazė
+-+Supabase → SQL Editor: paleiskite `supabase/migrations/0014_telegram.sql`.
+-+
+-+### 2. Slaptieji kintamieji
+-+Sugalvokite ilgą atsitiktinę eilutę (tik `A-Z a-z 0-9 _ -`) kaip `TELEGRAM_WEBHOOK_SECRET`.
+-+Programa veikia Cloudflare, todėl slaptuosius kintamuosius įrašykite taip:
+-+
+-+```bash
+-+npx wrangler secret put TELEGRAM_BOT_TOKEN
+-+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+-+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY   # jei dar neįrašytas
+-+```
+-+
+-+`TELEGRAM_BOT_USERNAME` (be @) nėra slaptas, jį galite įrašyti į `wrangler.jsonc` → `"vars"` arba Cloudflare skydelyje.
+-+Vietoje (`npm run dev`) naudokite `.env.local` pagal `.env.example`.
+-+
+-+Po pakeitimų: `npm run deploy`.
+-+
+-+### 3. Webhook'o užregistravimas
+-+Telegram turi žinoti jūsų adresą. Vykdykite (pakeiskite trys reikšmės):
+-+
+-+```bash
+-+curl -sS "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+-+  -d "url=https://<JUSU-DOMENAS>/api/telegram/webhook" \
+-+  -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>" \
+-+  -d 'allowed_updates=["message"]'
+-+```
+-+
+-+Atsakymas turi būti `{"ok":true,...}`. Būseną galima pažiūrėti: `https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
+-+(laukas `last_error_message` parodo, jei Telegram nepasiekia adreso).
+-+
+-+### 4. Prijungimas programoje
+-+Prisijunkite kaip administratorius → **Valdymas → Telegram → Prijungti Telegram** → atsidariusiame Telegram paspauskite **Start**.
+-+Nuoroda vienkartinė ir galioja 15 minučių.
+-+
+-+## Botas
+-+Komandos: `/pranesimai`, `/isjungti <kategorija>`, `/ijungti <kategorija>`, `/atsijungti`, `/pagalba`.
+-+Botas atsako tik privačiuose pokalbiuose (grupėse nieko neprijungia).
+-+
+-+## Saugumas
+-+- Webhook priima tik užklausas su teisinga `X-Telegram-Bot-Api-Secret-Token` antrašte.
+-+- Prijungimo kodai vienkartiniai, galioja 15 min., duomenų bazėje saugoma tik jų SHA-256 maiša.
+-+- Vaidmuo tikrinamas ir prijungiant, ir kiekvieną kartą siunčiant: nebe administratorius pranešimų negauna.
+-+- `telegram_links` ir `telegram_link_tokens` keičia tik serveris (`service_role`); naršyklė mato tik savo prijungimą.
+-+- Jei vartotojas užblokuoja botą, prijungimas automatiškai pašalinamas.
+-+- Žinutėse naudotojų įvestas tekstas apsaugotas nuo HTML interpretavimo.
+-+
+-+## Senasis Python botas
+-+Atskiras `bot.py` (kuris buvo sukurtas pirmame pokalbyje) šiai programai nebereikalingas: webhook veikia pačioje programoje.
+-diff --git a/src/app/(app)/valdymas/telegram/page.tsx b/src/app/(app)/valdymas/telegram/page.tsx
+-new file mode 100644
+-index 0000000..7144076
+---- /dev/null
+-+++ b/src/app/(app)/valdymas/telegram/page.tsx
+-@@ -0,0 +1,25 @@
+-+import TelegramConnect from "@/components/admin/TelegramConnect";
+-+import { requireContext } from "@/lib/auth/context";
+-+import { createClient } from "@/lib/supabase/server";
+-+import { CATEGORIES } from "@/lib/telegram/core";
+-+
+-+export const dynamic = "force-dynamic";
+-+
+-+export default async function TelegramPage() {
+-+  const ctx = await requireContext();
+-+  const supabase = await createClient();
+-+  // RLS: naudotojas mato tik savo prijungimą.
+-+  const { data } = await supabase
+-+    .from("telegram_links")
+-+    .select("telegram_username")
+-+    .eq("user_id", ctx.userId)
+-+    .eq("company_id", ctx.company?.id ?? "")
+-+    .maybeSingle();
+-+  return (
+-+    <TelegramConnect
+-+      connected={!!data}
+-+      username={data?.telegram_username ?? null}
+-+      categories={Object.entries(CATEGORIES).map(([id, label]) => ({ id, label }))}
+-+    />
+-+  );
+-+}
+-diff --git a/src/app/api/telegram/webhook/route.ts b/src/app/api/telegram/webhook/route.ts
+-new file mode 100644
+-index 0000000..5b24036
+---- /dev/null
+-+++ b/src/app/api/telegram/webhook/route.ts
+-@@ -0,0 +1,28 @@
+-+import { safeEqual } from "@/lib/telegram/core";
+-+import { handleUpdate, type TelegramUpdate } from "@/lib/telegram/webhook";
+-+
+-+export const dynamic = "force-dynamic";
+-+
+-+/**
+-+ * Telegram webhook. Telegram siunčia slaptą antraštę, kurią nurodėme per setWebhook (secret_token).
+-+ * Be jos užklausa atmetama. Po sėkmingo patikrinimo visada grąžiname 200, kad Telegram nekartotų užklausų.
+-+ */
+-+export async function POST(req: Request) {
+-+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+-+  const given = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
+-+  if (!secret || !safeEqual(given, secret)) return new Response("forbidden", { status: 403 });
+-+
+-+  let update: TelegramUpdate;
+-+  try {
+-+    update = (await req.json()) as TelegramUpdate;
+-+  } catch {
+-+    return new Response("bad request", { status: 400 });
+-+  }
+-+
+-+  try {
+-+    await handleUpdate(update);
+-+  } catch (e) {
+-+    console.error("Telegram webhook klaida:", e);
+-+  }
+-+  return Response.json({ ok: true });
+-+}
+-diff --git a/src/components/admin/AdminTabs.tsx b/src/components/admin/AdminTabs.tsx
+-index b8be528..0fff7ed 100644
+---- a/src/components/admin/AdminTabs.tsx
+-+++ b/src/components/admin/AdminTabs.tsx
+-@@ -9,6 +9,7 @@ const TABS = [
+-   { href: "/valdymas/darbuotojai", label: "Darbuotojai" },
+-   { href: "/valdymas/laikas", label: "Laikas" },
+-   { href: "/valdymas/ataskaita", label: "Ataskaita" },
+-+  { href: "/valdymas/telegram", label: "Telegram" },
+- ];
+- 
+- export default function AdminTabs() {
+-diff --git a/src/components/admin/TelegramConnect.tsx b/src/components/admin/TelegramConnect.tsx
+-new file mode 100644
+-index 0000000..076e436
+---- /dev/null
+-+++ b/src/components/admin/TelegramConnect.tsx
+-@@ -0,0 +1,70 @@
+-+"use client";
+-+
+-+import { useState, useTransition } from "react";
+-+import { disconnectTelegram, createTelegramLink } from "@/lib/telegram/actions";
+-+import { ghostBtn, Msg, primaryBtn } from "./ui";
+-+
+-+type Props = { connected: boolean; username: string | null; categories: { id: string; label: string }[] };
+-+
+-+export default function TelegramConnect({ connected, username, categories }: Props) {
+-+  const [pending, start] = useTransition();
+-+  const [link, setLink] = useState<{ url: string; minutes: number } | null>(null);
+-+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+-+
+-+  const connect = () =>
+-+    start(async () => {
+-+      setMsg(null);
+-+      const r = await createTelegramLink();
+-+      if (r.ok) setLink({ url: r.url, minutes: r.minutes });
+-+      else setMsg({ ok: false, text: r.error });
+-+    });
+-+
+-+  const disconnect = () =>
+-+    start(async () => {
+-+      const r = await disconnectTelegram();
+-+      setLink(null);
+-+      setMsg(r.ok ? { ok: true, text: r.message ?? "Atjungta." } : { ok: false, text: r.error });
+-+    });
+-+
+-+  return (
+-+    <section className="space-y-4 rounded-card bg-white p-5 shadow-card">
+-+      <div>
+-+        <h2 className="text-xl font-extrabold">Telegram pranešimai</h2>
+-+        <p className="mt-1 text-muted">Gaukite pranešimus telefone, kai darbuotojai pateikia medžiagų poreikį, pastabą ar pradeda / baigia darbą.</p>
+-+      </div>
+-+
+-+      {connected ? (
+-+        <div className="space-y-3">
+-+          <p className="rounded-2xl bg-go-soft p-3 font-medium text-go-dark">✅ Prijungta{username ? ` (@${username})` : ""}</p>
+-+          <button type="button" onClick={disconnect} disabled={pending} className={ghostBtn}>
+-+            Atjungti
+-+          </button>
+-+        </div>
+-+      ) : link ? (
+-+        <div className="space-y-3">
+-+          <a href={link.url} target="_blank" rel="noopener noreferrer" className={`${primaryBtn} flex items-center justify-center`}>
+-+            Atidaryti Telegram ir paspausti „Start“
+-+          </a>
+-+          <p className="text-sm text-muted">Nuoroda vienkartinė ir galioja {link.minutes} min. Paspaudę „Start“ botui, grįžkite čia ir atnaujinkite puslapį.</p>
+-+        </div>
+-+      ) : (
+-+        <button type="button" onClick={connect} disabled={pending} className={primaryBtn}>
+-+          {pending ? "Kuriama…" : "Prijungti Telegram"}
+-+        </button>
+-+      )}
+-+
+-+      <Msg msg={msg} />
+-+
+-+      <div className="border-t border-black/10 pt-4">
+-+        <p className="mb-2 text-sm font-medium text-muted">Kategorijas keičiate botui parašę /pranesimai</p>
+-+        <ul className="space-y-1 text-sm">
+-+          {categories.map((c) => (
+-+            <li key={c.id}>
+-+              <code className="rounded bg-black/5 px-1.5 py-0.5">{c.id}</code> – {c.label}
+-+            </li>
+-+          ))}
+-+        </ul>
+-+      </div>
+-+    </section>
+-+  );
+-+}
+-diff --git a/src/lib/supabase/admin.ts b/src/lib/supabase/admin.ts
+-new file mode 100644
+-index 0000000..d708221
+---- /dev/null
+-+++ b/src/lib/supabase/admin.ts
+-@@ -0,0 +1,12 @@
+-+import { createClient } from "@supabase/supabase-js";
+-+import { supabaseUrl } from "./env";
+-+
+-+/**
+-+ * Klientas su service_role raktu: apeina RLS. Naudoti TIK serveryje (webhook'ai, fono užduotys)
+-+ * ir tik po to, kai atskirai patikrinta, kas ir ką daro. Niekada neimportuokite į "use client" failus.
+-+ */
+-+export function createAdminClient() {
+-+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+-+  if (!supabaseUrl || !key) throw new Error("Trūksta SUPABASE_SERVICE_ROLE_KEY arba NEXT_PUBLIC_SUPABASE_URL.");
+-+  return createClient(supabaseUrl, key, { auth: { persistSession: false, autoRefreshToken: false } });
+-+}
+-diff --git a/src/lib/telegram/actions.ts b/src/lib/telegram/actions.ts
+-new file mode 100644
+-index 0000000..1a575b2
+---- /dev/null
+-+++ b/src/lib/telegram/actions.ts
+-@@ -0,0 +1,45 @@
+-+"use server";
+-+
+-+import { revalidatePath } from "next/cache";
+-+import { getActionContext, isAdmin } from "@/lib/auth/context";
+-+import { createAdminClient } from "@/lib/supabase/admin";
+-+import type { ActionResult } from "@/lib/work/types";
+-+import { newToken } from "./core";
+-+
+-+const TOKEN_MINUTES = 15;
+-+
+-+type LinkResult = { ok: true; url: string; minutes: number } | { ok: false; error: string };
+-+
+-+/** Sukuria vienkartinę prijungimo nuorodą (galioja 15 min.). Tik įmonės administratoriui. */
+-+export async function createTelegramLink(): Promise<LinkResult> {
+-+  const ctx = await getActionContext();
+-+  if (!ctx) return { ok: false, error: "Sesija baigėsi. Prisijunkite iš naujo." };
+-+  if (!ctx.companyId || !isAdmin(ctx.role)) return { ok: false, error: "Telegram gali prijungti tik administratorius." };
+-+  const bot = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "");
+-+  if (!bot || !process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_WEBHOOK_SECRET) {
+-+    return { ok: false, error: "Telegram botas dar nesukonfigūruotas (žr. docs/TELEGRAM.md)." };
+-+  }
+-+
+-+  const db = createAdminClient();
+-+  const { token, hash } = await newToken();
+-+  const now = new Date();
+-+  // Seni kodai tvarkomi čia, kad nereikėtų atskiros valymo užduoties; šio naudotojo ankstesni kodai nebegalioja.
+-+  await db.from("telegram_link_tokens").delete().lt("expires_at", now.toISOString());
+-+  await db.from("telegram_link_tokens").delete().eq("user_id", ctx.userId).eq("company_id", ctx.companyId);
+-+  const { error } = await db.from("telegram_link_tokens").insert({
+-+    token_hash: hash,
+-+    user_id: ctx.userId,
+-+    company_id: ctx.companyId,
+-+    expires_at: new Date(now.getTime() + TOKEN_MINUTES * 60_000).toISOString(),
+-+  });
+-+  if (error) return { ok: false, error: "Nepavyko sukurti nuorodos. Bandykite dar kartą." };
+-+  return { ok: true, url: `https://t.me/${bot}?start=${token}`, minutes: TOKEN_MINUTES };
+-+}
+-+
+-+export async function disconnectTelegram(): Promise<ActionResult> {
+-+  const ctx = await getActionContext();
+-+  if (!ctx?.companyId) return { ok: false, error: "Sesija baigėsi. Prisijunkite iš naujo." };
+-+  const { error } = await createAdminClient().from("telegram_links").delete().eq("user_id", ctx.userId).eq("company_id", ctx.companyId);
+-+  revalidatePath("/valdymas/telegram");
+-+  return error ? { ok: false, error: "Nepavyko atjungti." } : { ok: true, message: "Telegram atjungtas." };
+-+}
+-diff --git a/src/lib/telegram/api.ts b/src/lib/telegram/api.ts
+-new file mode 100644
+-index 0000000..f9ceb9a
+---- /dev/null
+-+++ b/src/lib/telegram/api.ts
+-@@ -0,0 +1,26 @@
+-+const API = "https://api.telegram.org";
+-+
+-+export type SendResult = { ok: true } | { ok: false; blocked: boolean; error: string };
+-+
+-+/**
+-+ * Siunčia žinutę per Telegram Bot API. Niekada nemeta klaidos: grąžina rezultatą.
+-+ * `blocked` = vartotojas sustabdė botą arba ištrynė pokalbį, tokį prijungimą verta pašalinti.
+-+ */
+-+export async function sendMessage(chatId: number, html: string): Promise<SendResult> {
+-+  const token = process.env.TELEGRAM_BOT_TOKEN;
+-+  if (!token) return { ok: false, blocked: false, error: "TELEGRAM_BOT_TOKEN nenustatytas" };
+-+  try {
+-+    const res = await fetch(`${API}/bot${token}/sendMessage`, {
+-+      method: "POST",
+-+      headers: { "content-type": "application/json" },
+-+      body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: "HTML", link_preview_options: { is_disabled: true } }),
+-+      signal: AbortSignal.timeout(8000),
+-+    });
+-+    if (res.ok) return { ok: true };
+-+    const body = (await res.json().catch(() => ({}))) as { description?: string };
+-+    const blocked = res.status === 403 || (res.status === 400 && /chat not found/i.test(body.description ?? ""));
+-+    return { ok: false, blocked, error: `Telegram ${res.status}: ${body.description ?? "klaida"}` };
+-+  } catch (e) {
+-+    return { ok: false, blocked: false, error: e instanceof Error ? e.message : "tinklo klaida" };
+-+  }
+-+}
+-diff --git a/src/lib/telegram/core.ts b/src/lib/telegram/core.ts
+-new file mode 100644
+-index 0000000..ef1a9d3
+---- /dev/null
+-+++ b/src/lib/telegram/core.ts
+-@@ -0,0 +1,64 @@
+-+/**
+-+ * Grynos Telegram pagalbinės funkcijos (be Supabase ir tinklo), kad jas būtų galima išbandyti atskirai.
+-+ */
+-+
+-+/** Pranešimų kategorijos, kurias administratorius gali įjungti / išjungti komandomis. */
+-+export const CATEGORIES = {
+-+  medziagos: "Medžiagų poreikiai",
+-+  pastabos: "Pastabos biurui",
+-+  darbas: "Darbo pradžia ir pabaiga",
+-+} as const;
+-+export type Category = keyof typeof CATEGORIES;
+-+export const isCategory = (v: string): v is Category => Object.prototype.hasOwnProperty.call(CATEGORIES, v);
+-+
+-+/** Telegram HTML režimui: išvengiame vartotojo įvesto teksto interpretavimo kaip žymų. */
+-+export function esc(text: string): string {
+-+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+-+}
+-+
+-+/** Trumpina ilgą tekstą (Telegram riba 4096 simboliai visai žinutei). */
+-+export function clip(text: string, max: number): string {
+-+  const t = text.trim();
+-+  return t.length <= max ? t : t.slice(0, max - 1).trimEnd() + "…";
+-+}
+-+
+-+export type ParsedCommand = { name: string; arg: string };
+-+
+-+/** "/start@MusuBotas abc" -> { name: "start", arg: "abc" }. Ne komanda -> null. */
+-+export function parseCommand(text: string | undefined | null): ParsedCommand | null {
+-+  const m = /^\/([A-Za-z0-9_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec((text ?? "").trim());
+-+  if (!m) return null;
+-+  return { name: m[1].toLowerCase(), arg: (m[2] ?? "").trim() };
+-+}
+-+
+-+/** Telegram deep link parametras: tik A–Z a–z 0–9 _ - iki 64 simbolių. */
+-+export const isValidStartToken = (t: string) => /^[A-Za-z0-9_-]{20,64}$/.test(t);
+-+
+-+/** Konstantaus laiko eilučių palyginimas (webhook slaptažodžiui). */
+-+export function safeEqual(a: string, b: string): boolean {
+-+  const len = Math.max(a.length, b.length);
+-+  let diff = a.length ^ b.length;
+-+  for (let i = 0; i < len; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+-+  return diff === 0;
+-+}
+-+
+-+/** Atsitiktinis vienkartinis kodas (base64url, 32 simboliai) ir jo SHA-256 maiša. Naudoja Web Crypto (veikia Cloudflare Workers). */
+-+export async function newToken(): Promise<{ token: string; hash: string }> {
+-+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+-+  const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+-+  return { token, hash: await sha256Hex(token) };
+-+}
+-+
+-+export async function sha256Hex(text: string): Promise<string> {
+-+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+-+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+-+}
+-+
+-+/** Minutės -> "7 val. 32 min". */
+-+export function formatMinutes(total: number): string {
+-+  const m = Math.max(0, Math.round(total));
+-+  const h = Math.floor(m / 60);
+-+  const r = m % 60;
+-+  if (h === 0) return `${r} min`;
+-+  return r === 0 ? `${h} val.` : `${h} val. ${r} min`;
+-+}
+-diff --git a/src/lib/telegram/notify.ts b/src/lib/telegram/notify.ts
+-new file mode 100644
+-index 0000000..99edc86
+---- /dev/null
+-+++ b/src/lib/telegram/notify.ts
+-@@ -0,0 +1,124 @@
+-+import { after } from "next/server";
+-+import { createAdminClient } from "@/lib/supabase/admin";
+-+import { sendMessage } from "./api";
+-+import { clip, esc, formatMinutes, type Category } from "./core";
+-+
+-+type Admin = ReturnType<typeof createAdminClient>;
+-+
+-+/**
+-+ * Išsiunčia žinutę visiems įmonės administratoriams, kurie prijungė Telegram ir neišjungė šios kategorijos.
+-+ * Niekada nemeta klaidos: pranešimo nesėkmė neturi sugadinti programos veiksmo.
+-+ */
+-+export async function notifyAdmins(companyId: string, category: Category, html: string, exceptUserId?: string): Promise<void> {
+-+  try {
+-+    const db = createAdminClient();
+-+    // Vaidmenį tikriname siuntimo metu: nebe administratorius pranešimų negauna, nors prijungimas liko.
+-+    const { data: admins } = await db
+-+      .from("company_members")
+-+      .select("user_id")
+-+      .eq("company_id", companyId)
+-+      .eq("status", "active")
+-+      .in("role", ["owner", "admin"]);
+-+    const userIds = (admins ?? []).map((a) => a.user_id).filter((id): id is string => !!id && id !== exceptUserId); // paties veiksmo autoriaus nepinginame
+-+    if (userIds.length === 0) return;
+-+
+-+    const { data: links } = await db
+-+      .from("telegram_links")
+-+      .select("id, chat_id, muted")
+-+      .eq("company_id", companyId)
+-+      .in("user_id", userIds);
+-+
+-+    await Promise.all(
+-+      (links ?? [])
+-+        .filter((l) => !(l.muted ?? []).includes(category))
+-+        .map(async (l) => {
+-+          const r = await sendMessage(Number(l.chat_id), html);
+-+          if (!r.ok) {
+-+            console.error("Telegram pranešimas nepavyko:", r.error);
+-+            if (r.blocked) await db.from("telegram_links").delete().eq("id", l.id);
+-+          }
+-+        }),
+-+    );
+-+  } catch (e) {
+-+    console.error("notifyAdmins klaida:", e);
+-+  }
+-+}
+-+
+-+/** Paleidžia pranešimą po atsakymo naudotojui (Cloudflare: waitUntil), kad veiksmas nelauktų Telegram. */
+-+export function notifyLater(job: () => Promise<void>) {
+-+  const safe = () => job().catch((e) => console.error("Telegram pranešimas:", e));
+-+  try {
+-+    after(safe);
+-+  } catch {
+-+    void safe();
+-+  }
+-+}
+-+
+-+/* ------------------------------------------------------------ žinučių šablonai */
+-+async function nameOf(db: Admin, userId: string): Promise<string> {
+-+  const { data } = await db.from("profiles").select("full_name, email").eq("id", userId).maybeSingle();
+-+  return data?.full_name?.trim() || data?.email || "Darbuotojas";
+-+}
+-+
+-+async function projectName(db: Admin, projectId: string | null | undefined): Promise<string | null> {
+-+  if (!projectId) return null;
+-+  const { data } = await db.from("projects").select("name").eq("id", projectId).maybeSingle();
+-+  return data?.name ?? null;
+-+}
+-+
+-+export async function notifyMaterialRequest(args: {
+-+  companyId: string;
+-+  userId: string;
+-+  projectId: string | null;
+-+  comment?: string | null;
+-+  items: { name: string; quantity: number; unit: string }[];
+-+}) {
+-+  const db = createAdminClient();
+-+  const [who, project] = await Promise.all([nameOf(db, args.userId), projectName(db, args.projectId)]);
+-+  const lines = args.items.slice(0, 15).map((i) => `• ${esc(i.name)} – ${i.quantity} ${esc(i.unit)}`);
+-+  if (args.items.length > 15) lines.push(`… ir dar ${args.items.length - 15}`);
+-+  const text = [
+-+    `🧰 <b>Medžiagų poreikis</b>`,
+-+    `${esc(who)}${project ? ` · ${esc(project)}` : ""}`,
+-+    ...lines,
+-+    args.comment?.trim() ? `\n💬 ${esc(clip(args.comment, 500))}` : "",
+-+  ]
+-+    .filter(Boolean)
+-+    .join("\n");
+-+  await notifyAdmins(args.companyId, "medziagos", text, args.userId);
+-+}
+-+
+-+export async function notifyNote(args: { companyId: string; userId: string; body: string; voice: boolean }) {
+-+  const db = createAdminClient();
+-+  const who = await nameOf(db, args.userId);
+-+  const body = args.voice ? "🎙 Balso pastaba (atidarykite programą)" : esc(clip(args.body, 1500));
+-+  await notifyAdmins(args.companyId, "pastabos", `📝 <b>Pastaba biurui</b>\n${esc(who)}\n${body}`, args.userId);
+-+}
+-+
+-+export async function notifyWorkStarted(args: { companyId: string; userId: string; projectId?: string | null; switched?: boolean }) {
+-+  const db = createAdminClient();
+-+  const [who, project] = await Promise.all([nameOf(db, args.userId), projectName(db, args.projectId)]);
+-+  const verb = args.switched ? "pakeitė objektą" : "pradėjo darbą";
+-+  await notifyAdmins(args.companyId, "darbas", `▶️ <b>${esc(who)}</b> ${verb}${project ? `\n📍 ${esc(project)}` : ""}`, args.userId);
+-+}
+-+
+-+export async function notifyWorkFinished(args: { companyId: string; userId: string; entryId: string }) {
+-+  const db = createAdminClient();
+-+  const [who, entry, breaks] = await Promise.all([
+-+    nameOf(db, args.userId),
+-+    db.from("time_entries").select("started_at, ended_at, project_id").eq("id", args.entryId).maybeSingle(),
+-+    db.from("breaks").select("started_at, ended_at").eq("time_entry_id", args.entryId),
+-+  ]);
+-+  const e = entry.data;
+-+  let duration = "";
+-+  if (e?.started_at && e.ended_at) {
+-+    const breakMs = (breaks.data ?? []).reduce(
+-+      (sum, b) => sum + (b.ended_at ? new Date(b.ended_at).getTime() - new Date(b.started_at).getTime() : 0),
+-+      0,
+-+    );
+-+    const ms = new Date(e.ended_at).getTime() - new Date(e.started_at).getTime() - breakMs;
+-+    duration = `\n⏱ Dirbta: ${formatMinutes(ms / 60000)}`;
+-+  }
+-+  const project = await projectName(db, e?.project_id);
+-+  await notifyAdmins(args.companyId, "darbas", `⏹ <b>${esc(who)}</b> baigė darbą${project ? `\n📍 ${esc(project)}` : ""}${duration}`, args.userId);
+-+}
+-diff --git a/src/lib/telegram/webhook.ts b/src/lib/telegram/webhook.ts
+-new file mode 100644
+-index 0000000..6b7eac1
+---- /dev/null
+-+++ b/src/lib/telegram/webhook.ts
+-@@ -0,0 +1,144 @@
+-+import { createAdminClient } from "@/lib/supabase/admin";
+-+import { sendMessage } from "./api";
+-+import { CATEGORIES, esc, isCategory, isValidStartToken, parseCommand, sha256Hex, type Category } from "./core";
+-+
+-+export type TelegramUpdate = {
+-+  message?: {
+-+    text?: string;
+-+    chat: { id: number; type: string };
+-+    from?: { id: number; username?: string };
+-+  };
+-+};
+-+
+-+const HELP = [
+-+  "<b>DarboRitmas botas</b>",
+-+  "Čia gausite pranešimus iš savo įmonės programos.",
+-+  "",
+-+  "/pranesimai – kokias kategorijas gaunate",
+-+  "/isjungti &lt;kategorija&gt; – nebegauti kategorijos",
+-+  "/ijungti &lt;kategorija&gt; – vėl gauti kategoriją",
+-+  "/atsijungti – atjungti šį pokalbį",
+-+  "",
+-+  `Kategorijos: ${Object.keys(CATEGORIES).join(", ")}`,
+-+].join("\n");
+-+
+-+const NOT_LINKED =
+-+  "Šis pokalbis dar neprijungtas. Programoje atidarykite <b>Valdymas → Telegram</b> ir paspauskite „Prijungti Telegram“.";
+-+
+-+export async function handleUpdate(update: TelegramUpdate): Promise<void> {
+-+  const msg = update.message;
+-+  if (!msg) return;
+-+  const chatId = msg.chat.id;
+-+  const reply = (html: string) => sendMessage(chatId, html);
+-+
+-+  if (msg.chat.type !== "private") {
+-+    await reply("Šis botas veikia tik privačiame pokalbyje. Parašykite man tiesiogiai.");
+-+    return;
+-+  }
+-+
+-+  const cmd = parseCommand(msg.text);
+-+  if (!cmd) {
+-+    await reply("Nesupratau. Komandų sąrašas: /pagalba");
+-+    return;
+-+  }
+-+
+-+  const db = createAdminClient();
+-+
+-+  switch (cmd.name) {
+-+    case "start": {
+-+      if (!cmd.arg) {
+-+        await reply(`Sveiki! 👋\n\n${NOT_LINKED}\n\n/pagalba – komandos`);
+-+        return;
+-+      }
+-+      await linkChat(db, chatId, msg.from?.username ?? null, cmd.arg, reply);
+-+      return;
+-+    }
+-+    case "pagalba":
+-+    case "help":
+-+      await reply(HELP);
+-+      return;
+-+    case "atsijungti": {
+-+      const { data } = await db.from("telegram_links").delete().eq("chat_id", chatId).select("id");
+-+      await reply(data && data.length > 0 ? "Pokalbis atjungtas. Pranešimų daugiau negausite." : NOT_LINKED);
+-+      return;
+-+    }
+-+    case "pranesimai": {
+-+      const { data } = await db.from("telegram_links").select("muted").eq("chat_id", chatId);
+-+      if (!data || data.length === 0) return void (await reply(NOT_LINKED));
+-+      const lines = (Object.keys(CATEGORIES) as Category[]).map((c) => {
+-+        const mutedEverywhere = data.every((l) => (l.muted ?? []).includes(c));
+-+        return `${mutedEverywhere ? "🔕" : "🔔"} ${c} – ${CATEGORIES[c]}`;
+-+      });
+-+      await reply(`<b>Pranešimai</b>\n${lines.join("\n")}\n\nKeisti: /isjungti &lt;kategorija&gt; arba /ijungti &lt;kategorija&gt;`);
+-+      return;
+-+    }
+-+    case "ijungti":
+-+    case "isjungti": {
+-+      const cat = cmd.arg.toLowerCase();
+-+      if (!isCategory(cat)) {
+-+        await reply(`Nežinoma kategorija. Galimos: ${Object.keys(CATEGORIES).join(", ")}`);
+-+        return;
+-+      }
+-+      const { data: links } = await db.from("telegram_links").select("id, muted").eq("chat_id", chatId);
+-+      if (!links || links.length === 0) return void (await reply(NOT_LINKED));
+-+      const mute = cmd.name === "isjungti";
+-+      await Promise.all(
+-+        links.map((l) => {
+-+          const rest = (l.muted ?? []).filter((m: string) => m !== cat);
+-+          return db.from("telegram_links").update({ muted: mute ? [...rest, cat] : rest }).eq("id", l.id);
+-+        }),
+-+      );
+-+      await reply(mute ? `🔕 ${esc(CATEGORIES[cat])}: išjungta.` : `🔔 ${esc(CATEGORIES[cat])}: įjungta.`);
+-+      return;
+-+    }
+-+    default:
+-+      await reply("Nežinoma komanda. /pagalba");
+-+  }
+-+}
+-+
+-+async function linkChat(
+-+  db: ReturnType<typeof createAdminClient>,
+-+  chatId: number,
+-+  username: string | null,
+-+  token: string,
+-+  reply: (html: string) => Promise<unknown>,
+-+) {
+-+  const invalid = "Nuoroda negalioja arba pasibaigė. Programoje sukurkite naują („Valdymas → Telegram“).";
+-+  if (!isValidStartToken(token)) return void (await reply(invalid));
+-+
+-+  // Kodas sunaudojamas atominiu trynimu: dviem vienu metu atėjusiems /start laimi tik vienas.
+-+  const { data: tok } = await db
+-+    .from("telegram_link_tokens")
+-+    .delete()
+-+    .eq("token_hash", await sha256Hex(token))
+-+    .gt("expires_at", new Date().toISOString())
+-+    .select("user_id, company_id")
+-+    .maybeSingle();
+-+  if (!tok) return void (await reply(invalid));
+-+
+-+  // Vaidmuo tikrinamas dar kartą: kodas galėjo būti sukurtas prieš nuimant administratoriaus teises.
+-+  const { data: member } = await db
+-+    .from("company_members")
+-+    .select("id")
+-+    .eq("company_id", tok.company_id)
+-+    .eq("user_id", tok.user_id)
+-+    .eq("status", "active")
+-+    .in("role", ["owner", "admin"])
+-+    .maybeSingle();
+-+  if (!member) return void (await reply("Ši paskyra nebėra įmonės administratorius."));
+-+
+-+  // Tas pats Telegram pokalbis gali priklausyti tik vienam naudotojui toje įmonėje.
+-+  await db.from("telegram_links").delete().eq("company_id", tok.company_id).eq("chat_id", chatId);
+-+  const { error } = await db
+-+    .from("telegram_links")
+-+    .upsert(
+-+      { user_id: tok.user_id, company_id: tok.company_id, chat_id: chatId, telegram_username: username, muted: [] },
+-+      { onConflict: "user_id,company_id" },
+-+    );
+-+  if (error) {
+-+    console.error("Telegram prijungimas nepavyko:", error.message);
+-+    return void (await reply("Nepavyko prijungti. Bandykite dar kartą."));
+-+  }
+-+  const { data: company } = await db.from("companies").select("name").eq("id", tok.company_id).maybeSingle();
+-+  await reply(`✅ Prijungta${company?.name ? `: <b>${esc(company.name)}</b>` : ""}.\nČia gausite pranešimus apie medžiagas, pastabas ir darbo pradžią bei pabaigą.\n\n/pagalba – komandos`);
+-+}
+-diff --git a/src/lib/work/actions.ts b/src/lib/work/actions.ts
+-index 46655d4..ad7518b 100644
+---- a/src/lib/work/actions.ts
+-+++ b/src/lib/work/actions.ts
+-@@ -5,6 +5,7 @@ import { z } from "zod";
+- import { createClient } from "@/lib/supabase/server";
+- import { getActionContext, isAdmin } from "@/lib/auth/context";
+- import { isValidDayKey, todayKey } from "@/lib/dates";
+-+import { notifyLater, notifyMaterialRequest, notifyNote, notifyWorkFinished, notifyWorkStarted } from "@/lib/telegram/notify";
+- import { UNITS, type ActionResult, type TimeMode } from "./types";
+- 
+- type Db = Awaited<ReturnType<typeof createClient>>;
+-@@ -41,6 +42,7 @@ export async function startWork(projectId?: string | null): Promise<ActionResult
+-     .from("time_entries")
+-     .insert({ company_id: g.companyId, user_id: g.userId, project_id: byProject ? projectId : null, started_at: new Date().toISOString() });
+-   refresh();
+-+  if (!error) notifyLater(() => notifyWorkStarted({ companyId: g.companyId, userId: g.userId, projectId: byProject ? projectId : null }));
+-   return mapError(error, "Nepavyko pradėti darbo.");
+- }
+- 
+-@@ -53,6 +55,7 @@ export async function switchWorkProject(projectId: string): Promise<ActionResult
+-   const { error } = await g.db.rpc("switch_time_project", { p_project: projectId });
+-   refresh();
+-   if (error?.code === "P0001") return fail(error.message);
+-+  if (!error) notifyLater(() => notifyWorkStarted({ companyId: g.companyId, userId: g.userId, projectId, switched: true }));
+-   return error ? mapError(error, "Nepavyko pakeisti objekto.") : ok("Objektas pakeistas.");
+- }
+- 
+-@@ -96,6 +99,7 @@ export async function finishWork(): Promise<ActionResult> {
+-   await g.db.from("breaks").update({ ended_at: now }).eq("time_entry_id", entryId).is("ended_at", null);
+-   const { error } = await g.db.from("time_entries").update({ ended_at: now }).eq("id", entryId);
+-   refresh();
+-+  if (!error) notifyLater(() => notifyWorkFinished({ companyId: g.companyId, userId: g.userId, entryId }));
+-   return mapError(error, "Nepavyko baigti darbo.");
+- }
+- 
+-@@ -159,6 +163,7 @@ export async function addNote(body: string, kind: "text" | "voice" = "text"): Pr
+-     .from("notes")
+-     .insert({ company_id: g.companyId, author_id: g.userId, kind: kind === "voice" ? "voice" : "text", body: parsed.data });
+-   refresh();
+-+  if (!error) notifyLater(() => notifyNote({ companyId: g.companyId, userId: g.userId, body: parsed.data, voice: kind === "voice" }));
+-   return mapError(error, "Nepavyko išsiųsti pastabos.");
+- }
+- 
+-@@ -204,6 +209,11 @@ export async function createMaterialRequest(input: unknown): Promise<ActionResul
+-     p_items: parsed.data.items.map((i) => ({ name: i.name, quantity: Math.round(i.quantity * 100) / 100, unit: i.unit })),
+-   });
+-   refresh();
+-+  if (!error) {
+-+    notifyLater(() =>
+-+      notifyMaterialRequest({ companyId: g.companyId, userId: g.userId, projectId: parsed.data.projectId, comment: parsed.data.comment, items: parsed.data.items }),
+-+    );
+-+  }
+-   return error ? mapError(error, "Nepavyko išsiųsti prašymo.") : ok("Išsiųsta biurui.");
+- }
+- 
+-diff --git a/src/middleware.ts b/src/middleware.ts
+-index 20de14e..e69314d 100644
+---- a/src/middleware.ts
+-+++ b/src/middleware.ts
+-@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
+- import { supabaseConfigured } from "@/lib/supabase/env";
+- 
+- const AUTH_PAGES = ["/prisijungimas", "/registracija", "/pamirsau-slaptazodi"];
+--const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota"];
+-+const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota", "/api/telegram"];
+- 
+- const matches = (path: string, list: string[]) => list.some((p) => path === p || path.startsWith(p + "/"));
+- 
+-diff --git a/supabase/migrations/0014_telegram.sql b/supabase/migrations/0014_telegram.sql
+-new file mode 100644
+-index 0000000..c0f9ff0
+---- /dev/null
+-+++ b/supabase/migrations/0014_telegram.sql
+-@@ -0,0 +1,36 @@
+-+-- SANTECHNITAS PRO · 0014 · Telegram: administratorių susiejimas su botu
+-+-- Rašo tik serveris (service_role). Naršyklė gali tik pamatyti, ar jos paskyra prijungta.
+-+
+-+-- Vienkartiniai prijungimo kodai. Saugomas tik SHA-256 maiša, todėl nutekėjus lentelei kodais pasinaudoti nepavyks.
+-+create table public.telegram_link_tokens (
+-+  token_hash text primary key,
+-+  user_id    uuid not null references public.profiles (id) on delete cascade,
+-+  company_id uuid not null references public.companies (id) on delete cascade,
+-+  expires_at timestamptz not null,
+-+  created_at timestamptz not null default now()
+-+);
+-+create index telegram_link_tokens_expires_idx on public.telegram_link_tokens (expires_at);
+-+
+-+-- Prijungti pokalbiai: vienas naudotojas, viena įmonė, vienas Telegram pokalbis.
+-+create table public.telegram_links (
+-+  id                uuid primary key default gen_random_uuid(),
+-+  user_id           uuid not null references public.profiles (id) on delete cascade,
+-+  company_id        uuid not null references public.companies (id) on delete cascade,
+-+  chat_id           bigint not null,
+-+  telegram_username text check (char_length(telegram_username) <= 64),
+-+  -- Išjungtos pranešimų kategorijos (pvz. 'darbas'). Tuščias masyvas = gauna viską.
+-+  muted             text[] not null default '{}',
+-+  created_at        timestamptz not null default now(),
+-+  unique (user_id, company_id),
+-+  unique (company_id, chat_id)
+-+);
+-+
+-+alter table public.telegram_link_tokens enable row level security;
+-+alter table public.telegram_links       enable row level security;
+-+
+-+-- Naudotojas mato tik savo prijungimą (rodyti „Prijungta“ valdymo skiltyje).
+-+create policy telegram_links_select_own on public.telegram_links for select to authenticated
+-+  using (user_id = auth.uid());
+-+
+-+revoke all on public.telegram_link_tokens, public.telegram_links from anon, authenticated;
+-+grant select on public.telegram_links to authenticated;
+-diff --git a/supabase/tests/rls_test.sql b/supabase/tests/rls_test.sql
+-index 2e4e5b5..9e89d92 100644
+---- a/supabase/tests/rls_test.sql
+-+++ b/supabase/tests/rls_test.sql
+-@@ -313,6 +313,22 @@ select t.as_user('B');
+- select t.ok(t.n($$select count(*) from public.attachments$$) = 0, 'kita įmonė failų nemato');
+- select t.ok(t.n($$select count(*) from public.projects where client_name is not null$$) = 0, 'kita įmonė kliento duomenų nemato');
+- 
+-+-- 8c. Telegram prijungimai: rašo tik serveris, naudotojas mato tik savo
+-+reset role;
+-+insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('A'), t.id('CX'), 1001);
+-+insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('W'), t.id('CX'), 1002);
+-+insert into public.telegram_link_tokens (token_hash, user_id, company_id, expires_at) values ('abc', t.id('A'), t.id('CX'), now() + interval '15 minutes');
+-+select t.as_user('A');
+-+select t.ok(t.n($$select count(*) from public.telegram_links$$) = 1, 'naudotojas mato tik savo Telegram prijungimą');
+-+select t.err($$insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('A'), t.id('CX'), 1003)$$, '42501');
+-+select t.err($$update public.telegram_links set chat_id = 5$$, '42501');
+-+select t.err($$select count(*) from public.telegram_link_tokens$$, '42501');
+-+select t.as_user('B');
+-+select t.ok(t.n($$select count(*) from public.telegram_links$$) = 0, 'kita įmonė Telegram prijungimų nemato');
+-+reset role;
+-+delete from public.telegram_link_tokens;
+-+delete from public.telegram_links;
+-+
+- -- 9. Anon neturi prieigos
+- set role anon;
+- do $$ begin
+diff --git a/tests/unit/notifications.test.ts b/tests/unit/notifications.test.ts
+new file mode 100644
+index 0000000..05decd2
+--- /dev/null
++++ b/tests/unit/notifications.test.ts
+@@ -0,0 +1,119 @@
++import { test, beforeEach } from "node:test";
++import assert from "node:assert/strict";
++import { EVENTS, eventDef, type EventType } from "../../src/lib/notifications/events";
++import { isCategory } from "../../src/lib/telegram/core";
++import { isQuietNow, notify } from "../../src/lib/notifications/notify";
++
++/* Mažas Supabase klientas testams: grandinė from().select().eq()... grąžina eilutes pagal lentelę. */
++type Row = Record<string, unknown>;
++function fakeDb(tables: Record<string, Row[]>) {
++  const inserted: Record<string, Row[]> = {};
++  const deleted: string[] = [];
++  const client = {
++    inserted,
++    deleted,
++    from(name: string) {
++      let rows = tables[name] ?? [];
++      const b: any = {
++        select: () => b,
++        eq: (col: string, val: unknown) => { rows = rows.filter((r) => r[col] === val); return b; },
++        limit: () => b,
++        maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
++        insert: (v: Row | Row[]) => { (inserted[name] ??= []).push(...(Array.isArray(v) ? v : [v])); return Promise.resolve({ error: null }); },
++        delete: () => { deleted.push(name); return b; },
++        then: (res: (v: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(res),
++      };
++      return b;
++    },
++  };
++  return client;
++}
++
++const CO = "c1";
++const status = (log: { channel: string; status: string }[], ch: string) => log.find((l) => l.channel === ch)?.status;
++
++let sent: { chat: number; text: string }[] = [];
++beforeEach(() => {
++  sent = [];
++  process.env.TELEGRAM_BOT_TOKEN = "test";
++  globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
++    const b = JSON.parse(init?.body ?? "{}");
++    sent.push({ chat: b.chat_id, text: b.text });
++    return new Response(JSON.stringify({ ok: true }), { status: 200 });
++  }) as typeof fetch;
++});
++
++const admin = (muted: string[] = []) => ({
++  company_members: [{ company_id: CO, user_id: "adm", status: "active", role: "owner" }],
++  telegram_links: [{ company_id: CO, user_id: "adm", chat_id: 777, muted }],
++});
++
++test("isQuietNow: naktinis langas 21:00–07:00 pagal Lietuvos laiką", () => {
++  const at = (iso: string) => new Date(iso);
++  assert.equal(isQuietNow("21:00", "07:00", "Europe/Vilnius", at("2026-01-10T20:30:00Z")), true); // 22:30 vietos laiku
++  assert.equal(isQuietNow("21:00", "07:00", "Europe/Vilnius", at("2026-01-10T09:00:00Z")), false); // 11:00
++  assert.equal(isQuietNow("21:00", "07:00", "Europe/Vilnius", at("2026-01-10T04:00:00Z")), true); // 06:00
++  assert.equal(isQuietNow(null, null, "Europe/Vilnius"), false);
++});
++
++test("įvykių sąrašas: kategorijos tinkamos, nėra dvigubų Telegram žinučių", () => {
++  for (const key of Object.keys(EVENTS) as EventType[]) {
++    const d = eventDef(key);
++    if (d.telegramCategory) assert.ok(isCategory(d.telegramCategory), key);
++    if (d.defaults.includes("telegram")) assert.ok(d.adminOnly || d.telegramCategory, `${key}: Telegram be kategorijos ar adminOnly`);
++  }
++  // Medžiagų poreikį į Telegram siunčia src/lib/telegram/notify.ts: čia jo būti negali.
++  assert.ok(!eventDef("material_request").defaults.includes("telegram"));
++});
++
++test("administratorius gauna automobilio terminą programoje ir Telegram", async () => {
++  const db = fakeDb(admin());
++  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "car_deadline", payload: { title: "TA baigiasi", body: "ABC123 <7 d." } });
++  assert.equal(status(log, "inapp"), "sent");
++  assert.equal(status(log, "telegram"), "sent");
++  assert.equal(sent.length, 1);
++  assert.equal(sent[0].chat, 777);
++  assert.ok(sent[0].text.includes("&lt;7 d."), "HTML ištrintas");
++  assert.equal(db.inserted["notifications"].length, 1);
++});
++
++test("administratorius išjungė automobilių kategoriją botu: Telegram praleidžiamas", async () => {
++  const db = fakeDb(admin(["automobiliai"]));
++  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "car_oil", payload: { title: "Tepalai", body: "" } });
++  assert.equal(status(log, "inapp"), "sent");
++  assert.equal(status(log, "telegram"), "skipped");
++  assert.equal(sent.length, 0);
++});
++
++test("darbuotojas (ne administratorius) Telegram negauna, net jei turi prijungimą", async () => {
++  const db = fakeDb({
++    company_members: [{ company_id: CO, user_id: "w", status: "active", role: "worker" }],
++    telegram_links: [{ company_id: CO, user_id: "w", chat_id: 5, muted: [] }],
++  });
++  const log = await notify(db as never, { companyId: CO, userId: "w", event: "car_deadline", payload: { title: "TA", body: "" } });
++  assert.equal(status(log, "inapp"), "sent");
++  assert.equal(log.find((l) => l.channel === "telegram"), undefined);
++  assert.equal(sent.length, 0);
++});
++
++test("ne įmonės narys negauna nieko", async () => {
++  const db = fakeDb({ company_members: [] });
++  assert.deepEqual(await notify(db as never, { companyId: CO, userId: "x", event: "task_assigned", payload: { title: "a", body: "b" } }), []);
++  assert.equal(db.inserted["notifications"], undefined);
++});
++
++test("medžiagų prašymas: administratoriui tik programoje (Telegram siunčia atskiras kelias)", async () => {
++  const db = fakeDb(admin());
++  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "material_request", payload: { title: "Naujas", body: "x" } });
++  assert.equal(status(log, "inapp"), "sent");
++  assert.equal(log.find((l) => l.channel === "telegram"), undefined);
++  assert.equal(sent.length, 0);
++});
++
++test("užblokavus botą prijungimas pašalinamas, o nesėkmė užfiksuojama", async () => {
++  globalThis.fetch = (async () => new Response(JSON.stringify({ description: "Forbidden: bot was blocked by the user" }), { status: 403 })) as typeof fetch;
++  const db = fakeDb(admin());
++  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "car_deadline", payload: { title: "TA", body: "" } });
++  assert.equal(status(log, "telegram"), "failed");
++  assert.ok(db.deleted.includes("telegram_links"));
++});
+diff --git a/tests/unit/telegram.test.ts b/tests/unit/telegram.test.ts
+new file mode 100644
+index 0000000..694be8b
+--- /dev/null
++++ b/tests/unit/telegram.test.ts
+@@ -0,0 +1,47 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { CATEGORIES, clip, esc, formatMinutes, isCategory, isValidStartToken, newToken, parseCommand, safeEqual, sha256Hex } from "../../src/lib/telegram/core";
++
++test("parseCommand supranta komandas su botu ir argumentu", () => {
++  assert.deepEqual(parseCommand("/start abc"), { name: "start", arg: "abc" });
++  assert.deepEqual(parseCommand("/Start@DarboRitmasBot  kodas123 "), { name: "start", arg: "kodas123" });
++  assert.deepEqual(parseCommand("/pagalba"), { name: "pagalba", arg: "" });
++  assert.equal(parseCommand("labas"), null);
++  assert.equal(parseCommand(undefined), null);
++});
++
++test("kategorijos: yra automobiliai, nežinomos atmetamos", () => {
++  assert.ok(isCategory("automobiliai"));
++  assert.ok(isCategory("darbas"));
++  assert.ok(!isCategory("toString"));
++  assert.ok(!isCategory("xyz"));
++  assert.deepEqual(Object.keys(CATEGORIES).sort(), ["automobiliai", "darbas", "medziagos", "pastabos"]);
++});
++
++test("esc apsaugo nuo HTML, clip trumpina", () => {
++  assert.equal(esc("<b>&</b>"), "&lt;b&gt;&amp;&lt;/b&gt;");
++  assert.equal(clip("  trumpas ", 20), "trumpas");
++  assert.equal(clip("a".repeat(30), 10).length, 10);
++});
++
++test("safeEqual ir start kodo tikrinimas", () => {
++  assert.ok(safeEqual("slaptas", "slaptas"));
++  assert.ok(!safeEqual("slaptas", "slaptaz"));
++  assert.ok(!safeEqual("a", "aa"));
++  assert.ok(isValidStartToken("A".repeat(32)));
++  assert.ok(!isValidStartToken("trumpas"));
++  assert.ok(!isValidStartToken("a b".padEnd(32, "x")));
++});
++
++test("newToken: kodas tinka deep link, maiša atitinka kodą", async () => {
++  const { token, hash } = await newToken();
++  assert.ok(isValidStartToken(token));
++  assert.equal(hash, await sha256Hex(token));
++  assert.equal(hash.length, 64);
++});
++
++test("formatMinutes", () => {
++  assert.equal(formatMinutes(45), "45 min");
++  assert.equal(formatMinutes(120), "2 val.");
++  assert.equal(formatMinutes(452), "7 val. 32 min");
++});
+diff --git a/{ b/{
+deleted file mode 100644
+index e69de29..0000000
