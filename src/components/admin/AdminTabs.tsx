@@ -8,6 +8,7 @@ const TABS = [
   { href: "/valdymas/objektai", label: "Objektai" },
   { href: "/valdymas/darbuotojai", label: "Darbuotojai" },
   { href: "/valdymas/laikas", label: "Laikas" },
+  { href: "/valdymas/automobiliai", label: "Automobiliai" },
   { href: "/valdymas/ataskaita", label: "Ataskaita" },
 ];
 

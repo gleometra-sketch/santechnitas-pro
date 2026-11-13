@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EVENTS, type Channel, type EventType } from "./events";
 import { inappAdapter } from "./adapters/inapp";
+import { telegramAdapter } from "./adapters/telegram";
 
 export type Payload = { title: string; body: string; data?: Record<string, unknown> };
 
@@ -13,7 +14,7 @@ export type ChannelAdapter = (ctx: {
   payload: Payload;
 }) => Promise<void>;
 
-const adapters: Partial<Record<Channel, ChannelAdapter>> = { inapp: inappAdapter };
+const adapters: Partial<Record<Channel, ChannelAdapter>> = { inapp: inappAdapter, telegram: telegramAdapter };
 
 /** Naujus kanalus (telegram, email...) registruokite čia vėlesniuose žingsniuose. */
 export function registerAdapter(channel: Channel, adapter: ChannelAdapter) {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { Send, Settings } from "lucide-react";
 import { signOut } from "@/lib/auth/actions";
 import Logo from "./Logo";
 import NotificationBell from "./notifications/NotificationBell";
@@ -10,6 +10,7 @@ export default function AppHeader({ name, company, admin = false }: { name: stri
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-2">
         <Link href="/darbai" aria-label="DarboRitmas – Darbai" className="shrink-0"><Logo size={40} variant="dark" wordmarkClassName="hidden min-[480px]:inline" /></Link>
         <div className="flex min-w-0 items-center gap-3">
+          <Link href="/pranesimai" aria-label="Pranešimų nustatymai ir Telegram" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"><Send size={18} aria-hidden /></Link>
           <NotificationBell />
           <div className="min-w-0 text-right leading-tight">
             <p className="truncate text-sm font-medium">{name}</p>

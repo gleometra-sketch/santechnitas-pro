@@ -2,7 +2,7 @@ export type Channel = "inapp" | "push" | "telegram" | "email" | "sms";
 
 export const CHANNELS: { id: Channel; label: string; available: boolean }[] = [
   { id: "inapp", label: "Programa", available: true },
-  { id: "telegram", label: "Telegram", available: false }, // true, kai bus adapteris (2 žingsnis)
+  { id: "telegram", label: "Telegram", available: true },
   { id: "email", label: "El. paštas", available: false }, // 3 žingsnis
   { id: "push", label: "Telefono pranešimai", available: false },
   { id: "sms", label: "SMS", available: false },
@@ -30,19 +30,19 @@ export const EVENTS = {
   hours_missing: {
     label: "Neužregistruotos valandos",
     description: "Pamiršta baigti ar įrašyti darbo dieną",
-    defaults: ["inapp"],
+    defaults: ["inapp", "telegram"],
     urgent: false,
   },
   weekly_hours: {
     label: "Savaitės valandų suvestinė",
     description: "Praėjusios savaitės valandos",
-    defaults: ["email"],
+    defaults: ["email", "telegram"],
     urgent: false,
   },
   material_request: {
     label: "Medžiagų užklausa",
     description: "Nauja ar pasibaigusi medžiaga",
-    defaults: ["inapp"],
+    defaults: ["inapp", "telegram"],
     urgent: false,
   },
   hours_approved: {
@@ -56,6 +56,24 @@ export const EVENTS = {
     description: "Išsiųsta, patvirtinta, atmesta ar atšaukta",
     defaults: ["inapp", "telegram", "email"],
     urgent: true,
+  },
+  car_deadline: {
+    label: "Automobilio terminai",
+    description: "Techninė apžiūra, kelių mokestis ar draudimas baigiasi",
+    defaults: ["inapp", "telegram"],
+    urgent: true,
+  },
+  car_km: {
+    label: "Kilometražo priminimas",
+    description: "Laikas įvesti automobilio kilometražą",
+    defaults: ["inapp", "telegram"],
+    urgent: false,
+  },
+  car_oil: {
+    label: "Tepalų keitimas",
+    description: "Artėja arba pavėluotas automobilio tepalų keitimas",
+    defaults: ["inapp", "telegram"],
+    urgent: false,
   },
 } as const satisfies Record<
   string,
