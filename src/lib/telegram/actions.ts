@@ -32,9 +32,9 @@ export async function createTelegramLink(): Promise<LinkResult> {
     company_id: ctx.companyId,
     expires_at: new Date(now.getTime() + TOKEN_MINUTES * 60_000).toISOString(),
   });
-    if (error) {
+  if (error) {
     console.error("telegram_link_tokens insert:", error);
-    return { ok: false, error: `Nepavyko sukurti nuorodos: ${error.message} (${error.code})` };
+    return { ok: false, error: "Nepavyko sukurti nuorodos. Bandykite dar kartą." };
   }
   return { ok: true, url: `https://t.me/${bot}?start=${token}`, minutes: TOKEN_MINUTES };
 }
