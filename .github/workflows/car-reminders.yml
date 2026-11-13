@@ -1,0 +1,6 @@
+steps:
+  - name: Send car reminders
+    run: |
+      curl -X POST "${{ secrets.APP_URL }}/api/cron/car-reminders" \
+        -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+        -H "Content-Type: application/json"
