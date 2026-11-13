@@ -3,8 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { supabaseConfigured } from "@/lib/supabase/env";
 
 const AUTH_PAGES = ["/prisijungimas", "/registracija", "/pamirsau-slaptazodi"];
-// /api/notifications/dispatch neturi naudotojo sesijos (kviečia Supabase webhook); jį saugo CRON_SECRET pačiame maršrute.
-const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota", "/api/notifications/dispatch", "/api/cars/reminders", "/api/telegram/webhook"];
+const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota", "/api/telegram"];
 
 const matches = (path: string, list: string[]) => list.some((p) => path === p || path.startsWith(p + "/"));
 
