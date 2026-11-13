@@ -9,7 +9,6 @@ const TABS = [
   { href: "/valdymas/darbuotojai", label: "Darbuotojai" },
   { href: "/valdymas/laikas", label: "Laikas" },
   { href: "/valdymas/ataskaita", label: "Ataskaita" },
-  { href: "/valdymas/telegram", label: "Telegram" },
 ];
 
 export default function AdminTabs() {

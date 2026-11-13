@@ -18,4 +18,4 @@ Prieinama `owner` ir `admin` vaidmenims: antraštėje mygtukas **Valdymas** (`/v
 - Pašalintas darbuotojas praranda prieigą, bet jo laikas, darbai ir medžiagų prašymai lieka istorijoje.
 - Naujų migracijų šiam etapui nereikia (naudojamos 0001–0003 lentelės ir RLS).
 - Pataisant laiką pertraukos nekeičiamos; jei pertraukų daugiau nei naujas įrašas, dirbtas laikas rodomas kaip 0.
-- Pakeitus laiką dienos kaitos (žiemos/vasaros) naktį gali atsirasti 1 val. paklaida.
+- Laikai įvedami Lietuvos laiku, įskaitant žiemos/vasaros laiko kaitos dienas.

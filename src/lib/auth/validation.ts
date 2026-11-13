@@ -13,6 +13,7 @@ export const firstError = (e: z.ZodError) => e.issues[0]?.message ?? "Patikrinki
 /** Leidžia tik vidinius adresus, kad nebūtų nukreipiama į svetimą svetainę. */
 export function safeNext(v: unknown): string | null {
   if (typeof v !== "string") return null;
-  if (!v.startsWith("/") || v.startsWith("//") || v.includes("\\")) return null;
+  // Valdymo simboliai (pvz. tabuliacija) naršyklėse pašalinami, todėl „/<tab>/svetima.lt“ taptų „//svetima.lt“.
+  if (!v.startsWith("/") || v.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(v)) return null;
   return v;
 }

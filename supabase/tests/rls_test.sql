@@ -313,22 +313,6 @@ select t.as_user('B');
 select t.ok(t.n($$select count(*) from public.attachments$$) = 0, 'kita įmonė failų nemato');
 select t.ok(t.n($$select count(*) from public.projects where client_name is not null$$) = 0, 'kita įmonė kliento duomenų nemato');
 
--- 8c. Telegram prijungimai: rašo tik serveris, naudotojas mato tik savo
-reset role;
-insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('A'), t.id('CX'), 1001);
-insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('W'), t.id('CX'), 1002);
-insert into public.telegram_link_tokens (token_hash, user_id, company_id, expires_at) values ('abc', t.id('A'), t.id('CX'), now() + interval '15 minutes');
-select t.as_user('A');
-select t.ok(t.n($$select count(*) from public.telegram_links$$) = 1, 'naudotojas mato tik savo Telegram prijungimą');
-select t.err($$insert into public.telegram_links (user_id, company_id, chat_id) values (t.id('A'), t.id('CX'), 1003)$$, '42501');
-select t.err($$update public.telegram_links set chat_id = 5$$, '42501');
-select t.err($$select count(*) from public.telegram_link_tokens$$, '42501');
-select t.as_user('B');
-select t.ok(t.n($$select count(*) from public.telegram_links$$) = 0, 'kita įmonė Telegram prijungimų nemato');
-reset role;
-delete from public.telegram_link_tokens;
-delete from public.telegram_links;
-
 -- 9. Anon neturi prieigos
 set role anon;
 do $$ begin

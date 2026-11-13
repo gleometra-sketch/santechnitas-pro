@@ -26,7 +26,7 @@ export default function FileUploader({
   const [busy, setBusy] = useState(false);
 
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const files = Array.from<File>(e.target.files ?? []);
     e.target.value = "";
     if (files.length === 0) return;
     setBusy(true);

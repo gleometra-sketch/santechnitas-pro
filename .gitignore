@@ -4,4 +4,5 @@ node_modules
 .env.local
 *.tsbuildinfo
 next-env.d.ts
-.open-next
+/test-results/
+/playwright-report/

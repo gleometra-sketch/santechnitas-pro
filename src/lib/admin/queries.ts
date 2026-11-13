@@ -4,6 +4,7 @@ import type { SessionContext } from "@/lib/auth/context";
 import { monthKey, monthRange, todayKey } from "@/lib/dates";
 import { STALE_ENTRY_MS } from "@/lib/work/types";
 import { signPaths } from "@/lib/files/server";
+import { buildRows, overlayApprovals, summarize, type Snapshot } from "./reportCalc";
 import type { AdminTask, MemberRow, MonthReport, ProjectFile, ProjectHours, ProjectMaterial, ProjectRow, ReportProjectLine, ReportRow, StaleEntry, TimeRow } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -119,8 +120,8 @@ export async function getStaleEntries(ctx: SessionContext): Promise<StaleEntry[]
   return ((data ?? []) as any[]).map((r) => ({ id: r.id, userId: r.user_id, name: names.get(r.user_id) ?? "Darbuotojas", startedAt: r.started_at }));
 }
 
-/** Gyva (dar neužšaldyta) mėnesio ataskaita: kiekvienam darbuotojui ir objektui, su suma pagal tos dienos įkainį. */
-export async function computeMonthReport(ctx: SessionContext, ym: string): Promise<MonthReport> {
+/** Gyvi (dar neužšaldyti) mėnesio ataskaitos duomenys: kiekvienam darbuotojui ir objektui, su suma pagal tos dienos įkainį. */
+async function loadReportRows(ctx: SessionContext, ym: string): Promise<{ rows: ReportRow[]; names: Map<string, string> }> {
   const supabase = await createClient();
   const cid = ctx.company!.id;
   const { from, to } = monthRange(ym);
@@ -130,82 +131,21 @@ export async function computeMonthReport(ctx: SessionContext, ym: string): Promi
     getMembers(ctx),
     getProjects(ctx),
   ]);
-
-  const rates = new Map<string, { from: string; cents: number }[]>();
-  for (const r of (rateRows ?? []) as any[]) {
-    const list = rates.get(r.user_id) ?? [];
-    list.push({ from: r.effective_from, cents: r.hourly_rate_cents });
-    rates.set(r.user_id, list);
-  }
-  const rateAt = (userId: string, date: string): number | null => {
-    let found: number | null = null;
-    for (const r of rates.get(userId) ?? []) if (r.from <= date) found = r.cents;
-    return found;
-  };
-
-  const nameOf = new Map(members.filter((m) => m.userId).map((m) => [m.userId as string, memberLabel(m)] as const));
-  const projectName = new Map(projects.map((p) => [p.id, p.name] as const));
-
-  type Acc = { minutes: number; amount: number; missing: number; open: number; proj: Map<string, { minutes: number; amount: number }> };
-  const perUser = new Map<string, Acc>();
-  const perProject = new Map<string, { minutes: number; amount: number }>();
-  for (const e of (entries ?? []) as any[]) {
-    const minutes = Number(e.worked_minutes ?? 0);
-    const rate = rateAt(e.user_id, e.work_date);
-    const amount = rate === null ? 0 : (minutes * rate) / 60;
-    const key = e.project_id ?? "";
-    const acc = perUser.get(e.user_id) ?? { minutes: 0, amount: 0, missing: 0, open: 0, proj: new Map() };
-    acc.minutes += minutes;
-    acc.amount += amount;
-    if (rate === null) acc.missing += minutes;
-    if (!e.ended_at) acc.open += 1;
-    const p = acc.proj.get(key) ?? { minutes: 0, amount: 0 };
-    p.minutes += minutes;
-    p.amount += amount;
-    acc.proj.set(key, p);
-    perUser.set(e.user_id, acc);
-    const g = perProject.get(key) ?? { minutes: 0, amount: 0 };
-    g.minutes += minutes;
-    g.amount += amount;
-    perProject.set(key, g);
-  }
-
-  const line = (key: string, v: { minutes: number; amount: number }): ReportProjectLine => ({
-    projectId: key || null,
-    name: key ? projectName.get(key) ?? "Objektas" : "Be objekto",
-    minutes: v.minutes,
-    amountCents: Math.round(v.amount),
-  });
-  const byMinutes = (a: { minutes: number }, b: { minutes: number }) => b.minutes - a.minutes;
-
-  const rows: ReportRow[] = [...perUser.entries()]
-    .map(([userId, a]) => ({
-      userId,
-      name: String(nameOf.get(userId) ?? "Buvęs darbuotojas"),
-      minutes: a.minutes,
-      amountCents: Math.round(a.amount),
-      missingRateMinutes: a.missing,
-      rateCents: rateAt(userId, to),
-      openCount: a.open,
-      byProject: [...a.proj.entries()].map(([k, v]) => line(k, v)).sort(byMinutes),
-      approvedAt: null,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, "lt"));
-
-  return {
-    ym,
-    rows,
-    byProject: [...perProject.entries()].map(([k, v]) => line(k, v)).sort(byMinutes),
-    totalMinutes: rows.reduce((s, r) => s + r.minutes, 0),
-    totalAmountCents: rows.reduce((s, r) => s + r.amountCents, 0),
-    missingRateMinutes: rows.reduce((s, r) => s + r.missingRateMinutes, 0),
-    openCount: rows.reduce((s, r) => s + r.openCount, 0),
-    approvedCount: 0,
-  };
+  const names = new Map<string, string>(members.filter((m) => m.userId).map((m) => [m.userId as string, String(memberLabel(m))] as const));
+  const rows = buildRows(
+    ((entries ?? []) as any[]).map((e) => ({ userId: e.user_id, projectId: e.project_id ?? null, workDate: e.work_date, minutes: Number(e.worked_minutes ?? 0), ended: !!e.ended_at })),
+    ((rateRows ?? []) as any[]).map((r) => ({ userId: r.user_id, from: r.effective_from, cents: r.hourly_rate_cents })),
+    names,
+    new Map(projects.map((p) => [p.id, p.name] as const)),
+    to,
+  );
+  return { rows, names };
 }
 
-/** Ar tai patvirtinto mėnesio užšaldyta ataskaitos eilutė (snapshot). */
-type Snapshot = { name?: string; minutes?: number; amountCents?: number; missingRateMinutes?: number; rateCents?: number | null; byProject?: ReportProjectLine[] };
+/** Gyva mėnesio ataskaita (be patvirtinimų užšaldymo) – naudojama kuriant patvirtinimo „nuotrauką“. */
+export async function computeMonthReport(ctx: SessionContext, ym: string): Promise<MonthReport> {
+  return summarize(ym, (await loadReportRows(ctx, ym)).rows);
+}
 
 /**
  * Mėnesio ataskaita: patvirtintiems darbuotojams rodomi užšaldyti (patvirtinimo metu išsaugoti) skaičiai,
@@ -213,57 +153,12 @@ type Snapshot = { name?: string; minutes?: number; amountCents?: number; missing
  */
 export async function getMonthReport(ctx: SessionContext, ym: string): Promise<MonthReport> {
   const supabase = await createClient();
-  const [live, { data: approvals }] = await Promise.all([
-    computeMonthReport(ctx, ym),
+  const [{ rows, names }, { data: approvals }] = await Promise.all([
+    loadReportRows(ctx, ym),
     supabase.from("time_approvals").select("user_id, snapshot, approved_at, minutes").eq("company_id", ctx.company!.id).eq("month", `${ym}-01`),
   ]);
-  const approved = new Map(((approvals ?? []) as any[]).map((a) => [a.user_id as string, a] as const));
-  if (approved.size === 0) return live;
-
-  const members = await getMembers(ctx);
-  const nameOf = new Map(members.filter((m) => m.userId).map((m) => [m.userId as string, memberLabel(m)] as const));
-  const rows: ReportRow[] = live.rows.map((r) => {
-    const a = approved.get(r.userId);
-    if (!a) return r;
-    const snap = (a.snapshot ?? {}) as Snapshot;
-    return {
-      ...r,
-      minutes: Number(a.minutes),
-      amountCents: snap.amountCents ?? r.amountCents,
-      missingRateMinutes: snap.missingRateMinutes ?? 0,
-      rateCents: snap.rateCents === undefined ? r.rateCents : snap.rateCents,
-      byProject: snap.byProject ?? r.byProject,
-      openCount: 0,
-      approvedAt: a.approved_at as string,
-    };
-  });
-  for (const [userId, a] of approved) {
-    if (rows.some((r) => r.userId === userId)) continue;
-    const snap = (a.snapshot ?? {}) as Snapshot;
-    rows.push({ userId, name: String(snap.name ?? nameOf.get(userId) ?? "Buvęs darbuotojas"), minutes: Number(a.minutes), amountCents: snap.amountCents ?? 0, missingRateMinutes: snap.missingRateMinutes ?? 0, rateCents: snap.rateCents ?? null, openCount: 0, byProject: snap.byProject ?? [], approvedAt: a.approved_at });
-  }
-  rows.sort((x, y) => x.name.localeCompare(y.name, "lt"));
-
-  const perProject = new Map<string, ReportProjectLine>();
-  for (const r of rows) {
-    for (const p of r.byProject) {
-      const key = p.projectId ?? "";
-      const g = perProject.get(key) ?? { projectId: p.projectId, name: p.name, minutes: 0, amountCents: 0 };
-      g.minutes += p.minutes;
-      g.amountCents += p.amountCents;
-      perProject.set(key, g);
-    }
-  }
-  return {
-    ym,
-    rows,
-    byProject: [...perProject.values()].sort((x, y) => y.minutes - x.minutes),
-    totalMinutes: rows.reduce((s, r) => s + r.minutes, 0),
-    totalAmountCents: rows.reduce((s, r) => s + r.amountCents, 0),
-    missingRateMinutes: rows.reduce((s, r) => s + r.missingRateMinutes, 0),
-    openCount: rows.reduce((s, r) => s + r.openCount, 0),
-    approvedCount: rows.filter((r) => r.approvedAt).length,
-  };
+  const approvalRows = ((approvals ?? []) as any[]).map((a) => ({ userId: a.user_id as string, minutes: Number(a.minutes), approvedAt: a.approved_at as string, snapshot: (a.snapshot ?? null) as Snapshot | null }));
+  return summarize(ym, overlayApprovals(rows, approvalRows, names));
 }
 
 /** Kada patvirtintas vieno darbuotojo mėnuo (null – nepatvirtintas). */

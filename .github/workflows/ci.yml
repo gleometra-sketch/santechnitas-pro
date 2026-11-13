@@ -1,0 +1,65 @@
+name: CI
+
+# Kiekvienas „push“ ir „pull request“ automatiškai paleidžia visus testus.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  programa:
+    name: Programa (tipai, vienetiniai testai, build, naršyklės testai)
+    runs-on: ubuntu-latest
+    env:
+      # Netikri raktai: testai neprisijungia prie Supabase.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-netikras-raktas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Kai package-lock.json bus atnaujintas po `npm install` (pridėti tsx ir @playwright/test), pakeiskite į `npm ci`.
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-ataskaita
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+  duomenu-baze:
+    name: Duomenų bazė (migracijos ir saugumo testai)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migracijos ir RLS testai
+        run: bash supabase/tests/run.sh | tee db-test.log
+      - name: Patikrinti rezultatą
+        run: |
+          grep -q "VISI TESTAI PRAĖJO" db-test.log
+          ! grep -E "FAIL|ERROR" db-test.log

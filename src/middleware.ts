@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { supabaseConfigured } from "@/lib/supabase/env";
 
 const AUTH_PAGES = ["/prisijungimas", "/registracija", "/pamirsau-slaptazodi"];
-const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota", "/api/telegram"];
+const PUBLIC = [...AUTH_PAGES, "/auth", "/privatumas", "/nesukonfiguruota"];
 
 const matches = (path: string, list: string[]) => list.some((p) => path === p || path.startsWith(p + "/"));
 

@@ -119,5 +119,13 @@ export function fromLocalInput(v: string): string | null {
   const h = Number(m[2]);
   const min = Number(m[3]);
   if (h > 23 || min > 59) return null;
-  return new Date(Date.parse(dayStartIso(m[1])) + (h * 60 + min) * 60_000).toISOString();
+  const [y, mo, d] = parseKey(m[1]);
+  const asUtc = Date.UTC(y, mo - 1, d, h, min);
+  // Lietuvos laikas yra UTC+3 (vasara) arba UTC+2 (žiema): imame tą poslinkį, kuris grąžina tą patį vietinį laiką.
+  // Dvigubą valandą (laikrodžių atsukimas) renkamės ankstesnę, neegzistuojančią (laikrodžių pasukimas pirmyn) – žiemos laiku.
+  for (const off of [3, 2]) {
+    const t = asUtc - off * 3_600_000;
+    if (toLocalInput(new Date(t).toISOString()) === v) return new Date(t).toISOString();
+  }
+  return new Date(asUtc - 2 * 3_600_000).toISOString();
 }

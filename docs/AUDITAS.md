@@ -19,7 +19,7 @@ Data: 2026-11-09. Atnaujinta: RLS testai (0001–0008) praėjo pas naudotoją; A
 - **Puslapiai (17):** `/`, `/prisijungimas`, `/registracija`, `/pamirsau-slaptazodi`, `/naujas-slaptazodis`, `/auth/callback`, `/kurti-imone`, `/privatumas`, `/nesukonfiguruota`, `/darbai`, `/kalendorius`, `/valandos`, `/medziagos`, `/valdymas` (+ `darbai`, `objektai`, `darbuotojai`, `laikas`).
 - **Serverio veiksmai:** 38 (darbuotojo 16, administratoriaus 16, prisijungimo 6).
 - **Lentelės (17):** profiles, companies, company_members, trial_claims, subscriptions, payments, stripe_events, projects, tasks, task_checklist_items, time_entries, breaks, days_off, notes, attachments, material_requests, material_request_items.
-- **Migracijos:** 0001–0008. **Testai:** tik SQL/RLS ir `api_check.mjs`; vienetinių, E2E testų ir CI nėra.
+- **Migracijos:** 0001–0013. **Testai:** SQL/RLS, vienetiniai, naršyklės „dūmų“ testai ir CI (`docs/TESTAVIMAS.md`).
 
 ## 3. Funkcijų matrica
 
