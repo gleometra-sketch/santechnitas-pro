@@ -1,12 +1,14 @@
 name: Automobilių priminimai
+
 on:
   schedule:
-    - cron: “0 5 * * *”   # 07:00 žiemą, 08:00 vasarą (UTC laikas)
-  workflow_dispatch: {}    # galima paleisti ranka
+    - cron: '0 5 * * *' # 07:00 žiemą, 08:00 vasarą (UTC laikas)
+  workflow_dispatch: {}
+
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -fsS -X POST “${{ secrets.APP_URL }}/api/cars/reminders” \
-            -H “Authorization: Bearer ${{ secrets.CRON_SECRET }}”
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cars/reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
