@@ -4,7 +4,7 @@ import { SlidersHorizontal } from "lucide-react";
 import MaterialsList from "@/components/MaterialsList";
 import { isAdmin, requireContext } from "@/lib/auth/context";
 import { isValidDayKey } from "@/lib/dates";
-import { getAdminMaterials, getMaterialOptions, getMaterialSummary } from "@/lib/work/materials";
+import { getAdminMaterials, getMaterialOptions, getMaterialSummary, getOfficeNotes } from "@/lib/work/materials";
 import type { MaterialFilters, MaterialStatusFilter } from "@/lib/work/types";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +41,11 @@ export default async function MedziagosPage({ searchParams }: { searchParams: Pr
   if (!isAdmin(ctx.role)) redirect("/darbai");
 
   const f = parseFilters(await searchParams);
-  const [summary, options, { items, truncated }] = await Promise.all([
+  const [summary, options, { items, truncated, error }, officeNotes] = await Promise.all([
     getMaterialSummary(ctx),
     getMaterialOptions(ctx),
     getAdminMaterials(ctx, f),
+    getOfficeNotes(ctx, f),
   ]);
 
   const extra = new URLSearchParams();
@@ -64,6 +65,7 @@ export default async function MedziagosPage({ searchParams }: { searchParams: Pr
     { label: "Trūkstamos medžiagos", value: summary.missingItems, tone: "text-accent-dark" },
     { label: "Aktyvūs prašymai", value: summary.openRequests, tone: "" },
     { label: "Šiandien pateikta", value: summary.requestsToday, tone: "" },
+    { label: "Neatliktos pastabos", value: summary.openNotes, tone: "text-amber-800" },
     { label: "Nupirkta medžiagų", value: summary.purchasedItems, tone: "text-go-dark" },
   ];
   const field = "mt-1 min-h-12 w-full rounded-xl border border-black/15 bg-white px-3";
@@ -72,7 +74,7 @@ export default async function MedziagosPage({ searchParams }: { searchParams: Pr
     <div className="space-y-5">
       <h1 className="text-3xl font-extrabold">Medžiagos</h1>
 
-      <section aria-label="Suvestinė" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section aria-label="Suvestinė" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {cards.map((c) => (
           <div key={c.label} className="rounded-2xl bg-white p-4 shadow-card">
             <p className={`text-3xl font-extrabold ${c.tone}`}>{c.value}</p>
@@ -142,7 +144,12 @@ export default async function MedziagosPage({ searchParams }: { searchParams: Pr
         </form>
       </details>
 
-      <MaterialsList items={items} view={f.status} truncated={truncated} />
+      {(error || officeNotes.error) && (
+        <p role="alert" className="rounded-2xl bg-red-50 p-4 font-medium text-danger">
+          Nepavyko nuskaityti sąrašo: {error ?? officeNotes.error}. Jei klaida kartojasi, atsiųskite šį tekstą programuotojui.
+        </p>
+      )}
+      <MaterialsList items={items} notes={officeNotes.notes} view={f.status} truncated={truncated} />
     </div>
   );
 }

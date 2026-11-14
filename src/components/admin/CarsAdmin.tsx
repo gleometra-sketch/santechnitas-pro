@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { deleteCar, saveCar, setCarActive } from "@/lib/cars/actions";
-import { REMINDER_CHOICES, carAlerts, daysToKmReminder, oilLeftKm, type CarRow } from "@/lib/cars/logic";
+import CarStatusTiles from "@/components/CarStatusTiles";
+import { REMINDER_CHOICES, type CarRow } from "@/lib/cars/logic";
 import type { CarAssignmentRow } from "@/lib/cars/queries";
 import type { ActionResult } from "@/lib/work/types";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "./ui";
@@ -71,24 +72,16 @@ function CarCard({ car, drivers, history, today, onMsg }: { car: CarRow; drivers
   const run = (fn: () => Promise<ActionResult>) =>
     start(async () => { const r = await fn(); onMsg(r.ok ? { ok: true, text: r.message ?? "Išsaugota." } : { ok: false, text: r.error }); });
   const name = (id: string | null) => drivers.find((d) => d.userId === id)?.name ?? "—";
-  const alerts = carAlerts(car, today);
-  const left = oilLeftKm(car);
-  const next = daysToKmReminder(car, today);
   return (
     <div className={`rounded-2xl bg-white p-4 shadow-card ${car.active ? "" : "opacity-80"}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-lg font-bold">{car.name} <span className="font-normal text-muted">{car.plate}</span></p>
-          <p className="text-sm text-muted">Vairuotojas: {name(car.driver_id)} · {car.km.toLocaleString("lt-LT")} km</p>
+          <p className="text-xl font-extrabold">{car.name} <span className="font-bold text-muted">{car.plate}</span></p>
+          <p className="text-base font-semibold text-muted">Vairuotojas: {name(car.driver_id)}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${car.active ? "bg-go-soft text-go-dark" : "bg-surface text-muted"}`}>{car.active ? "Aktyvus" : "Neaktyvus"}</span>
       </div>
-      <p className="mt-2 text-sm text-muted">
-        {car.active
-          ? `Iki tepalų keitimo: ${left.toLocaleString("lt-LT")} km · kilometražo priminimas ${next !== null && next > 0 ? `po ${next} d.` : "dabar"}`
-          : "Kilometražo ir tepalų priminimai sustabdyti; terminų priminimai veikia."}
-      </p>
-      {alerts.length > 0 && <ul className="mt-2 space-y-1">{alerts.map((a) => <li key={a.kind} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${a.level === "expired" ? "bg-red-50 text-danger" : a.level === "warn" ? "bg-amber-50 text-amber-800" : "bg-go-soft text-go-dark"}`}>{a.text}</li>)}</ul>}
+      <CarStatusTiles car={car} today={today} />
       <div className="mt-3 flex flex-wrap gap-2">
         <button disabled={pending} onClick={() => run(() => setCarActive(car.id, !car.active))} className={ghostBtn}>{car.active ? "Pažymėti neaktyviu" : "Pažymėti aktyviu"}</button>
         <button onClick={() => setOpen(!open)} className={ghostBtn}>{open ? "Uždaryti" : "Redaguoti"}</button>

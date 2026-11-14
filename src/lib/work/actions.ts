@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getActionContext, isAdmin } from "@/lib/auth/context";
 import { isValidDayKey, todayKey } from "@/lib/dates";
+import { notifyLater, notifyMaterialRequest, notifyNote, notifyWorkFinished, notifyWorkStarted } from "@/lib/telegram/notify";
 import { UNITS, type ActionResult, type TimeMode } from "./types";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -41,6 +42,7 @@ export async function startWork(projectId?: string | null): Promise<ActionResult
     .from("time_entries")
     .insert({ company_id: g.companyId, user_id: g.userId, project_id: byProject ? projectId : null, started_at: new Date().toISOString() });
   refresh();
+  if (!error) notifyLater(() => notifyWorkStarted({ companyId: g.companyId, userId: g.userId, projectId: byProject ? projectId : null }));
   return mapError(error, "Nepavyko pradėti darbo.");
 }
 
@@ -53,6 +55,7 @@ export async function switchWorkProject(projectId: string): Promise<ActionResult
   const { error } = await g.db.rpc("switch_time_project", { p_project: projectId });
   refresh();
   if (error?.code === "P0001") return fail(error.message);
+  if (!error) notifyLater(() => notifyWorkStarted({ companyId: g.companyId, userId: g.userId, projectId, switched: true }));
   return error ? mapError(error, "Nepavyko pakeisti objekto.") : ok("Objektas pakeistas.");
 }
 
@@ -96,6 +99,7 @@ export async function finishWork(): Promise<ActionResult> {
   await g.db.from("breaks").update({ ended_at: now }).eq("time_entry_id", entryId).is("ended_at", null);
   const { error } = await g.db.from("time_entries").update({ ended_at: now }).eq("id", entryId);
   refresh();
+  if (!error) notifyLater(() => notifyWorkFinished({ companyId: g.companyId, userId: g.userId, entryId }));
   return mapError(error, "Nepavyko baigti darbo.");
 }
 
@@ -159,6 +163,7 @@ export async function addNote(body: string, kind: "text" | "voice" = "text"): Pr
     .from("notes")
     .insert({ company_id: g.companyId, author_id: g.userId, kind: kind === "voice" ? "voice" : "text", body: parsed.data });
   refresh();
+  if (!error) notifyLater(() => notifyNote({ companyId: g.companyId, userId: g.userId, body: parsed.data, voice: kind === "voice" }));
   return mapError(error, "Nepavyko išsiųsti pastabos.");
 }
 
@@ -178,6 +183,18 @@ export async function deleteNote(id: string): Promise<ActionResult> {
   const { error } = await g.db.from("notes").delete().eq("id", id).eq("author_id", g.userId);
   refresh();
   return mapError(error, "Nepavyko ištrinti.");
+}
+
+/** Administratorius pažymi bet kurio darbuotojo pastabą atlikta (arba grąžina). */
+export async function setOfficeNoteDone(id: string, isDone: boolean): Promise<ActionResult> {
+  if (!idSchema.safeParse(id).success) return fail("Neteisingas įrašas.");
+  const g = await guard();
+  if (bad(g)) return g;
+  if (!g.admin) return fail("Pastabas valdyti gali tik administratorius.");
+  const { data, error } = await g.db.from("notes").update({ is_done: isDone }).eq("id", id).eq("company_id", g.companyId).select("id");
+  if (error) return mapError(error, "Nepavyko išsaugoti.");
+  refresh();
+  return (data ?? []).length ? ok() : fail("Pastaba nerasta arba neturite teisės.");
 }
 
 /* ---------------------------------------------------------------- medžiagos */
@@ -204,6 +221,11 @@ export async function createMaterialRequest(input: unknown): Promise<ActionResul
     p_items: parsed.data.items.map((i) => ({ name: i.name, quantity: Math.round(i.quantity * 100) / 100, unit: i.unit })),
   });
   refresh();
+  if (!error) {
+    notifyLater(() =>
+      notifyMaterialRequest({ companyId: g.companyId, userId: g.userId, projectId: parsed.data.projectId, comment: parsed.data.comment, items: parsed.data.items }),
+    );
+  }
   return error ? mapError(error, "Nepavyko išsiųsti prašymo.") : ok("Išsiųsta biurui.");
 }
 

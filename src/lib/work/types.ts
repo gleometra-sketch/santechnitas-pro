@@ -91,11 +91,23 @@ export type AdminMaterialItem = {
   comment: string | null;
 };
 
+/** Darbuotojo pastaba biurui, kaip ją mato administratorius. */
+export type AdminNote = {
+  id: string;
+  body: string;
+  voice: boolean;
+  isDone: boolean;
+  createdAt: string;
+  updatedAt: string;
+  authorName: string;
+};
+
 export type MaterialSummary = {
   missingItems: number;
   openRequests: number;
   requestsToday: number;
   purchasedItems: number;
+  openNotes: number;
 };
 
 export type MaterialOptions = {

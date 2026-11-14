@@ -2,9 +2,9 @@ import CarKmForm from "@/components/CarKmForm";
 import { carAlerts, type CarRow, type Level } from "@/lib/cars/logic";
 
 const STYLE: Record<Level, string> = {
-  expired: "bg-red-50 text-danger",
-  warn: "bg-amber-50 text-amber-800",
-  ok: "bg-go-soft text-go-dark",
+  expired: "border-danger bg-red-50 text-danger",
+  warn: "border-amber-500 bg-amber-50 text-amber-800",
+  ok: "border-go-dark bg-go-soft text-go-dark",
 };
 
 /** Rodo vairuotojo automobilį (visada) ir kitus įmonės automobilius tik kai yra įspėjimų (administratoriui). */
@@ -24,7 +24,7 @@ export default function CarReminders({ cars, today, userId }: { cars: CarRow[]; 
           </p>
           {alerts.length > 0 && (
             <ul className="mt-2 space-y-1">
-              {alerts.map((a) => <li key={a.kind} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${STYLE[a.level]}`}>{a.text}</li>)}
+              {alerts.map((a) => <li key={a.kind} className={`rounded-lg border-l-8 px-3 py-2 text-base font-bold ${STYLE[a.level]}`}>{a.text}</li>)}
             </ul>
           )}
           {mine && car.active && <CarKmForm carId={car.id} km={car.km} reminderDays={car.reminder_days} />}

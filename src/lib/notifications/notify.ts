@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { EVENTS, type Channel, type EventType } from "./events";
+import { eventDef, type Channel, type EventType } from "./events";
 import { inappAdapter } from "./adapters/inapp";
 import { telegramAdapter } from "./adapters/telegram";
 
@@ -56,24 +56,30 @@ export async function notify(
   args: { companyId: string; userId: string; event: EventType; payload: Payload },
 ) {
   const { companyId, userId, event, payload } = args;
-  const def = EVENTS[event];
+  const def = eventDef(event);
   if (!def) throw new Error(`Nežinomas įvykis: ${event}`);
 
-  const { data: member } = await supabase.from("company_members").select("id")
+  const { data: member } = await supabase.from("company_members").select("role")
     .eq("company_id", companyId).eq("user_id", userId).eq("status", "active").maybeSingle();
   if (!member) return [];
+  const isAdmin = member.role === "owner" || member.role === "admin";
 
-  const [prefsRes, settingsRes, channelsRes] = await Promise.all([
+  const [prefsRes, settingsRes, channelsRes, tgRes] = await Promise.all([
     supabase.from("notification_preferences").select("channel, enabled")
       .eq("user_id", userId).eq("event_type", event),
     supabase.from("notification_settings").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("notification_channels").select("channel, address, verified").eq("user_id", userId),
+    // Telegram prijungiamas tik administratoriams (Valdymas → Telegram), todėl imame iš telegram_links.
+    isAdmin
+      ? supabase.from("telegram_links").select("chat_id, muted").eq("company_id", companyId).eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const explicit = new Map<string, boolean>((prefsRes.data ?? []).map((r) => [r.channel, r.enabled]));
   const connected = new Map<string, Record<string, unknown>>(
-    (channelsRes.data ?? []).filter((c) => c.verified).map((c) => [c.channel, c.address ?? {}]),
+    (channelsRes.data ?? []).filter((c) => c.verified && c.channel !== "telegram").map((c) => [c.channel, c.address ?? {}]),
   );
+  if (tgRes.data) connected.set("telegram", { chat_id: tgRes.data.chat_id, muted: tgRes.data.muted ?? [] });
   const settings = settingsRes.data;
   const quiet = isQuietNow(settings?.quiet_start ?? null, settings?.quiet_end ?? null, settings?.timezone ?? "Europe/Vilnius");
 
@@ -99,9 +105,13 @@ export async function notify(
   }
 
   for (const ch of wanted) {
-    if (ch !== "inapp" && !connected.has(ch)) {
-      log.push({ ...base, channel: ch, status: "skipped", detail: "kanalas neprijungtas" });
-      continue;
+    if (ch !== "inapp" && !connected.has(ch)) continue; // kanalas neprijungtas: nieko nerašome į žurnalą
+    if (ch === "telegram" && def.telegramCategory) {
+      const muted = (connected.get("telegram")?.muted ?? []) as string[];
+      if (muted.includes(def.telegramCategory)) {
+        log.push({ ...base, channel: ch, status: "skipped", detail: `išjungta botu: ${def.telegramCategory}` });
+        continue;
+      }
     }
     if (!adapters[ch]) {
       log.push({ ...base, channel: ch, status: "skipped", detail: "adapteris dar neįdiegtas" });

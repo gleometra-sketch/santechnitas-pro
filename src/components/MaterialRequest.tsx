@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { PackagePlus, Plus, X } from "lucide-react";
+import QtyStepper from "@/components/QtyStepper";
 import { createMaterialRequest } from "@/lib/work/actions";
 import { UNITS, type MaterialRequestView } from "@/lib/work/types";
 
@@ -45,9 +46,9 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
         </summary>
         <div className="mt-3 space-y-3">
           {rows.map((r, idx) => (
-            <div key={r.key} className="grid grid-cols-[1fr_5rem_5.5rem_2.75rem] gap-2">
+            <div key={r.key} className="grid grid-cols-[1fr_5rem_5.5rem_2.75rem] items-center gap-2">
               <input aria-label={`Medžiaga ${idx + 1}`} value={r.name} onChange={(e) => patch(r.key, { name: e.target.value })} placeholder="Medžiaga" maxLength={200} className="min-h-12 min-w-0 rounded-xl border border-black/15 px-3" />
-              <input aria-label="Kiekis" inputMode="decimal" value={r.qty} onChange={(e) => patch(r.key, { qty: e.target.value })} placeholder="Kiekis" className="min-h-12 min-w-0 rounded-xl border border-black/15 px-2" />
+              <QtyStepper label={`Kiekis ${idx + 1}`} value={r.qty} onChange={(t) => patch(r.key, { qty: t })} onStep={(t) => patch(r.key, { qty: t })} />
               <select aria-label="Vienetas" value={r.unit} onChange={(e) => patch(r.key, { unit: e.target.value as Row["unit"] })} className="min-h-12 rounded-xl border border-black/15 bg-white px-1">
                 {UNITS.map((u) => <option key={u}>{u}</option>)}
               </select>

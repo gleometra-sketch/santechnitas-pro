@@ -2,7 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { SessionContext } from "@/lib/auth/context";
 import { addDays, dayStartIso, todayKey } from "@/lib/dates";
-import type { AdminMaterialItem, MaterialFilters, MaterialOptions, MaterialSummary } from "./types";
+import type { AdminMaterialItem, AdminNote, MaterialFilters, MaterialOptions, MaterialSummary } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const one = (v: any) => (Array.isArray(v) ? v[0] : v);
@@ -46,21 +46,23 @@ export async function getMaterialSummary(ctx: SessionContext): Promise<MaterialS
   const cid = ctx.company!.id;
   const count = { count: "exact", head: true } as const;
   const today = todayKey();
-  const [missing, purchased, open, recent] = await Promise.all([
+  const [missing, purchased, open, recent, notesOpen] = await Promise.all([
     supabase.from("material_request_items").select("id", count).eq("company_id", cid).eq("status", "needed"),
     supabase.from("material_request_items").select("id", count).eq("company_id", cid).eq("status", "purchased"),
     supabase.from("material_requests").select("id", count).eq("company_id", cid).eq("status", "open"),
     supabase.from("material_requests").select("id", count).eq("company_id", cid).gte("created_at", dayStartIso(today)),
+    supabase.from("notes").select("id", count).eq("company_id", cid).eq("is_done", false),
   ]);
   return {
     missingItems: missing.count ?? 0,
     purchasedItems: purchased.count ?? 0,
     openRequests: open.count ?? 0,
     requestsToday: recent.count ?? 0,
+    openNotes: notesOpen.count ?? 0,
   };
 }
 
-export async function getAdminMaterials(ctx: SessionContext, f: MaterialFilters): Promise<{ items: AdminMaterialItem[]; truncated: boolean }> {
+export async function getAdminMaterials(ctx: SessionContext, f: MaterialFilters): Promise<{ items: AdminMaterialItem[]; truncated: boolean; error: string | null }> {
   const supabase = await createClient();
   const LIMIT = 500;
   let q = supabase.from("material_request_items").select(ITEM_SELECT).eq("company_id", ctx.company!.id);
@@ -76,7 +78,8 @@ export async function getAdminMaterials(ctx: SessionContext, f: MaterialFilters)
     ? q.order("purchased_at", { ascending: false, nullsFirst: false })
     : q.order("created_at", { ascending: false });
 
-  const [{ data }, { names }] = await Promise.all([q.limit(LIMIT + 1), nameMap(ctx)]);
+  const [{ data, error }, { names }] = await Promise.all([q.limit(LIMIT + 1), nameMap(ctx)]);
+  if (error) console.error("materials select:", error);
   const rows = (data ?? []) as any[];
 
   const items: AdminMaterialItem[] = rows.slice(0, LIMIT).map((r) => {
@@ -98,5 +101,37 @@ export async function getAdminMaterials(ctx: SessionContext, f: MaterialFilters)
       comment: req?.comment ?? null,
     };
   });
-  return { items, truncated: rows.length > LIMIT };
+  return { items, truncated: rows.length > LIMIT, error: error ? error.message : null };
+}
+
+/**
+ * Darbuotojų pastabos biurui, rodomos tame pačiame sąraše kaip medžiagos. Filtrai tie patys:
+ * „trūkstamos“ = neatliktos pastabos, „nupirktos“ = atliktos. RLS: administratorius mato visas.
+ */
+export async function getOfficeNotes(ctx: SessionContext, f: MaterialFilters): Promise<{ notes: AdminNote[]; error: string | null }> {
+  const supabase = await createClient();
+  let q = supabase
+    .from("notes")
+    .select("id, body, kind, is_done, created_at, updated_at, author_id")
+    .eq("company_id", ctx.company!.id);
+  if (f.status === "needed") q = q.eq("is_done", false);
+  if (f.status === "purchased") q = q.eq("is_done", true);
+  if (f.employeeId) q = q.eq("author_id", f.employeeId);
+  if (f.projectId) q = q.eq("project_id", f.projectId);
+  if (f.material) q = q.ilike("body", `%${escapeLike(f.material)}%`);
+  if (f.from) q = q.gte("created_at", dayStartIso(f.from));
+  if (f.to) q = q.lt("created_at", dayStartIso(addDays(f.to, 1)));
+
+  const [{ data, error }, { names }] = await Promise.all([q.order("created_at", { ascending: false }).limit(200), nameMap(ctx)]);
+  if (error) console.error("notes select:", error);
+  const notes: AdminNote[] = ((data ?? []) as any[]).map((n) => ({
+    id: n.id,
+    body: n.body ?? "",
+    voice: n.kind === "voice",
+    isDone: n.is_done,
+    createdAt: n.created_at,
+    updatedAt: n.updated_at ?? n.created_at,
+    authorName: names.get(n.author_id) ?? "Buvęs darbuotojas",
+  }));
+  return { notes, error: error ? error.message : null };
 }

@@ -26,6 +26,9 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 | 5. Darbuotojo funkcijos su tikrais duomenimis | Atlikta (žr. `docs/DARBUOTOJAS.md`) |
 | 6. Administratoriaus aplinka ir Medžiagos | Atlikta (žr. `docs/ADMINISTRATORIUS.md`, `docs/MEDZIAGOS.md`) |
 | 7. Stripe prenumeratos | Laukia |
+| Telegram pranešimai administratoriams | Atlikta (žr. `docs/TELEGRAM.md`) |
+| Pranešimų sistema (varpelis, eilė) | Atlikta (žr. `docs/PRANESIMAI.md`) |
+| Automobiliai ir priminimai | Atlikta (žr. `docs/AUTOMOBILIAI.md`) |
 | 8. Testavimas | Laukia |
 | 9. Publikavimas Vercel | Laukia |
 

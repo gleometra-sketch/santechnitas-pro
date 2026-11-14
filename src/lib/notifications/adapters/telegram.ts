@@ -1,36 +1,30 @@
 import type { ChannelAdapter } from "../notify";
-import { TelegramError, escapeHtml, sendTelegram } from "../telegram";
+import { sendMessage } from "@/lib/telegram/api";
+import { clip, esc } from "@/lib/telegram/core";
 
-// Kur nuveda nuoroda pranešime pagal įvykį.
+// Kur nuveda nuoroda pranešime pagal įvykį (Telegram gauna tik administratoriai).
 const PATH: Record<string, string> = {
-  task_assigned: "/darbai",
-  work_reminder: "/darbai",
-  daily_digest: "/kalendorius",
-  car_deadline: "/kalendorius",
-  car_km: "/kalendorius",
-  car_oil: "/kalendorius",
-  hours_missing: "/valandos",
-  weekly_hours: "/valandos",
-  hours_approved: "/valandos",
-  material_request: "/valdymas",
+  car_deadline: "/valdymas/automobiliai",
+  car_oil: "/valdymas/automobiliai",
   document_status: "/valdymas",
 };
 
-export const telegramAdapter: ChannelAdapter = async ({ supabase, userId, address, event, payload }) => {
-  const chatId = address.chat_id;
-  if (typeof chatId !== "string" && typeof chatId !== "number") throw new Error("Telegram chat_id nerastas");
+/**
+ * Telegram kanalas pranešimų sistemoje. Gavėjas jau patikrintas notify(): aktyvus įmonės administratorius,
+ * turintis prijungimą lentelėje telegram_links (address = { chat_id, muted }).
+ */
+export const telegramAdapter: ChannelAdapter = async ({ supabase, companyId, userId, address, event, payload }) => {
+  const chatId = Number(address.chat_id);
+  if (!Number.isFinite(chatId)) throw new Error("Telegram chat_id nerastas");
 
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
   const link = base && PATH[event] ? `\n<a href="${base}${PATH[event]}">Atidaryti programoje</a>` : "";
-  const text = `<b>${escapeHtml(payload.title)}</b>${payload.body ? `\n${escapeHtml(payload.body)}` : ""}${link}`;
+  const text = `<b>${esc(payload.title)}</b>${payload.body ? `\n${esc(clip(payload.body, 3000))}` : ""}${link}`;
 
-  try {
-    await sendTelegram(chatId, text);
-  } catch (e) {
-    // 403: naudotojas užblokavo botą arba ištrynė pokalbį – kanalą išjungiame, kad nebebandytume.
-    if (e instanceof TelegramError && e.code === 403) {
-      await supabase.from("notification_channels").update({ verified: false }).eq("user_id", userId).eq("channel", "telegram");
-    }
-    throw e;
+  const r = await sendMessage(chatId, text);
+  if (!r.ok) {
+    // Naudotojas užblokavo botą arba ištrynė pokalbį: prijungimą pašaliname, kad nebebandytume.
+    if (r.blocked) await supabase.from("telegram_links").delete().eq("company_id", companyId).eq("user_id", userId);
+    throw new Error(r.error);
   }
 };

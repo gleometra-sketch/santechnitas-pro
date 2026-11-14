@@ -7,6 +7,7 @@ export const CATEGORIES = {
   medziagos: "Medžiagų poreikiai",
   pastabos: "Pastabos biurui",
   darbas: "Darbo pradžia ir pabaiga",
+  automobiliai: "Automobilių terminai ir tepalai",
 } as const;
 export type Category = keyof typeof CATEGORIES;
 export const isCategory = (v: string): v is Category => Object.prototype.hasOwnProperty.call(CATEGORIES, v);

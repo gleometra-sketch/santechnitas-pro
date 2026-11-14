@@ -2,18 +2,19 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, RotateCcw } from "lucide-react";
-import { patchMaterialItem, setMaterialPurchased } from "@/lib/work/actions";
-import { UNITS, type AdminMaterialItem, type MaterialStatusFilter } from "@/lib/work/types";
+import { Check, ChevronDown, NotebookPen, RotateCcw } from "lucide-react";
+import { patchMaterialItem, setMaterialPurchased, setOfficeNoteDone } from "@/lib/work/actions";
+import QtyStepper from "@/components/QtyStepper";
+import { UNITS, type AdminMaterialItem, type AdminNote, type MaterialStatusFilter } from "@/lib/work/types";
 
 const fmtDate = (iso: string) =>
   new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 const qtyText = (n: number) => String(n).replace(".", ",");
 
 const EMPTY: Record<MaterialStatusFilter, string> = {
-  needed: "Trūkstamų medžiagų nėra.",
-  purchased: "Nupirktų medžiagų nėra.",
-  all: "Medžiagų įrašų nėra.",
+  needed: "Trūkstamų medžiagų ir neatliktų pastabų nėra.",
+  purchased: "Nupirktų medžiagų ir atliktų pastabų nėra.",
+  all: "Įrašų nėra.",
 };
 
 const field = "min-h-11 rounded-lg border border-transparent bg-surface px-2 hover:border-black/20 focus:border-accent focus:bg-white focus:outline-none";
@@ -34,6 +35,7 @@ function Row({ item, purchased, onToggled, onError }: Props) {
   const [flash, setFlash] = useState(false);
   const saved = useRef({ name: item.name, quantity: item.quantity, unit: item.unit });
   const rowRef = useRef<HTMLLIElement>(null);
+  const qtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Po serverio duomenų atnaujinimo sinchronizuojame laukus, bet nelaužome to, ką žmogus šiuo metu rašo.
   useEffect(() => {
@@ -70,8 +72,8 @@ function Row({ item, purchased, onToggled, onError }: Props) {
     if (n !== saved.current.name) void save({ name: n });
   };
 
-  const commitQty = () => {
-    const q = Number(qty.replace(",", "."));
+  const commitQty = (text: string = qty) => {
+    const q = Number(text.replace(",", "."));
     if (!Number.isFinite(q) || q <= 0) {
       setQty(qtyText(saved.current.quantity));
       return onError("Kiekis turi būti didesnis už 0.");
@@ -79,6 +81,17 @@ function Row({ item, purchased, onToggled, onError }: Props) {
     const rounded = Math.round(q * 100) / 100;
     setQty(qtyText(rounded));
     if (rounded !== saved.current.quantity) void save({ quantity: rounded });
+  };
+
+  // Rodyklės: reikšmę rodome iškart, o į serverį siunčiame po trumpos pauzės (keli paspaudimai = viena užklausa).
+  const stepTo = (next: string) => {
+    setQty(next);
+    if (qtyTimer.current) clearTimeout(qtyTimer.current);
+    qtyTimer.current = setTimeout(() => { qtyTimer.current = null; commitQty(next); }, 600);
+  };
+  const commitNow = () => {
+    if (qtyTimer.current) { clearTimeout(qtyTimer.current); qtyTimer.current = null; }
+    commitQty();
   };
 
   const changeUnit = (u: string) => {
@@ -111,16 +124,7 @@ function Row({ item, purchased, onToggled, onError }: Props) {
           onKeyDown={enterBlurs}
           className={`${field} w-full min-w-0 basis-full font-semibold sm:flex-1 sm:basis-0 ${purchased ? "text-muted line-through" : ""}`}
         />
-        <input
-          aria-label="Kiekis"
-          inputMode="decimal"
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          onBlur={commitQty}
-          onKeyDown={enterBlurs}
-          onFocus={(e) => e.currentTarget.select()}
-          className={`${field} w-20 text-right font-semibold`}
-        />
+        <QtyStepper label={`Kiekis: ${item.name}`} value={qty} onChange={setQty} onStep={stepTo} onCommit={commitNow} />
         <select aria-label="Matavimo vienetas" value={unit} onChange={(e) => changeUnit(e.target.value)} className={`${field} w-[5.25rem] cursor-pointer`}>
           {UNITS.map((u) => <option key={u}>{u}</option>)}
         </select>
@@ -159,7 +163,43 @@ function Row({ item, purchased, onToggled, onError }: Props) {
   );
 }
 
-export default function MaterialsList({ items, view, truncated }: { items: AdminMaterialItem[]; view: MaterialStatusFilter; truncated: boolean }) {
+function NoteRow({ note, done, onToggled, onError }: { note: AdminNote; done: boolean; onToggled: (id: string, done: boolean) => void; onError: (text: string | null) => void }) {
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    onError(null);
+    const res = await setOfficeNoteDone(note.id, !done);
+    setBusy(false);
+    if (res.ok) onToggled(note.id, !done);
+    else onError(`Pastaba (${note.authorName}): ${res.error}`);
+  };
+  return (
+    <li className={`px-3 py-3 ${done ? "bg-go-soft/40" : "bg-amber-50/70"}`}>
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1 basis-full sm:basis-0">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+            <span className="flex items-center gap-1 font-bold text-amber-800"><NotebookPen size={16} aria-hidden /> Pastaba biurui</span>
+            <span className="font-medium text-muted">{note.authorName} · {fmtDate(note.createdAt)}</span>
+          </p>
+          <p className={`mt-1 whitespace-pre-wrap break-words text-base font-semibold ${done ? "text-muted line-through" : ""}`}>
+            {note.body || (note.voice ? "(balso pastaba be teksto)" : "")}
+          </p>
+        </div>
+        {done ? (
+          <button disabled={busy} onClick={toggle} aria-label="Grąžinti pastabą į neatliktų sąrašą" className="flex min-h-11 items-center gap-1.5 rounded-lg border border-black/15 px-3 text-sm font-semibold disabled:opacity-60">
+            <RotateCcw size={16} aria-hidden /> Grąžinti
+          </button>
+        ) : (
+          <button disabled={busy} onClick={toggle} aria-label="Pažymėti pastabą atlikta" className="flex min-h-11 items-center gap-1.5 rounded-lg bg-go-dark px-3 text-sm font-semibold text-white disabled:opacity-60">
+            <Check size={18} aria-hidden /> Atlikta
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+export default function MaterialsList({ items, notes, view, truncated }: { items: AdminMaterialItem[]; notes: AdminNote[]; view: MaterialStatusFilter; truncated: boolean }) {
   const router = useRouter();
   const [, startRefresh] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -172,11 +212,13 @@ export default function MaterialsList({ items, view, truncated }: { items: Admin
       const next: Record<string, boolean> = {};
       for (const [id, v] of Object.entries(o)) {
         const s = items.find((i) => i.id === id);
+        const n = notes.find((x) => x.id === id);
         if (s && s.purchased !== v) next[id] = v; // serveris dar nepasiekė šios būsenos
+        if (n && n.isDone !== v) next[id] = v;
       }
       return Object.keys(next).length === Object.keys(o).length ? o : next;
     });
-  }, [items]);
+  }, [items, notes]);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
@@ -188,16 +230,35 @@ export default function MaterialsList({ items, view, truncated }: { items: Admin
   };
 
   const isPurchased = (i: AdminMaterialItem) => overrides[i.id] ?? i.purchased;
-  const visible = items.filter((i) => view === "all" || (view === "purchased") === isPurchased(i));
+  const isDone = (n: AdminNote) => overrides[n.id] ?? n.isDone;
+
+  // Medžiagos ir pastabos viename sąraše, naujausios pirmos („nupirktų“ rodinyje – pagal pirkimo / atlikimo laiką).
+  type Entry = { key: string; at: number; item?: AdminMaterialItem; note?: AdminNote };
+  const ts = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : 0);
+  const entries: Entry[] = [
+    ...items
+      .filter((i) => view === "all" || (view === "purchased") === isPurchased(i))
+      .map((i) => ({ key: `m-${i.id}`, item: i, at: ts(view === "purchased" ? i.purchasedAt ?? i.requestedAt : i.requestedAt) })),
+    ...notes
+      .filter((n) => view === "all" || (view === "purchased") === isDone(n))
+      .map((n) => ({ key: `n-${n.id}`, note: n, at: ts(view === "purchased" ? n.updatedAt : n.createdAt) })),
+  ].sort((a, b) => b.at - a.at);
+  const visible = entries;
 
   return (
     <section aria-label="Medžiagų sąrašas" className="space-y-3">
-      <p className="text-sm text-muted">Rodoma įrašų: {visible.length}. Pavadinimą, kiekį ar vienetą galite keisti tiesiai eilutėje.</p>
+      <p className="text-sm text-muted">Rodoma įrašų: {visible.length}. Medžiagų pavadinimą, kiekį ar vienetą galite keisti tiesiai eilutėje; pastabos žymimos „Atlikta“.</p>
       {error && <p role="alert" className="rounded-2xl bg-red-50 p-3 font-medium text-danger">{error}</p>}
       {visible.length === 0 && <p className="rounded-card bg-white p-5 text-muted shadow-card">{EMPTY[view]}</p>}
       {visible.length > 0 && (
         <ul className="divide-y divide-black/5 overflow-hidden rounded-card bg-white shadow-card">
-          {visible.map((i) => <Row key={i.id} item={i} purchased={isPurchased(i)} onToggled={onToggled} onError={setError} />)}
+          {visible.map((e) =>
+            e.item ? (
+              <Row key={e.key} item={e.item} purchased={isPurchased(e.item)} onToggled={onToggled} onError={setError} />
+            ) : (
+              <NoteRow key={e.key} note={e.note!} done={isDone(e.note!)} onToggled={onToggled} onError={setError} />
+            ),
+          )}
         </ul>
       )}
       {truncated && <p className="text-sm text-muted">Rodomi naujausi 500 įrašų. Siaurinkite sąrašą filtrais.</p>}

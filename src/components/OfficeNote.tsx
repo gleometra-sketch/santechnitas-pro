@@ -79,6 +79,7 @@ export default function OfficeNote({ notes }: { notes: NoteView[] }) {
         placeholder="Pvz.: pakeistas radiatoriaus tipas, klientas prašo skambinti..."
         className="w-full resize-none rounded-2xl border border-black/15 p-3 text-base placeholder:text-muted/70 focus:border-accent focus:outline-none"
       />
+      <p className="mt-2 text-sm text-muted">Biuras šią pastabą mato skiltyje Medžiagos, kartu su medžiagų sąrašu.</p>
       {error && <p role="alert" className="mt-2 text-sm font-medium text-danger">{error}</p>}
       <div className="mt-3 grid grid-cols-2 gap-3">
         <button

@@ -7,6 +7,11 @@ Automobilių modulis: kortelė, terminai (techninė apžiūra, kelių mokestis, 
 2. Nukopijuokite failus į tuos pačius kelius projekte. Pakeisti esami failai: `src/app/(app)/kalendorius/page.tsx`, `src/components/admin/AdminTabs.tsx`, `src/lib/notifications/events.ts`, `src/middleware.ts`.
 3. Kasdienis priminimų darbas: kartą per dieną (pvz. 07:00) iškvieskite `POST /api/cars/reminders` su antraštė `Authorization: Bearer <CRON_SECRET>`. Maršrutas sukuria priminimus ir iškart išsiunčia pranešimų eilę.
 
+## Kur rasti programoje
+- **Apatinis meniu → „Automobiliai“**: administratorius mato visus automobilius ir nuorodą „Tvarkyti automobilius“; vairuotojas mato savo automobilį, terminus ir įveda kilometražą. Vairuotojui punktas atsiranda, kai jam priskirtas automobilis.
+- **Valdymas → Automobiliai**: pridėti, redaguoti, priskirti vairuotoją, pažymėti neaktyviu, ištrinti.
+- Jei vietoje sąrašo matote raudoną pranešimą apie neparuoštą modulį, Supabase SQL Editor paleiskite `0015_cars.sql`.
+
 ## Taisyklės
 - Administratorius (owner/admin) mato ir tvarko visus automobilius; vairuotojas mato tik savo ir įveda kilometražą.
 - Rodmuo negali būti mažesnis nei ankstesnis (tikrina duomenų bazė).

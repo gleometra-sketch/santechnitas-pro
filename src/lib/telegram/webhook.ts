@@ -140,5 +140,5 @@ async function linkChat(
     return void (await reply("Nepavyko prijungti. Bandykite dar kartą."));
   }
   const { data: company } = await db.from("companies").select("name").eq("id", tok.company_id).maybeSingle();
-  await reply(`✅ Prijungta${company?.name ? `: <b>${esc(company.name)}</b>` : ""}.\nČia gausite pranešimus apie medžiagas, pastabas ir darbo pradžią bei pabaigą.\n\n/pagalba – komandos`);
+  await reply(`✅ Prijungta${company?.name ? `: <b>${esc(company.name)}</b>` : ""}.\nČia gausite pranešimus apie medžiagas, pastabas, darbo pradžią bei pabaigą ir automobilių terminus.\n\n/pagalba – komandos`);
 }

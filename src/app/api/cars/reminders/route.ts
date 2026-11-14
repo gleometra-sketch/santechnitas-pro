@@ -20,7 +20,8 @@ async function handle(req: Request) {
     const admin = createAdminClient();
     const { data, error } = await admin.rpc("car_reminders_run");
     if (error) throw new Error(error.message);
-    const dispatched = await dispatchOutbox(admin);
+    // Cloudflare riboja užklausų skaičių per kvietimą: išsiunčiame dalį, likusias paima Supabase webhook (žr. docs/PRANESIMAI.md).
+    const dispatched = await dispatchOutbox(admin, 5);
     return NextResponse.json({ enqueued: data ?? 0, dispatched });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "klaida" }, { status: 500 });

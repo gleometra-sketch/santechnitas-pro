@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client"; // PRITAIKYKITE: jūsų naršyklės Supabase kliento kelias
+import Link from "next/link";
+import { Bell } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Item = {
   id: string;
@@ -110,56 +112,64 @@ export default function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label={unread > 0 ? `Pranešimai, neskaitytų: ${unread}` : "Pranešimai"}
         aria-expanded={open}
-        className="relative rounded-md p-2 text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+        className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.7 21a2 2 0 0 1-3.4 0" />
-        </svg>
+        <Bell size={20} aria-hidden />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold leading-[1.1rem] text-white">
+          <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-brand-red px-1 text-xs font-bold leading-5 text-white ring-2 ring-navy">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-            <h2 className="text-sm font-semibold">Pranešimai</h2>
+        <div className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 overflow-hidden rounded-2xl border border-black/10 bg-white text-ink shadow-card sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
+          <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-1">
+            <h2 className="font-display text-base font-bold">Pranešimai</h2>
             {unread > 0 && (
-              <button type="button" onClick={markAllRead} className="text-xs text-blue-700 hover:underline">
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="min-h-11 text-sm font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              >
                 Pažymėti visus skaitytais
               </button>
             )}
           </div>
 
-          {error && <p role="alert" className="px-3 py-3 text-sm text-red-700">Nepavyko įkelti pranešimų.</p>}
+          {error && <p role="alert" className="px-4 py-3 text-sm text-danger">Nepavyko įkelti pranešimų. Bandykite dar kartą.</p>}
 
           {!error && items.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-slate-500">Pranešimų kol kas nėra.</p>
+            <p className="px-4 py-8 text-center text-sm text-muted">Pranešimų kol kas nėra.</p>
           )}
 
-          <ul className="max-h-96 overflow-y-auto">
+          <ul className="max-h-[60dvh] overflow-y-auto">
             {items.map((n) => (
               <li key={n.id}>
                 <button
                   type="button"
                   onClick={() => markRead(n.id)}
-                  className={`block w-full border-b border-slate-100 px-3 py-2.5 text-left hover:bg-slate-50 ${
-                    n.read_at ? "" : "bg-blue-50/60"
+                  className={`block min-h-11 w-full border-b border-black/10 px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+                    n.read_at ? "" : "bg-black/5"
                   }`}
                 >
-                  <span className="flex items-start justify-between gap-2">
+                  <span className="flex items-start justify-between gap-3">
                     <span className={`text-sm ${n.read_at ? "font-normal" : "font-semibold"}`}>{n.title}</span>
-                    <span className="shrink-0 text-xs text-slate-500">{ago(n.created_at)}</span>
+                    <span className="shrink-0 text-xs text-muted">{ago(n.created_at)}</span>
                   </span>
-                  {n.body && <span className="mt-0.5 block text-sm text-slate-600">{n.body}</span>}
+                  {n.body && <span className="mt-0.5 block text-sm text-muted">{n.body}</span>}
                 </button>
               </li>
             ))}
           </ul>
+
+          <Link
+            href="/pranesimai"
+            onClick={() => setOpen(false)}
+            className="flex min-h-11 items-center justify-center text-sm font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Pranešimų nustatymai
+          </Link>
         </div>
       )}
     </div>

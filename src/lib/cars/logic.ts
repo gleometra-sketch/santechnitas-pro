@@ -45,7 +45,7 @@ function deadlineAlert(kind: CarAlert["kind"], label: string, until: string | nu
   if (!until) return null;
   const left = daysBetween(today, until);
   if (left < 0) return { kind, level: "expired", text: `${label}: pasibaigė prieš ${-left} d.` };
-  if (left <= 30) return { kind, level: left <= 14 ? "warn" : "ok", text: `${label}: liko ${left} d.` };
+  if (left <= 30) return { kind, level: "warn", text: `${label}: liko ${left} d.` };
   return null;
 }
 
@@ -76,4 +76,56 @@ export function carAlerts(c: CarRow, today: string): CarAlert[] {
   }
   const order: Record<Level, number> = { expired: 0, warn: 1, ok: 2 };
   return list.filter((a): a is CarAlert => a !== null).sort((a, b) => order[a.level] - order[b.level]);
+}
+
+
+// ---------------------------------------------------------------- aiškūs būsenų blokai (rodomi ekrane)
+
+export type StatusLevel = Level | "none";
+export type CarStatus = {
+  kind: CarAlert["kind"];
+  label: string;
+  /** Pagrindinė reikšmė: data arba kilometrai (rodoma stambiai). */
+  value: string;
+  /** Aiškus sakinys, kas vyksta (rodomas paryškintai, spalvotai). */
+  detail: string;
+  /** Papildoma smulkesnė eilutė (pvz. kada atnaujintas kilometražas). */
+  meta?: string;
+  level: StatusLevel;
+};
+
+function deadlineStatus(kind: CarStatus["kind"], label: string, until: string | null, today: string): CarStatus {
+  if (!until) return { kind, label, value: "Nenurodyta", detail: "Data neįvesta", level: "none" };
+  const left = daysBetween(today, until);
+  if (left < 0) return { kind, label, value: until, detail: `Pasibaigė prieš ${-left} d.`, level: "expired" };
+  if (left === 0) return { kind, label, value: until, detail: "Baigiasi šiandien", level: "warn" };
+  if (left <= 30) return { kind, label, value: until, detail: `Liko ${left} d.`, level: "warn" };
+  return { kind, label, value: until, detail: `Liko ${left} d.`, level: "ok" };
+}
+
+/** Penki blokai: techninė apžiūra, kelių mokestis, draudimas, tepalai, kilometražas. */
+export function carStatuses(c: CarRow, today: string): CarStatus[] {
+  const oilNext = c.oil_last_km + c.oil_interval_km;
+  const left = oilLeftKm(c);
+  const oil: CarStatus = !c.active
+    ? { kind: "oil", label: "Tepalai", value: `Keisti ties ${fmtKm(oilNext)} km`, detail: "Priminimai sustabdyti (neaktyvus)", level: "none" }
+    : left < 0
+      ? { kind: "oil", label: "Tepalai", value: `Keisti buvo ties ${fmtKm(oilNext)} km`, detail: `Pavėluota ${fmtKm(-left)} km`, level: "expired" }
+      : { kind: "oil", label: "Tepalai", value: `Liko ${fmtKm(left)} km`, detail: left <= c.oil_warn_km ? `Netrukus keisti, ties ${fmtKm(oilNext)} km` : `Keisti ties ${fmtKm(oilNext)} km`, level: left <= c.oil_warn_km ? "warn" : "ok" };
+
+  const next = daysToKmReminder(c, today);
+  const km: CarStatus = {
+    kind: "km", label: "Kilometražas", value: `${fmtKm(c.km)} km`,
+    detail: next === null ? "Priminimai sustabdyti (neaktyvus)" : c.needs_km ? "Įveskite pirmą rodmenį" : next <= 0 ? "Laikas įvesti kilometražą" : `Kitas priminimas po ${next} d.`,
+    meta: c.km_date ? `Paskutinį kartą įvesta ${c.km_date}` : undefined,
+    level: next === null ? "none" : next <= 0 ? "warn" : "ok",
+  };
+
+  return [
+    deadlineStatus("inspection", "Techninė apžiūra iki", c.inspection_until, today),
+    deadlineStatus("road_tax", "Kelių mokestis iki", c.road_tax_until, today),
+    deadlineStatus("insurance", "Draudimas iki", c.insurance_until, today),
+    oil,
+    km,
+  ];
 }

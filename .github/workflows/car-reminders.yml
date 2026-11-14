@@ -9,6 +9,10 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cars/reminders" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Iškviesti priminimų maršrutą
+        run: |
+          # Nepavykus (401, 307 į prisijungimą, 500) darbas turi baigtis klaida, o ne tyliai.
+          code=$(curl -sS -o response.txt -w "%{http_code}" -X POST "${{ secrets.APP_URL }}/api/cars/reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          cat response.txt; echo
+          test "$code" = "200"
