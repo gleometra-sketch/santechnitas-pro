@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { PackagePlus, Plus, X } from "lucide-react";
-import QtyStepper from "@/components/QtyStepper";
+import { PackagePlus, Plus } from "lucide-react";
+import MaterialLine from "@/components/MaterialLine";
 import { createMaterialRequest } from "@/lib/work/actions";
 import { UNITS, type MaterialRequestView } from "@/lib/work/types";
 
@@ -17,7 +17,7 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
 
-  const patch = (key: number, p: Partial<Row>) => setRows((all) => all.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  const patch = (key: number, p: Partial<Omit<Row, "key">>) => setRows((all) => all.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
   const submit = () => {
     const items: { name: string; quantity: number; unit: string }[] = [];
@@ -46,16 +46,14 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
         </summary>
         <div className="mt-3 space-y-3">
           {rows.map((r, idx) => (
-            <div key={r.key} className="grid grid-cols-[1fr_5rem_5.5rem_2.75rem] items-center gap-2">
-              <input aria-label={`Medžiaga ${idx + 1}`} value={r.name} onChange={(e) => patch(r.key, { name: e.target.value })} placeholder="Medžiaga" maxLength={200} className="min-h-12 min-w-0 rounded-xl border border-black/15 px-3" />
-              <QtyStepper label={`Kiekis ${idx + 1}`} value={r.qty} onChange={(t) => patch(r.key, { qty: t })} onStep={(t) => patch(r.key, { qty: t })} />
-              <select aria-label="Vienetas" value={r.unit} onChange={(e) => patch(r.key, { unit: e.target.value as Row["unit"] })} className="min-h-12 rounded-xl border border-black/15 bg-white px-1">
-                {UNITS.map((u) => <option key={u}>{u}</option>)}
-              </select>
-              <button aria-label="Pašalinti eilutę" disabled={rows.length === 1} onClick={() => setRows((all) => all.filter((x) => x.key !== r.key))} className="flex min-h-12 items-center justify-center rounded-xl border border-black/10 disabled:opacity-30">
-                <X size={18} aria-hidden />
-              </button>
-            </div>
+            <MaterialLine
+              key={r.key}
+              index={idx}
+              value={r}
+              onChange={(p) => patch(r.key, p)}
+              onRemove={rows.length > 1 ? () => setRows((all) => all.filter((x) => x.key !== r.key)) : undefined}
+              onError={(text) => setMsg(text ? { ok: false, text } : null)}
+            />
           ))}
           <button onClick={() => setRows((all) => [...all, emptyRow(Date.now())])} className="flex min-h-11 items-center gap-1 font-semibold text-accent-dark">
             <Plus size={18} aria-hidden /> Pridėti dar vieną
