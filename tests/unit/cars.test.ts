@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { carAlerts, carStatuses, daysBetween, daysToKmReminder, oilLeftKm, validateKm, type CarRow } from "../../src/lib/cars/logic";
+import { calendarCarItems, carAlerts, carStatuses, daysBetween, daysToKmReminder, oilLeftKm, validateKm, type CarRow } from "../../src/lib/cars/logic";
 
 const car = (over: Partial<CarRow> = {}): CarRow => ({
   id: "c1", name: "VW Caddy", plate: "ABC 123", vin: null, driver_id: "u1", active: true, needs_km: false,
@@ -73,4 +73,34 @@ test("būsenų blokai: nenurodyta data, pavėluoti tepalai, neaktyvus", () => {
   assert.equal(off.find((x) => x.kind === "km")?.level, "none");
   assert.deepEqual([off.find((x) => x.kind === "insurance")?.detail, off.find((x) => x.kind === "insurance")?.level], ["Liko 1 d.", "warn"]); // terminai lieka
   assert.equal(carStatuses(car({ insurance_until: TODAY }), TODAY)[2].detail, "Baigiasi šiandien");
+});
+
+test("kalendorius: įvestas kilometražas – automobilio nerodo visai", () => {
+  // km įvestas prieš 4 d., priminimas kas 14 d. → dar neatėjo laikas
+  assert.deepEqual(calendarCarItems([car()], TODAY, "u1"), []);
+});
+
+test("kalendorius: atėjus laikui vairuotojas mato kilometražo formą, kitas naudotojas – ne", () => {
+  const due = car({ km_date: "2026-10-30" }); // prieš 15 d.
+  const mine = calendarCarItems([due], TODAY, "u1");
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].showKmForm, true);
+  const other = calendarCarItems([due], TODAY, "admin");
+  assert.equal(other.length, 1);
+  assert.equal(other[0].showKmForm, false);
+});
+
+test("kalendorius: pirmas rodmuo dar neįvestas rodo formą", () => {
+  assert.equal(calendarCarItems([car({ needs_km: true })], TODAY, "u1")[0]?.showKmForm, true);
+});
+
+test("kalendorius: kitų priminimų atveju forma nerodoma, kol kilometražo laikas neatėjo", () => {
+  const r = calendarCarItems([car({ insurance_until: "2026-11-20" })], TODAY, "u1");
+  assert.equal(r.length, 1);
+  assert.equal(r[0].showKmForm, false);
+  assert.ok(r[0].alerts.every((a) => a.kind !== "km"));
+});
+
+test("kalendorius: neaktyvus automobilis be terminų nerodomas ir formos neturi", () => {
+  assert.deepEqual(calendarCarItems([car({ active: false, km_date: "2026-01-01" })], TODAY, "u1"), []);
 });

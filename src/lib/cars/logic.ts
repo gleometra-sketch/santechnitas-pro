@@ -79,6 +79,25 @@ export function carAlerts(c: CarRow, today: string): CarAlert[] {
 }
 
 
+export type CalendarCarItem = { car: CarRow; alerts: CarAlert[]; showKmForm: boolean };
+
+/**
+ * Ką rodyti kalendoriaus viršuje. Automobilis rodomas tik kai yra ką priminti (terminai, tepalai, kilometražas).
+ * Kilometražo forma – tik vairuotojui, kai atėjo laikas įvesti rodmenį; kol jis įvestas ir kitas priminimas
+ * dar neatėjo, kilometražo kalendoriuje nėra visai (jį visada galima įvesti skiltyje „Automobiliai“).
+ */
+export function calendarCarItems(cars: CarRow[], today: string, userId: string): CalendarCarItem[] {
+  const items: CalendarCarItem[] = [];
+  for (const car of cars) {
+    const alerts = carAlerts(car, today);
+    if (alerts.length === 0) continue;
+    const d = daysToKmReminder(car, today);
+    items.push({ car, alerts, showKmForm: car.driver_id === userId && car.active && d !== null && d <= 0 });
+  }
+  return items;
+}
+
+
 // ---------------------------------------------------------------- aiškūs būsenų blokai (rodomi ekrane)
 
 export type StatusLevel = Level | "none";
