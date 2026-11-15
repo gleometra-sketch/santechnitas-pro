@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Clock, Mail, MapPin, Navigation, Package, Phone, User } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, FileText, Mail, MapPin, Navigation, Package, Phone, User } from "lucide-react";
 import ProjectEditor from "@/components/admin/ProjectEditor";
 import ProjectFiles from "@/components/admin/ProjectFiles";
 import { requireContext } from "@/lib/auth/context";
@@ -59,6 +59,15 @@ export default async function ObjektoKortele({ params }: { params: Promise<{ id:
           <p className="text-sm text-muted">Kliento duomenų nėra. Įrašykite juos paspaudę „Redaguoti“.</p>
         )}
         <div className="mt-3"><ProjectEditor project={project} /></div>
+      </section>
+
+      <section className={card} aria-label="Sąmatos ir sutartys">
+        <h3 className={h2}><FileText size={20} aria-hidden /> Sąmatos ir sutartys</h3>
+        <div className="flex flex-wrap gap-3">
+          <Link href={`/valdymas/dokumentai?project=${id}`} className="flex min-h-12 items-center rounded-2xl border border-black/15 px-4 font-semibold">Objekto dokumentai</Link>
+          <Link href={`/valdymas/dokumentai/naujas?kind=estimate&project=${id}`} className="flex min-h-12 items-center rounded-2xl bg-accent px-4 font-semibold text-white">Nauja sąmata</Link>
+          <Link href={`/valdymas/dokumentai/naujas?kind=contract&project=${id}`} className="flex min-h-12 items-center rounded-2xl border border-black/15 px-4 font-semibold">Nauja sutartis</Link>
+        </div>
       </section>
 
       <section className={card} aria-label="Failai">

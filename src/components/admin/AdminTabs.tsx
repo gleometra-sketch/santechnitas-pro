@@ -10,6 +10,7 @@ const TABS = [
   { href: "/valdymas/darbuotojai", label: "Darbuotojai" },
   { href: "/valdymas/laikas", label: "Laikas" },
   { href: "/valdymas/ataskaita", label: "Ataskaita" },
+  { href: "/valdymas/dokumentai", label: "Dokumentai" },
   { href: "/valdymas/automobiliai", label: "Automobiliai" },
   { href: "/valdymas/telegram", label: "Telegram" },
 ];

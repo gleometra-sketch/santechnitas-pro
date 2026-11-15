@@ -6,7 +6,7 @@ import { clip, esc } from "@/lib/telegram/core";
 const PATH: Record<string, string> = {
   car_deadline: "/valdymas/automobiliai",
   car_oil: "/valdymas/automobiliai",
-  document_status: "/valdymas",
+  document_status: "/valdymas/dokumentai",
 };
 
 /**
