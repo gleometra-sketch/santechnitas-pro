@@ -7,12 +7,13 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "@/components/admin/ui";
 import { deleteEstimate, duplicateEstimate, saveEstimate } from "@/lib/estimates/actions";
 import {
-  DEFAULT_UNIT, KIND_ADD_LABEL, KIND_LABEL, LINE_KINDS, MAX_LINES, UNITS, calcTotals, formatEuro, formatInputCents,
+  DEFAULT_UNIT, KIND_ADD_LABEL, KIND_LABEL, LINE_KINDS, MAX_LINES, calcTotals, formatEuro, formatInputCents,
   formatInputPercent, formatQty, lineTotalCents, parsePercentHundredths, parsePriceCents, parseQuantity, type LineKind,
 } from "@/lib/estimates/calc";
 import { catalogKey, indexCatalog, mergeCatalog, searchCatalog, type CatalogEntry } from "@/lib/estimates/search";
 import { STATUSES, STATUS_LABEL, type CatalogRow, type EstimateFull, type EstimateStatus, type ProjectOption } from "@/lib/estimates/types";
 import NameCombobox from "./NameCombobox";
+import UnitSelect from "./UnitSelect";
 
 type Line = { key: string; kind: LineKind; name: string; unit: string; qty: string; price: string };
 type Head = {
@@ -108,7 +109,7 @@ function LineRow({ line, search, known, problem: p, autoFocus, isLast, onChange,
         </label>
         <label className="block">
           <span className="text-xs font-medium text-muted">Vienetas</span>
-          <input list="estimate-units" value={line.unit} maxLength={20} onChange={(e) => onChange({ unit: e.target.value })} className={field} />
+          <UnitSelect value={line.unit} onChange={(unit) => onChange({ unit })} className={field} />
         </label>
         <label className="block">
           <span className="text-xs font-medium text-muted">Kaina, €</span>
@@ -339,8 +340,6 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
 
   return (
     <div className="space-y-5">
-      <datalist id="estimate-units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
-
       <div className="flex items-center justify-between gap-3">
         <Link href="/samata" onClick={goBack} className="flex min-h-11 items-center gap-1 font-semibold text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
           <ArrowLeft size={20} aria-hidden /> Sąmatos

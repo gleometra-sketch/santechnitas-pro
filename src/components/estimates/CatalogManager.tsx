@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { deleteCatalogItem, saveCatalogItem } from "@/lib/estimates/actions";
-import { KIND_LABEL, LINE_KINDS, UNITS, DEFAULT_UNIT, formatEuro, formatInputCents, type LineKind } from "@/lib/estimates/calc";
+import { KIND_LABEL, LINE_KINDS, DEFAULT_UNIT, formatEuro, formatInputCents, type LineKind } from "@/lib/estimates/calc";
 import { fold } from "@/lib/estimates/search";
 import type { CatalogRow } from "@/lib/estimates/types";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "@/components/admin/ui";
+import UnitSelect from "./UnitSelect";
 
 type Form = { id?: string; kind: LineKind; name: string; unit: string; price: string };
 type Note = { ok: boolean; text: string } | null;
@@ -35,7 +36,7 @@ function ItemForm({ initial, onMsg, onDone, submitLabel }: { initial: Form; onMs
         </select>
       </Field>
       <Field label="Pavadinimas"><input value={f.name} maxLength={200} onChange={(e) => setF({ ...f, name: e.target.value })} className={inputCls} /></Field>
-      <Field label="Vienetas"><input list="catalog-units" value={f.unit} maxLength={20} onChange={(e) => setF({ ...f, unit: e.target.value })} className={inputCls} /></Field>
+      <Field label="Vienetas"><UnitSelect value={f.unit} onChange={(unit) => setF({ ...f, unit })} className={inputCls} /></Field>
       <Field label="Kaina, € (vienetui)"><input inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inputCls} placeholder="12,50" /></Field>
       <div className="sm:col-span-2">
         <button type="button" disabled={pending} onClick={save} className={primaryBtn}>{pending ? "Saugoma..." : submitLabel}</button>
@@ -99,7 +100,6 @@ export default function CatalogManager({ items, truncated }: { items: CatalogRow
 
   return (
     <div className="space-y-4">
-      <datalist id="catalog-units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
       <p className="text-sm text-muted">
         Katalogas pildosi pats: išsaugojus sąmatą nauji pavadinimai ir paskutinės kainos įrašomi čia, o kitą kartą siūlomi rašant sąmatą.
         Kiekius kiekvieną kartą įvedate patys.
