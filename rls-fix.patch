@@ -1,0 +1,31 @@
+diff --git a/supabase/tests/rls_test.sql b/supabase/tests/rls_test.sql
+index b8fe871..1b61162 100644
+--- a/supabase/tests/rls_test.sql
++++ b/supabase/tests/rls_test.sql
+@@ -388,14 +388,22 @@ create function t.hdr(p_discount numeric default 10) returns jsonb language sql
+ $$;
+ grant execute on function t.hdr(numeric) to authenticated;
+ 
++-- Kaip programoje: administratorius kuria sąmatą nenurodydamas id ir numerio (juos nustato duomenų bazė).
+ select t.as_user('A');
+-insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000001', t.id('CX'), 'Vonios remontas');
+-insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000002', t.id('CX'), 'Antra');
+-select t.ok((select number ~ '^[0-9]{4}-001$' from public.estimates where id = '50000000-0000-0000-0000-000000000001'), 'sąmatos numeris sugeneruojamas serveryje');
+-select t.ok((select number ~ '^[0-9]{4}-002$' from public.estimates where id = '50000000-0000-0000-0000-000000000002'), 'kita sąmata gauna kitą numerį');
++insert into public.estimates (company_id, title) values (t.id('CX'), 'Numeracijos testas');
++insert into public.estimates (company_id, title) values (t.id('CX'), 'Numeracijos testas 2');
++select t.ok((select number ~ '^[0-9]{4}-001$' from public.estimates where title = 'Numeracijos testas'), 'sąmatos numeris sugeneruojamas serveryje');
++select t.ok((select number ~ '^[0-9]{4}-002$' from public.estimates where title = 'Numeracijos testas 2'), 'kita sąmata gauna kitą numerį');
++select t.err($$insert into public.estimates (id, company_id, title) values (gen_random_uuid(), t.id('CX'), 'Su id')$$, '42501');
+ select t.err($$insert into public.estimates (company_id, number) values (t.id('CX'), 'X-1')$$, '42501');
+ select t.err($$update public.estimates set number = 'X-2'$$, '42501');
+ 
++-- Tolesniems testams reikia žinomų id: įrašome juos kaip serveris (numeraciją vis tiek suteikia triggeris).
++reset role;
++insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000001', t.id('CX'), 'Vonios remontas');
++insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000002', t.id('CX'), 'Antra');
++select t.as_user('A');
++
+ -- Išsaugojimas: 3 eilutės, dvi su tuo pačiu pavadinimu (laimi paskutinė), viena su 0 kaina (neįsimenama).
+ select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(),
+   '[{"pos":0,"kind":"material","name":"Varinis vamzdis 15 mm","unit":"m","quantity":2.5,"price":320},

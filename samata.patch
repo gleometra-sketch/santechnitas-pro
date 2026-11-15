@@ -1,0 +1,2105 @@
+diff --git a/README.md b/README.md
+index eab9186..7a3a77d 100644
+--- a/README.md
++++ b/README.md
+@@ -29,6 +29,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
+ | Telegram pranešimai administratoriams | Atlikta (žr. `docs/TELEGRAM.md`) |
+ | Pranešimų sistema (varpelis, eilė) | Atlikta (žr. `docs/PRANESIMAI.md`) |
+ | Automobiliai ir priminimai | Atlikta (žr. `docs/AUTOMOBILIAI.md`) |
++| Sąmata (skaičiuoklė ir katalogas) | Atlikta (žr. `docs/SAMATOS.md`) |
+ | 8. Testavimas | Laukia |
+ | 9. Publikavimas Vercel | Laukia |
+ 
+diff --git a/docs/SAMATOS.md b/docs/SAMATOS.md
+new file mode 100644
+index 0000000..aa592b0
+--- /dev/null
++++ b/docs/SAMATOS.md
+@@ -0,0 +1,43 @@
++# Sąmata
++
++Skiltis **Sąmata** (tik administratoriams; kainų darbuotojai nemato): sąmatos skaičiuoklė su medžiagų ir darbų katalogu,
++kuris pildosi pats. Migracija: `supabase/migrations/0016_estimates.sql`.
++
++## Kaip naudotis
++1. **Sąmata → Nauja sąmata.** Užpildykite pavadinimą ir klientą (pasirinkus objektą, klientas ir adresas užsipildo patys).
++2. **Medžiagos / Darbai / Kita:** paspauskite „Pridėti“ ir pradėkite rašyti pavadinimą. Rodomi siūlymai iš katalogo
++   (paspaudus tuščią laukelį, rodomi neseniai naudoti; ieškoma pagal pradžią, žodžio pradžią ar raides, be lietuviškų ženklų: „ciau“ suranda „Čiaupas“).
++3. Pasirinkus poziciją, **vienetas ir paskutinė kaina užsipildo**, o kursorius pereina į **kiekį**, kurį įvedate kiekvieną kartą (m, kg, vnt., val.).
++   Vienetą ir kainą galima pakeisti. Enter kainos laukelyje pridedą naują eilutę.
++4. **Sumos skaičiuojamos iškart:** eilutės, skyrių tarpinės sumos, nuolaida (%), PVM (%) ir galutinė suma; ji visada matoma apačioje.
++5. **Išsaugoti** įrašo sąmatą ir **įsimena naujas pozicijas bei kainas kataloge**. Pakeitimai kas ~3 s išsaugomi ir patys (katalogas tada nekeičiamas,
++   kad nesusikauptų pusiau įvesti pavadinimai), todėl išėjus nepaspaudus „Išsaugoti“ darbas nedingsta.
++6. **Kopijuoti sąmatą** sukuria juodraštį su visomis eilutėmis: greičiausias būdas pradėti panašią sąmatą.
++7. **Sąmata → Katalogas:** peržiūra, paieška, kainų taisymas, pozicijų pridėjimas ranka ir trynimas. Esamos sąmatos nuo katalogo pakeitimų nesikeičia.
++
++## Skaičiavimo taisyklės
++- Eilutės suma = kiekis × vieneto kaina, apvalinama iki cento (pusė – į viršų). Kiekis iki 3 skaitmenų po kablelio, kaina iki 2.
++- Nuolaida taikoma tarpinei sumai, PVM – sumai po nuolaidos; abu apvalinami iki cento.
++- Pinigai saugomi centais, kiekiai tūkstantosiomis, procentai šimtosiomis: nėra slankiojo kablelio paklaidų (`src/lib/estimates/calc.ts`, testai `tests/unit/estimates.test.ts`).
++- Eilutė be kiekio ar kainos išsaugoma kaip 0 ir į katalogą neįsimenama (kad nepilnai užpildyta eilutė nesugadintų katalogo kainos).
++- Katalogo kaina = **paskutinė išsaugota** (jei ta pati pozicija sąmatoje yra kelis kartus, laimi paskutinė eilutė). Redaguojant seną sąmatą ir paspaudus „Išsaugoti“, katalogo kaina taip pat atnaujinama.
++- Didžiausia reikšmė: kiekis 100 000, kaina 1 000 000 €, 300 eilučių sąmatoje.
++
++## Sąmatos būsenos
++Juodraštis, Išsiųsta, Patvirtinta, Atmesta: kol kas žymima ranka. Numeracija automatinė: `2026-001`, `2026-002`... (atskirai kiekvienai įmonei ir metams).
++
++## Duomenų bazė
++| Lentelė / funkcija | Paskirtis |
++|---|---|
++| `estimates` | Sąmatos antraštė (klientas, būsena, PVM, nuolaida) |
++| `estimate_lines` | Eilutės (rūšis, pavadinimas, vienetas, kiekis, kaina) |
++| `estimate_catalog` | Katalogas; vienas įrašas vienam pavadinimui (be didžiųjų raidžių ir tarpų skirtumo) ir rūšiai |
++| `estimate_counters` | Numeracija (rašo tik triggeris) |
++| `estimate_subtotals` (view) | Tarpinė suma sąrašui |
++| `save_estimate(...)` | Vienos transakcijos išsaugojimas: antraštė + eilutės + katalogas |
++| `duplicate_estimate(...)` | Sąmatos kopija |
++
++Visas lenteles mato ir keičia tik įmonės administratorius; rašyti galima tik su aktyvia prieiga (bandymas ar prenumerata). Testai: `supabase/tests/rls_test.sql`, skyrius „11. Sąmatos“.
++
++## Galimi tolesni žingsniai
++Sąmatos spausdinimas / PDF, siuntimas klientui el. paštu su patvirtinimu, medžiagų antkainis, kainų istorija, sąmatos pavertimas objekto darbais.
+diff --git a/src/app/(app)/layout.tsx b/src/app/(app)/layout.tsx
+index 78acebe..5ef2f1a 100644
+--- a/src/app/(app)/layout.tsx
++++ b/src/app/(app)/layout.tsx
+@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
+           <AccessExpired ctx={ctx} />
+         )}
+       </main>
+-      <BottomNav showMaterials={admin} showCars={showCars} />
++      <BottomNav showMaterials={admin} showCars={showCars} showEstimates={admin} />
+     </>
+   );
+ }
+diff --git a/src/app/(app)/samata/[id]/page.tsx b/src/app/(app)/samata/[id]/page.tsx
+new file mode 100644
+index 0000000..916e2c2
+--- /dev/null
++++ b/src/app/(app)/samata/[id]/page.tsx
+@@ -0,0 +1,20 @@
++import { notFound, redirect } from "next/navigation";
++import EstimateEditor from "@/components/estimates/EstimateEditor";
++import { isAdmin, requireContext } from "@/lib/auth/context";
++import { getCatalog, getEstimate, getProjectOptions } from "@/lib/estimates/queries";
++
++export const dynamic = "force-dynamic";
++
++const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++
++export default async function EstimatePage({ params }: { params: Promise<{ id: string }> }) {
++  const { id } = await params;
++  const ctx = await requireContext();
++  if (!ctx.company) redirect("/kurti-imone");
++  if (!isAdmin(ctx.role)) redirect("/darbai");
++  if (!UUID.test(id)) notFound();
++
++  const [estimate, catalog, projects] = await Promise.all([getEstimate(ctx, id), getCatalog(ctx), getProjectOptions(ctx)]);
++  if (!estimate) notFound();
++  return <EstimateEditor estimate={estimate} catalog={catalog.rows} catalogTruncated={catalog.truncated} projects={projects} />;
++}
+diff --git a/src/app/(app)/samata/katalogas/page.tsx b/src/app/(app)/samata/katalogas/page.tsx
+new file mode 100644
+index 0000000..a733a7d
+--- /dev/null
++++ b/src/app/(app)/samata/katalogas/page.tsx
+@@ -0,0 +1,22 @@
++import { redirect } from "next/navigation";
++import CatalogManager from "@/components/estimates/CatalogManager";
++import EstimateNav from "@/components/estimates/EstimateNav";
++import { isAdmin, requireContext } from "@/lib/auth/context";
++import { getCatalog } from "@/lib/estimates/queries";
++
++export const dynamic = "force-dynamic";
++
++export default async function KatalogasPage() {
++  const ctx = await requireContext();
++  if (!ctx.company) redirect("/kurti-imone");
++  if (!isAdmin(ctx.role)) redirect("/darbai");
++  const { rows, truncated, error } = await getCatalog(ctx);
++  return (
++    <div className="space-y-5">
++      <h1 className="text-3xl font-extrabold">Sąmata</h1>
++      <EstimateNav active="catalog" />
++      {error && <p role="alert" className="rounded-2xl bg-red-50 p-4 font-medium text-danger">Nepavyko nuskaityti katalogo: {error}</p>}
++      <CatalogManager items={rows} truncated={truncated} />
++    </div>
++  );
++}
+diff --git a/src/app/(app)/samata/page.tsx b/src/app/(app)/samata/page.tsx
+new file mode 100644
+index 0000000..3b4c3c7
+--- /dev/null
++++ b/src/app/(app)/samata/page.tsx
+@@ -0,0 +1,79 @@
++import Link from "next/link";
++import { redirect } from "next/navigation";
++import EstimateNav from "@/components/estimates/EstimateNav";
++import NewEstimateButton from "@/components/estimates/NewEstimateButton";
++import { isAdmin, requireContext } from "@/lib/auth/context";
++import { formatEuro } from "@/lib/estimates/calc";
++import { getEstimateList } from "@/lib/estimates/queries";
++import { STATUSES, STATUS_LABEL, isStatus, type EstimateStatus } from "@/lib/estimates/types";
++
++export const dynamic = "force-dynamic";
++
++const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
++const TONE: Record<EstimateStatus, string> = {
++  draft: "bg-surface text-muted",
++  sent: "bg-accent-soft text-accent-dark",
++  accepted: "bg-go-soft text-go-dark",
++  rejected: "bg-red-50 text-danger",
++};
++const date = new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", dateStyle: "medium" });
++
++export default async function SamataPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
++  const ctx = await requireContext();
++  if (!ctx.company) redirect("/kurti-imone");
++  if (!isAdmin(ctx.role)) redirect("/darbai");
++
++  const b = first((await searchParams).b);
++  const filter: EstimateStatus | "all" = isStatus(b) ? b : "all";
++  const { rows, error } = await getEstimateList(ctx);
++  const shown = filter === "all" ? rows : rows.filter((r) => r.status === filter);
++
++  return (
++    <div className="space-y-5">
++      <h1 className="text-3xl font-extrabold">Sąmata</h1>
++      <EstimateNav active="list" />
++      <NewEstimateButton />
++
++      <nav aria-label="Būsena" className="flex flex-wrap gap-2">
++        {(["all", ...STATUSES] as const).map((s) => (
++          <Link
++            key={s}
++            href={s === "all" ? "/samata" : `/samata?b=${s}`}
++            aria-current={filter === s ? "page" : undefined}
++            className={`flex min-h-11 items-center rounded-full px-4 text-sm font-semibold ${filter === s ? "bg-navy text-white" : "bg-white text-muted shadow-card"}`}
++          >
++            {s === "all" ? "Visos" : STATUS_LABEL[s]}
++          </Link>
++        ))}
++      </nav>
++
++      {error && <p role="alert" className="rounded-2xl bg-red-50 p-4 font-medium text-danger">Nepavyko nuskaityti sąmatų: {error}</p>}
++
++      {shown.length === 0 && !error ? (
++        <p className="rounded-2xl bg-white p-6 text-center text-muted shadow-card">
++          {rows.length === 0 ? "Sąmatų dar nėra. Paspauskite „Nauja sąmata“ ir pradėkite nuo medžiagų ar darbų." : "Šios būsenos sąmatų nėra."}
++        </p>
++      ) : (
++        <ul className="space-y-3">
++          {shown.map((r) => (
++            <li key={r.id}>
++              <Link href={`/samata/${r.id}`} className="block rounded-2xl bg-white p-4 shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
++                <div className="flex items-start justify-between gap-3">
++                  <div className="min-w-0">
++                    <p className="font-bold text-muted">{r.number} · {date.format(new Date(r.createdAt))}</p>
++                    <p className="break-words text-lg font-extrabold">{r.title || "Be pavadinimo"}</p>
++                    {r.clientName && <p className="text-muted">{r.clientName}</p>}
++                  </div>
++                  <div className="shrink-0 text-right">
++                    <p className="text-lg font-extrabold">{formatEuro(r.totalCents)}</p>
++                    <span className={`mt-1 inline-block rounded-full px-3 py-1 text-sm font-semibold ${TONE[r.status]}`}>{STATUS_LABEL[r.status]}</span>
++                  </div>
++                </div>
++              </Link>
++            </li>
++          ))}
++        </ul>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/BottomNav.tsx b/src/components/BottomNav.tsx
+index aa941e9..80281f5 100644
+--- a/src/components/BottomNav.tsx
++++ b/src/components/BottomNav.tsx
+@@ -2,39 +2,43 @@
+ 
+ import Link from "next/link";
+ import { usePathname } from "next/navigation";
+-import { CalendarDays, Car, Clock, ListChecks, Package } from "lucide-react";
++import { CalendarDays, Calculator, Car, Clock, ListChecks, Package } from "lucide-react";
+ 
+-const items = [
++type Item = { href: string; label: string; /** Trumpesnis užrašas, kai skilčių yra 6 (siauruose ekranuose neišsitelktų). */ short?: string; Icon: typeof Clock };
++const items: Item[] = [
+   { href: "/darbai", label: "Darbai", Icon: ListChecks },
+-  { href: "/kalendorius", label: "Kalendorius", Icon: CalendarDays },
++  { href: "/kalendorius", label: "Kalendorius", short: "Kalend.", Icon: CalendarDays },
+   { href: "/valandos", label: "Valandos", Icon: Clock },
+ ];
+-const materials = { href: "/medziagos", label: "Medžiagos", Icon: Package };
+-const cars = { href: "/automobiliai", label: "Automobiliai", Icon: Car };
++const materials: Item = { href: "/medziagos", label: "Medžiagos", Icon: Package };
++const cars: Item = { href: "/automobiliai", label: "Automobiliai", short: "Auto", Icon: Car };
++const estimates: Item = { href: "/samata", label: "Sąmata", Icon: Calculator };
+ 
+-export default function BottomNav({ showMaterials = false, showCars = false }: { showMaterials?: boolean; showCars?: boolean }) {
++export default function BottomNav({ showMaterials = false, showCars = false, showEstimates = false }: { showMaterials?: boolean; showCars?: boolean; showEstimates?: boolean }) {
+   const pathname = usePathname();
+-  const list = [...items, ...(showMaterials ? [materials] : []), ...(showCars ? [cars] : [])];
+-  const cols = list.length >= 5 ? "grid-cols-5" : list.length === 4 ? "grid-cols-4" : "grid-cols-3";
++  const list = [...items, ...(showMaterials ? [materials] : []), ...(showCars ? [cars] : []), ...(showEstimates ? [estimates] : [])];
++  const compact = list.length >= 6;
++  const cols = list.length >= 6 ? "grid-cols-6" : list.length === 5 ? "grid-cols-5" : list.length === 4 ? "grid-cols-4" : "grid-cols-3";
+   return (
+     <nav
+       aria-label="Pagrindinis meniu"
+       className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white pb-[env(safe-area-inset-bottom)]"
+     >
+       <ul className={`mx-auto grid max-w-3xl ${cols}`}>
+-        {list.map(({ href, label, Icon }) => {
++        {list.map(({ href, label, short, Icon }) => {
+           const active = pathname.startsWith(href);
+           return (
+             <li key={href}>
+               <Link
+                 href={href}
+                 aria-current={active ? "page" : undefined}
+-                className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-medium min-[400px]:text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
++                aria-label={compact && short ? label : undefined}
++                className={`flex min-h-16 flex-col items-center justify-center gap-1 ${compact ? "text-[11px] min-[400px]:text-xs" : "text-xs min-[400px]:text-sm"} font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+                   active ? "text-accent" : "text-muted"
+                 }`}
+               >
+-                <Icon size={26} strokeWidth={2} aria-hidden />
+-                {label}
++                <Icon size={compact ? 24 : 26} strokeWidth={2} aria-hidden />
++                {compact && short ? short : label}
+               </Link>
+             </li>
+           );
+diff --git a/src/components/estimates/CatalogManager.tsx b/src/components/estimates/CatalogManager.tsx
+new file mode 100644
+index 0000000..f2ada3c
+--- /dev/null
++++ b/src/components/estimates/CatalogManager.tsx
+@@ -0,0 +1,138 @@
++"use client";
++
++import { useMemo, useState, useTransition } from "react";
++import { deleteCatalogItem, saveCatalogItem } from "@/lib/estimates/actions";
++import { KIND_LABEL, LINE_KINDS, UNITS, DEFAULT_UNIT, formatEuro, formatInputCents, type LineKind } from "@/lib/estimates/calc";
++import { fold } from "@/lib/estimates/search";
++import type { CatalogRow } from "@/lib/estimates/types";
++import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "@/components/admin/ui";
++
++type Form = { id?: string; kind: LineKind; name: string; unit: string; price: string };
++type Note = { ok: boolean; text: string } | null;
++const NEW: Form = { kind: "material", name: "", unit: DEFAULT_UNIT.material, price: "" };
++
++function ItemForm({ initial, onMsg, onDone, submitLabel }: { initial: Form; onMsg: (m: Note) => void; onDone: () => void; submitLabel: string }) {
++  const [f, setF] = useState<Form>(initial);
++  const [pending, start] = useTransition();
++  const save = () =>
++    start(async () => {
++      const r = await saveCatalogItem(f);
++      onMsg(r.ok ? { ok: true, text: r.message ?? "Išsaugota." } : { ok: false, text: r.error });
++      if (r.ok) onDone();
++    });
++  return (
++    <div className="mt-3 grid gap-3 sm:grid-cols-2">
++      <Field label="Rūšis">
++        <select
++          value={f.kind}
++          onChange={(e) => {
++            const kind = e.target.value as LineKind;
++            setF({ ...f, kind, unit: f.unit === DEFAULT_UNIT[f.kind] ? DEFAULT_UNIT[kind] : f.unit });
++          }}
++          className={inputCls}
++        >
++          {LINE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
++        </select>
++      </Field>
++      <Field label="Pavadinimas"><input value={f.name} maxLength={200} onChange={(e) => setF({ ...f, name: e.target.value })} className={inputCls} /></Field>
++      <Field label="Vienetas"><input list="catalog-units" value={f.unit} maxLength={20} onChange={(e) => setF({ ...f, unit: e.target.value })} className={inputCls} /></Field>
++      <Field label="Kaina, € (vienetui)"><input inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inputCls} placeholder="12,50" /></Field>
++      <div className="sm:col-span-2">
++        <button type="button" disabled={pending} onClick={save} className={primaryBtn}>{pending ? "Saugoma..." : submitLabel}</button>
++      </div>
++    </div>
++  );
++}
++
++function ItemCard({ item, onMsg }: { item: CatalogRow; onMsg: (m: Note) => void }) {
++  const [open, setOpen] = useState(false);
++  const [pending, start] = useTransition();
++  const remove = () =>
++    start(async () => {
++      const r = await deleteCatalogItem(item.id);
++      onMsg(r.ok ? { ok: true, text: r.message ?? "Ištrinta." } : { ok: false, text: r.error });
++    });
++  return (
++    <li className="rounded-2xl bg-white p-4 shadow-card">
++      <div className="flex items-start justify-between gap-3">
++        <div className="min-w-0">
++          <p className="break-words font-bold">{item.name}</p>
++          <p className="text-sm text-muted">{KIND_LABEL[item.kind]}</p>
++        </div>
++        <p className="shrink-0 text-right font-bold">{formatEuro(item.priceCents)} <span className="font-normal text-muted">/ {item.unit}</span></p>
++      </div>
++      <div className="mt-2 flex flex-wrap gap-2">
++        <button type="button" onClick={() => setOpen(!open)} className={ghostBtn}>{open ? "Uždaryti" : "Redaguoti"}</button>
++        <button
++          type="button"
++          disabled={pending}
++          onClick={() => { if (confirm(`Ištrinti „${item.name}“ iš katalogo? Esamos sąmatos nesikeis.`)) remove(); }}
++          className={`${ghostBtn} text-danger`}
++        >
++          Ištrinti
++        </button>
++      </div>
++      {open && (
++        <ItemForm
++          initial={{ id: item.id, kind: item.kind, name: item.name, unit: item.unit, price: formatInputCents(item.priceCents) }}
++          onMsg={onMsg}
++          onDone={() => setOpen(false)}
++          submitLabel="Išsaugoti"
++        />
++      )}
++    </li>
++  );
++}
++
++export default function CatalogManager({ items, truncated }: { items: CatalogRow[]; truncated: boolean }) {
++  const [kind, setKind] = useState<LineKind | "all">("all");
++  const [q, setQ] = useState("");
++  const [msg, setMsg] = useState<Note>(null);
++  const [adding, setAdding] = useState(false);
++
++  const filtered = useMemo(() => {
++    const fq = fold(q);
++    return items
++      .filter((i) => (kind === "all" || i.kind === kind) && (!fq || fold(i.name).includes(fq)))
++      .sort((a, b) => fold(a.name).localeCompare(fold(b.name), "lt"));
++  }, [items, kind, q]);
++
++  return (
++    <div className="space-y-4">
++      <datalist id="catalog-units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
++      <p className="text-sm text-muted">
++        Katalogas pildosi pats: išsaugojus sąmatą nauji pavadinimai ir paskutinės kainos įrašomi čia, o kitą kartą siūlomi rašant sąmatą.
++        Kiekius kiekvieną kartą įvedate patys.
++      </p>
++
++      <div className="rounded-card bg-white p-5 shadow-card">
++        <button type="button" onClick={() => setAdding(!adding)} className={ghostBtn}>{adding ? "Uždaryti" : "Pridėti naują poziciją"}</button>
++        {adding && <ItemForm initial={NEW} onMsg={setMsg} onDone={() => setAdding(false)} submitLabel="Pridėti" />}
++      </div>
++
++      <div className="grid gap-3 sm:grid-cols-2">
++        <Field label="Paieška"><input type="search" value={q} onChange={(e) => setQ(e.target.value)} className={inputCls} placeholder="Pavadinimo dalis" /></Field>
++        <Field label="Rūšis">
++          <select value={kind} onChange={(e) => setKind(e.target.value as LineKind | "all")} className={inputCls}>
++            <option value="all">Visos</option>
++            {LINE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
++          </select>
++        </Field>
++      </div>
++
++      <Msg msg={msg} />
++      {truncated && <p role="status" className="rounded-2xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Rodoma tik 5000 naujausių įrašų.</p>}
++
++      {filtered.length === 0 ? (
++        <p className="rounded-2xl bg-white p-6 text-center text-muted shadow-card">
++          {items.length === 0 ? "Katalogas kol kas tuščias. Išsaugokite pirmą sąmatą arba pridėkite poziciją ranka." : "Nieko nerasta."}
++        </p>
++      ) : (
++        <>
++          <p className="text-sm text-muted" aria-live="polite">Įrašų: {filtered.length}</p>
++          <ul className="space-y-3">{filtered.map((i) => <ItemCard key={i.id} item={i} onMsg={setMsg} />)}</ul>
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/estimates/EstimateEditor.tsx b/src/components/estimates/EstimateEditor.tsx
+new file mode 100644
+index 0000000..f63b3ff
+--- /dev/null
++++ b/src/components/estimates/EstimateEditor.tsx
+@@ -0,0 +1,475 @@
++"use client";
++
++import Link from "next/link";
++import { useRouter } from "next/navigation";
++import { useCallback, useEffect, useMemo, useRef, useState } from "react";
++import { ArrowLeft, Plus, Trash2 } from "lucide-react";
++import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "@/components/admin/ui";
++import { deleteEstimate, duplicateEstimate, saveEstimate } from "@/lib/estimates/actions";
++import {
++  DEFAULT_UNIT, KIND_ADD_LABEL, KIND_LABEL, LINE_KINDS, MAX_LINES, UNITS, calcTotals, formatEuro, formatInputCents,
++  formatInputPercent, formatQty, lineTotalCents, parsePercentHundredths, parsePriceCents, parseQuantity, type LineKind,
++} from "@/lib/estimates/calc";
++import { catalogKey, indexCatalog, mergeCatalog, searchCatalog, type CatalogEntry } from "@/lib/estimates/search";
++import { STATUSES, STATUS_LABEL, type CatalogRow, type EstimateFull, type EstimateStatus, type ProjectOption } from "@/lib/estimates/types";
++import NameCombobox from "./NameCombobox";
++
++type Line = { key: string; kind: LineKind; name: string; unit: string; qty: string; price: string };
++type Head = {
++  title: string; projectId: string; clientName: string; clientPhone: string; clientEmail: string; address: string;
++  status: EstimateStatus; validUntil: string; notes: string; vat: string; discount: string;
++};
++type Note = { ok: boolean; text: string } | null;
++type Problem = { level: "error" | "warn"; text: string } | null;
++
++const AUTOSAVE_MS = 3000;
++const field = "min-h-12 w-full rounded-xl border border-black/15 bg-white px-3";
++
++const blankLine = (kind: LineKind, key: string): Line => ({ key, kind, name: "", unit: DEFAULT_UNIT[kind], qty: "", price: "" });
++const snap = (h: Head, ls: Line[]) => JSON.stringify([h, ls.map((l) => [l.kind, l.name, l.unit, l.qty, l.price])]);
++
++function problem(l: Line): Problem {
++  if (!l.name.trim() && !l.qty.trim() && !l.price.trim()) return null;
++  if (!l.name.trim()) return { level: "error", text: "Įrašykite pavadinimą." };
++  if (l.qty.trim() && parseQuantity(l.qty) === null) return { level: "error", text: "Neteisingas kiekis (pvz. 2,5)." };
++  if (l.price.trim() && parsePriceCents(l.price) === null) return { level: "error", text: "Neteisinga kaina (pvz. 12,50)." };
++  if (!l.qty.trim()) return { level: "warn", text: "Įveskite kiekį." };
++  if (!l.price.trim()) return { level: "warn", text: "Įveskite kainą." };
++  return null;
++}
++
++/** Pozicijos, kurias išsaugojus verta įsiminti kataloge (turi pavadinimą ir kainą). */
++function learnable(lines: Line[]): CatalogEntry[] {
++  const now = new Date().toISOString();
++  const out: CatalogEntry[] = [];
++  for (const l of lines) {
++    const price = l.price.trim() ? parsePriceCents(l.price) : null;
++    if (!l.name.trim() || !price) continue;
++    out.push({ kind: l.kind, name: l.name.trim(), unit: l.unit.trim() || DEFAULT_UNIT[l.kind], priceCents: price, lastUsedAt: now });
++  }
++  return out;
++}
++
++type RowProps = {
++  line: Line;
++  search: (q: string) => CatalogEntry[];
++  known: boolean;
++  problem: Problem;
++  autoFocus: boolean;
++  isLast: boolean;
++  onChange: (patch: Partial<Line>) => void;
++  onRemove: () => void;
++  onAddNext: () => void;
++};
++
++function LineRow({ line, search, known, problem: p, autoFocus, isLast, onChange, onRemove, onAddNext }: RowProps) {
++  const nameRef = useRef<HTMLInputElement>(null);
++  const qtyRef = useRef<HTMLInputElement>(null);
++  useEffect(() => {
++    if (autoFocus) nameRef.current?.focus();
++  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- tik naujai pridėtai eilutei
++
++  const qty = parseQuantity(line.qty);
++  const price = parsePriceCents(line.price);
++  const total = qty !== null && price !== null ? lineTotalCents(qty, price) : null;
++  const msgId = `${line.key}-msg`;
++
++  return (
++    <li className="space-y-2 rounded-2xl border border-black/10 bg-white p-3 shadow-card">
++      <NameCombobox
++        id={`${line.key}-name`}
++        inputRef={nameRef}
++        value={line.name}
++        onChange={(name) => onChange({ name })}
++        onPick={(e) => {
++          onChange({ name: e.name, unit: e.unit, price: formatInputCents(e.priceCents) });
++          setTimeout(() => qtyRef.current?.focus(), 0);
++        }}
++        search={search}
++        placeholder="Pavadinimas (pradėkite rašyti, kad pasirinktumėte iš katalogo)"
++        invalid={p?.level === "error" && !line.name.trim()}
++        describedBy={p ? msgId : undefined}
++      />
++      {!known && line.name.trim() !== "" && (
++        <p className="text-xs text-muted">Nauja pozicija: išsaugojus ji bus įrašyta į katalogą.</p>
++      )}
++      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
++        <label className="block">
++          <span className="text-xs font-medium text-muted">Kiekis</span>
++          <input
++            ref={qtyRef}
++            inputMode="decimal"
++            value={line.qty}
++            onChange={(e) => onChange({ qty: e.target.value })}
++            aria-invalid={line.qty.trim() !== "" && qty === null ? true : undefined}
++            aria-describedby={p ? msgId : undefined}
++            className={`${field} text-right`}
++          />
++        </label>
++        <label className="block">
++          <span className="text-xs font-medium text-muted">Vienetas</span>
++          <input list="estimate-units" value={line.unit} maxLength={20} onChange={(e) => onChange({ unit: e.target.value })} className={field} />
++        </label>
++        <label className="block">
++          <span className="text-xs font-medium text-muted">Kaina, €</span>
++          <input
++            inputMode="decimal"
++            value={line.price}
++            onChange={(e) => onChange({ price: e.target.value })}
++            onKeyDown={(e) => {
++              if (e.key === "Enter") {
++                e.preventDefault();
++                if (isLast && line.name.trim()) onAddNext();
++              }
++            }}
++            aria-invalid={line.price.trim() !== "" && price === null ? true : undefined}
++            aria-describedby={p ? msgId : undefined}
++            className={`${field} text-right`}
++          />
++        </label>
++        <div>
++          <span className="text-xs font-medium text-muted">Suma</span>
++          <p className="flex min-h-12 items-center justify-end font-bold">{total === null ? "—" : formatEuro(total)}</p>
++        </div>
++      </div>
++      <div className="flex min-h-11 items-center justify-between gap-2">
++        {p ? (
++          <p id={msgId} role={p.level === "error" ? "alert" : "status"} className={`text-sm ${p.level === "error" ? "font-medium text-danger" : "text-amber-800"}`}>
++            {p.text}
++          </p>
++        ) : (
++          <span />
++        )}
++        <button type="button" onClick={onRemove} aria-label={`Pašalinti eilutę${line.name ? `: ${line.name}` : ""}`} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
++          <Trash2 size={20} aria-hidden />
++        </button>
++      </div>
++    </li>
++  );
++}
++
++type Props = { estimate: EstimateFull; catalog: CatalogRow[]; projects: ProjectOption[]; catalogTruncated?: boolean };
++
++export default function EstimateEditor({ estimate, catalog, projects, catalogTruncated = false }: Props) {
++  const router = useRouter();
++  const keyCounter = useRef(0);
++  const newKey = () => `n${keyCounter.current++}`;
++  const lastAdded = useRef<string | null>(null);
++  const inFlight = useRef(false);
++
++  const [init] = useState(() => {
++    const head: Head = {
++      title: estimate.title, projectId: estimate.projectId ?? "", clientName: estimate.clientName, clientPhone: estimate.clientPhone,
++      clientEmail: estimate.clientEmail, address: estimate.address, status: estimate.status, validUntil: estimate.validUntil, notes: estimate.notes,
++      vat: formatInputPercent(estimate.vatHundredths), discount: formatInputPercent(estimate.discountHundredths),
++    };
++    const ls: Line[] = estimate.lines.map((l) => ({
++      key: l.id, kind: l.kind, name: l.name, unit: l.unit,
++      qty: l.qtyMilli ? formatQty(l.qtyMilli) : "", price: l.priceCents ? formatInputCents(l.priceCents) : "",
++    }));
++    // Nauja sąmata: iškart po vieną tuščią medžiagų ir darbų eilutę. Tuščios eilutės neišsaugomos.
++    if (ls.length === 0) ls.push(blankLine("material", newKey()), blankLine("work", newKey()));
++    return { head, ls };
++  });
++  // Pagrindinė informacija pradžioje atvira tik naujai sąmatai; nustatoma vieną kartą, kad rašant neužsidarytų.
++  const [infoOpen] = useState(() => !init.head.title && !init.head.clientName);
++  const [h, setH] = useState<Head>(init.head);
++  const [lines, setLines] = useState<Line[]>(init.ls);
++  const [saved, setSaved] = useState(() => snap(init.head, init.ls));
++  const [savedAt, setSavedAt] = useState<string | null>(null);
++  const [saving, setSaving] = useState(false);
++  const [msg, setMsg] = useState<Note>(null);
++  const [entries, setEntries] = useState<CatalogEntry[]>(() =>
++    catalog.map((c) => ({ kind: c.kind, name: c.name, unit: c.unit, priceCents: c.priceCents, lastUsedAt: c.lastUsedAt })),
++  );
++
++  const index = useMemo(() => indexCatalog(entries), [entries]);
++  const known = useMemo(() => new Set(entries.map((e) => catalogKey(e.kind, e.name))), [entries]);
++  const searchers = useMemo(
++    () => ({
++      material: (q: string) => searchCatalog(index, "material", q),
++      work: (q: string) => searchCatalog(index, "work", q),
++      other: (q: string) => searchCatalog(index, "other", q),
++    }),
++    [index],
++  );
++
++  const current = useMemo(() => snap(h, lines), [h, lines]);
++  const dirty = current !== saved;
++  const problems = useMemo(() => lines.map(problem), [lines]);
++  const vatH = parsePercentHundredths(h.vat.trim() || "0");
++  const discountH = parsePercentHundredths(h.discount.trim() || "0");
++  const hasError = problems.some((p) => p?.level === "error") || vatH === null || discountH === null;
++  const warnCount = problems.filter((p) => p?.level === "warn").length;
++
++  // Skaičiuojama kiekvieną kartą keičiantis laukams: nepilnos eilutės laikinai skaičiuojamos kaip 0.
++  const totals = useMemo(
++    () =>
++      calcTotals(
++        lines.map((l) => ({ kind: l.kind, qtyMilli: parseQuantity(l.qty) ?? 0, priceCents: parsePriceCents(l.price) ?? 0 })),
++        discountH ?? 0,
++        vatH ?? 0,
++      ),
++    [lines, discountH, vatH],
++  );
++  const subtotalOf: Record<LineKind, number> = { material: totals.materials, work: totals.works, other: totals.other };
++
++  const setHead = <K extends keyof Head>(k: K, v: Head[K]) => setH((prev) => ({ ...prev, [k]: v }));
++  const updateLine = (key: string, patch: Partial<Line>) => setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
++  const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
++  const addLine = (kind: LineKind) => {
++    if (lines.length >= MAX_LINES) return setMsg({ ok: false, text: `Daugiausia ${MAX_LINES} eilučių.` });
++    const key = newKey();
++    lastAdded.current = key;
++    setLines((prev) => [...prev, blankLine(kind, key)]);
++  };
++
++  const onProject = (id: string) => {
++    const p = projects.find((x) => x.id === id);
++    setH((prev) => ({
++      ...prev,
++      projectId: id,
++      ...(p
++        ? {
++            title: prev.title || p.name,
++            address: prev.address || p.address || "",
++            clientName: prev.clientName || p.clientName || "",
++            clientPhone: prev.clientPhone || p.clientPhone || "",
++            clientEmail: prev.clientEmail || p.clientEmail || "",
++          }
++        : {}),
++    }));
++  };
++
++  const doSave = async (learn: boolean, silent: boolean): Promise<boolean> => {
++    if (inFlight.current) return false;
++    if (hasError) {
++      if (!silent) setMsg({ ok: false, text: "Pataisykite raudonai pažymėtus laukus." });
++      return false;
++    }
++    const sentSnap = current;
++    const sentLines = lines;
++    inFlight.current = true;
++    setSaving(true);
++    try {
++      const r = await saveEstimate({
++        id: estimate.id,
++        learn,
++        ...h,
++        lines: sentLines.map((l) => ({ kind: l.kind, name: l.name, unit: l.unit, qty: l.qty, price: l.price })),
++      });
++      if (!r.ok) {
++        setMsg({ ok: false, text: r.error });
++        return false;
++      }
++      setSaved(sentSnap);
++      setSavedAt(new Date().toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" }));
++      if (learn) setEntries((prev) => mergeCatalog(prev, learnable(sentLines)));
++      setMsg(silent ? null : { ok: true, text: r.message ?? "Išsaugota." });
++      return true;
++    } catch {
++      setMsg({ ok: false, text: "Nepavyko išsaugoti. Patikrinkite ryšį ir bandykite dar kartą." });
++      return false;
++    } finally {
++      inFlight.current = false;
++      setSaving(false);
++    }
++  };
++
++  // Automatinis išsaugojimas (katalogas nekeičiamas): pakeitimai nedingsta, jei naudotojas išeina nepaspaudęs „Išsaugoti“.
++  const saveRef = useRef(doSave);
++  useEffect(() => {
++    saveRef.current = doSave;
++  });
++  useEffect(() => {
++    if (!dirty || hasError || saving) return;
++    const t = setTimeout(() => void saveRef.current(false, true), AUTOSAVE_MS);
++    return () => clearTimeout(t);
++  }, [dirty, hasError, saving, current]);
++
++  useEffect(() => {
++    if (!dirty) return;
++    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
++    window.addEventListener("beforeunload", warn);
++    return () => window.removeEventListener("beforeunload", warn);
++  }, [dirty]);
++
++  const goBack = async (e: React.MouseEvent) => {
++    e.preventDefault();
++    if (dirty) {
++      if (hasError) {
++        if (!confirm("Yra klaidų, todėl pakeitimų išsaugoti nepavyks. Išeiti ir juos prarasti?")) return;
++      } else if (!(await doSave(false, true))) {
++        if (!confirm("Nepavyko išsaugoti. Išeiti ir prarasti pakeitimus?")) return;
++      }
++    }
++    router.push("/samata");
++  };
++
++  const duplicate = async () => {
++    if (dirty && !(await doSave(false, true))) return setMsg({ ok: false, text: "Pirmiausia pataisykite klaidas ir išsaugokite sąmatą." });
++    const r = await duplicateEstimate(estimate.id);
++    if (r.ok) router.push(`/samata/${r.id}`);
++    else setMsg({ ok: false, text: r.error });
++  };
++
++  const remove = async () => {
++    if (!confirm(`Ištrinti sąmatą ${estimate.number}? Šio veiksmo atšaukti negalima.`)) return;
++    const r = await deleteEstimate(estimate.id);
++    if (r.ok) router.push("/samata");
++    else setMsg({ ok: false, text: r.error });
++  };
++
++  const statusText = saving ? "Saugoma…" : dirty ? "Neišsaugota (išsaugoma automatiškai)" : savedAt ? `Išsaugota ${savedAt}` : "Išsaugota";
++
++  return (
++    <div className="space-y-5">
++      <datalist id="estimate-units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
++
++      <div className="flex items-center justify-between gap-3">
++        <Link href="/samata" onClick={goBack} className="flex min-h-11 items-center gap-1 font-semibold text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
++          <ArrowLeft size={20} aria-hidden /> Sąmatos
++        </Link>
++        <h1 className="font-display text-2xl font-extrabold">Sąmata {estimate.number}</h1>
++      </div>
++
++      <details open={infoOpen} className="rounded-card bg-white p-5 shadow-card">
++        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-bold">
++          <span className="truncate">{h.title || "Pagrindinė informacija"}</span>
++          <span className="shrink-0 rounded-full bg-surface px-3 py-1 text-sm text-muted">{STATUS_LABEL[h.status]}</span>
++        </summary>
++        <div className="mt-3 grid gap-3 sm:grid-cols-2">
++          <div className="sm:col-span-2">
++            <Field label="Pavadinimas">
++              <input value={h.title} maxLength={200} onChange={(e) => setHead("title", e.target.value)} className={inputCls} placeholder="pvz. Vonios kambario santechnika" />
++            </Field>
++          </div>
++          <Field label="Objektas (neprivaloma)">
++            <select value={h.projectId} onChange={(e) => onProject(e.target.value)} className={inputCls}>
++              <option value="">Be objekto</option>
++              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
++            </select>
++          </Field>
++          <Field label="Būsena">
++            <select value={h.status} onChange={(e) => setHead("status", e.target.value as EstimateStatus)} className={inputCls}>
++              {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
++            </select>
++          </Field>
++          <Field label="Klientas"><input value={h.clientName} maxLength={160} onChange={(e) => setHead("clientName", e.target.value)} className={inputCls} /></Field>
++          <Field label="Kliento telefonas"><input type="tel" value={h.clientPhone} maxLength={40} onChange={(e) => setHead("clientPhone", e.target.value)} className={inputCls} /></Field>
++          <Field label="Kliento el. paštas"><input type="email" value={h.clientEmail} maxLength={200} onChange={(e) => setHead("clientEmail", e.target.value)} className={inputCls} /></Field>
++          <Field label="Darbų adresas"><input value={h.address} maxLength={300} onChange={(e) => setHead("address", e.target.value)} className={inputCls} /></Field>
++          <Field label="Galioja iki"><input type="date" value={h.validUntil} onChange={(e) => setHead("validUntil", e.target.value)} className={inputCls} /></Field>
++          <div className="sm:col-span-2">
++            <Field label="Pastabos">
++              <textarea value={h.notes} maxLength={4000} rows={3} onChange={(e) => setHead("notes", e.target.value)} className={`${inputCls} py-2`} />
++            </Field>
++          </div>
++        </div>
++      </details>
++
++      {catalogTruncated && (
++        <p role="status" className="rounded-2xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
++          Katalogas didelis: siūlomi tik 5000 naujausių įrašų. Senesnius galite rasti puslapyje „Katalogas“.
++        </p>
++      )}
++
++      {LINE_KINDS.map((kind) => {
++        const items = lines.map((l, i) => ({ l, i })).filter((x) => x.l.kind === kind);
++        return (
++          <section key={kind} aria-labelledby={`sec-${kind}`} className="space-y-3">
++            <div className="flex items-baseline justify-between gap-3">
++              <h2 id={`sec-${kind}`} className="text-xl font-extrabold">{KIND_LABEL[kind]}</h2>
++              <p className="font-bold text-muted">{formatEuro(subtotalOf[kind])}</p>
++            </div>
++            {items.length > 0 && (
++              <ul className="space-y-3">
++                {items.map(({ l, i }, n) => (
++                  <LineRow
++                    key={l.key}
++                    line={l}
++                    search={searchers[kind]}
++                    known={known.has(catalogKey(l.kind, l.name))}
++                    problem={problems[i]}
++                    autoFocus={l.key === lastAdded.current}
++                    isLast={n === items.length - 1}
++                    onChange={(patch) => updateLine(l.key, patch)}
++                    onRemove={() => removeLine(l.key)}
++                    onAddNext={() => addLine(kind)}
++                  />
++                ))}
++              </ul>
++            )}
++            <button type="button" onClick={() => addLine(kind)} className={`${ghostBtn} flex w-full items-center justify-center gap-2`}>
++              <Plus size={20} aria-hidden /> {KIND_ADD_LABEL[kind]}
++            </button>
++          </section>
++        );
++      })}
++
++      <section aria-labelledby="sec-total" className="space-y-2 rounded-card bg-white p-5 shadow-card">
++        <h2 id="sec-total" className="text-xl font-extrabold">Suma</h2>
++        <dl className="space-y-1">
++          {LINE_KINDS.filter((k) => k !== "other" || totals.other > 0).map((k) => (
++            <div key={k} className="flex justify-between gap-3">
++              <dt className="text-muted">{KIND_LABEL[k]}</dt>
++              <dd className="font-semibold">{formatEuro(subtotalOf[k])}</dd>
++            </div>
++          ))}
++          <div className="flex justify-between gap-3 border-t border-black/10 pt-1">
++            <dt className="font-semibold">Tarpinė suma</dt>
++            <dd className="font-bold">{formatEuro(totals.subtotal)}</dd>
++          </div>
++          <div className="flex items-center justify-between gap-3">
++            <dt>
++              <label htmlFor="discount" className="text-muted">Nuolaida, %</label>
++            </dt>
++            <dd className="flex items-center gap-3">
++              <input id="discount" inputMode="decimal" value={h.discount} onChange={(e) => setHead("discount", e.target.value)} aria-invalid={discountH === null ? true : undefined} className={`${field} w-24 text-right`} />
++              <span className="w-24 text-right font-semibold">−{formatEuro(totals.discount)}</span>
++            </dd>
++          </div>
++          <div className="flex justify-between gap-3">
++            <dt className="text-muted">Suma be PVM</dt>
++            <dd className="font-semibold">{formatEuro(totals.net)}</dd>
++          </div>
++          <div className="flex items-center justify-between gap-3">
++            <dt>
++              <label htmlFor="vat" className="text-muted">PVM, %</label>
++            </dt>
++            <dd className="flex items-center gap-3">
++              <input id="vat" inputMode="decimal" value={h.vat} onChange={(e) => setHead("vat", e.target.value)} aria-invalid={vatH === null ? true : undefined} className={`${field} w-24 text-right`} />
++              <span className="w-24 text-right font-semibold">{formatEuro(totals.vat)}</span>
++            </dd>
++          </div>
++          <div className="flex justify-between gap-3 border-t border-black/10 pt-2">
++            <dt className="text-lg font-extrabold">Iš viso su PVM</dt>
++            <dd className="text-lg font-extrabold">{formatEuro(totals.total)}</dd>
++          </div>
++        </dl>
++        {(vatH === null || discountH === null) && <p role="alert" className="text-sm font-medium text-danger">Procentas turi būti nuo 0 iki 100 (pvz. 21 arba 10,5).</p>}
++        {warnCount > 0 && <p className="text-sm text-amber-800">Eilučių be kiekio ar kainos: {warnCount}. Jos skaičiuojamos kaip 0 €.</p>}
++      </section>
++
++      <div className="flex flex-wrap gap-2">
++        <button type="button" onClick={duplicate} className={ghostBtn}>Kopijuoti sąmatą</button>
++        <button type="button" onClick={remove} className={`${ghostBtn} text-danger`}>Ištrinti</button>
++      </div>
++      <div className="h-24" aria-hidden />
++
++      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t border-black/10 bg-white">
++        {msg && <div className="mx-auto max-w-3xl px-4 pt-2"><Msg msg={msg} /></div>}
++        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-2">
++          <div className="min-w-0">
++            <p className="text-xs text-muted">Iš viso su PVM</p>
++            <p className="font-display text-2xl font-extrabold leading-tight">{formatEuro(totals.total)}</p>
++            <p className="truncate text-xs text-muted">{statusText}</p>
++          </div>
++          <button type="button" onClick={() => void doSave(true, false)} disabled={saving} className={primaryBtn}>
++            {saving ? "Saugoma…" : "Išsaugoti"}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/estimates/EstimateNav.tsx b/src/components/estimates/EstimateNav.tsx
+new file mode 100644
+index 0000000..448f752
+--- /dev/null
++++ b/src/components/estimates/EstimateNav.tsx
+@@ -0,0 +1,23 @@
++import Link from "next/link";
++
++const TABS = [
++  { href: "/samata", label: "Sąmatos", id: "list" },
++  { href: "/samata/katalogas", label: "Katalogas", id: "catalog" },
++] as const;
++
++export default function EstimateNav({ active }: { active: "list" | "catalog" }) {
++  return (
++    <nav aria-label="Sąmatos" className="grid grid-cols-2 gap-1 rounded-2xl bg-white p-1 shadow-card">
++      {TABS.map((t) => (
++        <Link
++          key={t.id}
++          href={t.href}
++          aria-current={active === t.id ? "page" : undefined}
++          className={`flex min-h-12 items-center justify-center rounded-xl px-2 text-center text-sm font-semibold ${active === t.id ? "bg-navy text-white" : "text-muted"}`}
++        >
++          {t.label}
++        </Link>
++      ))}
++    </nav>
++  );
++}
+diff --git a/src/components/estimates/NameCombobox.tsx b/src/components/estimates/NameCombobox.tsx
+new file mode 100644
+index 0000000..4cb3836
+--- /dev/null
++++ b/src/components/estimates/NameCombobox.tsx
+@@ -0,0 +1,109 @@
++"use client";
++
++import { useMemo, useState, type Ref } from "react";
++import { formatEuro } from "@/lib/estimates/calc";
++import type { CatalogEntry } from "@/lib/estimates/search";
++
++type Props = {
++  id: string;
++  value: string;
++  onChange: (value: string) => void;
++  /** Pasirinktas katalogo įrašas: pavadinimas, vienetas ir kaina užpildomi, kiekį įveda naudotojas. */
++  onPick: (entry: CatalogEntry) => void;
++  search: (query: string) => CatalogEntry[];
++  inputRef?: Ref<HTMLInputElement>;
++  placeholder?: string;
++  invalid?: boolean;
++  describedBy?: string;
++};
++
++/** Pavadinimo laukelis su siūlymais iš katalogo: rodo neseniai naudotus, o rašant – pagal pradžią ar raides. */
++export default function NameCombobox({ id, value, onChange, onPick, search, inputRef, placeholder, invalid, describedBy }: Props) {
++  const [open, setOpen] = useState(false);
++  const [active, setActive] = useState(-1);
++  const results = useMemo(() => (open ? search(value) : []), [open, value, search]);
++  const listId = `${id}-list`;
++  const showList = open && results.length > 0;
++
++  const pick = (entry: CatalogEntry) => {
++    onPick(entry);
++    setOpen(false);
++    setActive(-1);
++  };
++
++  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
++    if (e.key === "ArrowDown") {
++      e.preventDefault();
++      if (!open) return setOpen(true);
++      setActive((a) => Math.min(a + 1, results.length - 1));
++    } else if (e.key === "ArrowUp") {
++      e.preventDefault();
++      setActive((a) => Math.max(a - 1, 0));
++    } else if (e.key === "Enter" && showList && active >= 0) {
++      e.preventDefault();
++      pick(results[active]);
++    } else if (e.key === "Escape" && open) {
++      e.preventDefault();
++      setOpen(false);
++      setActive(-1);
++    }
++  };
++
++  return (
++    <div className="relative">
++      <input
++        id={id}
++        ref={inputRef}
++        role="combobox"
++        aria-expanded={showList}
++        aria-controls={listId}
++        aria-autocomplete="list"
++        aria-activedescendant={showList && active >= 0 ? `${id}-opt-${active}` : undefined}
++        aria-invalid={invalid || undefined}
++        aria-describedby={describedBy}
++        autoComplete="off"
++        value={value}
++        placeholder={placeholder}
++        maxLength={200}
++        onChange={(e) => {
++          onChange(e.target.value);
++          setOpen(true);
++          setActive(-1);
++        }}
++        onFocus={() => setOpen(true)}
++        onBlur={() => {
++          setOpen(false);
++          setActive(-1);
++        }}
++        onKeyDown={onKeyDown}
++        className={`min-h-12 w-full rounded-xl border bg-white px-3 ${invalid ? "border-danger" : "border-black/15"}`}
++      />
++      {showList && (
++        <ul
++          id={listId}
++          role="listbox"
++          className="absolute inset-x-0 top-full z-[25] mt-1 max-h-72 overflow-y-auto rounded-xl border border-black/15 bg-white shadow-lg"
++        >
++          {results.map((r, i) => (
++            <li
++              key={`${r.kind}:${r.name}`}
++              id={`${id}-opt-${i}`}
++              role="option"
++              aria-selected={i === active}
++              // mousedown + preventDefault: laukelis neprarandą fokuso, kol paspaudimas apdorojamas
++              onMouseDown={(e) => e.preventDefault()}
++              onClick={() => pick(r)}
++              onMouseEnter={() => setActive(i)}
++              className={`flex min-h-12 cursor-pointer items-center justify-between gap-3 px-3 py-2 ${i === active ? "bg-accent-soft" : ""}`}
++            >
++              <span className="min-w-0 truncate font-medium">{r.name}</span>
++              <span className="shrink-0 text-sm text-muted">
++                {formatEuro(r.priceCents)} / {r.unit}
++              </span>
++            </li>
++          ))}
++        </ul>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/estimates/NewEstimateButton.tsx b/src/components/estimates/NewEstimateButton.tsx
+new file mode 100644
+index 0000000..eb43876
+--- /dev/null
++++ b/src/components/estimates/NewEstimateButton.tsx
+@@ -0,0 +1,32 @@
++"use client";
++
++import { useState, useTransition } from "react";
++import { useRouter } from "next/navigation";
++import { Plus } from "lucide-react";
++import { createEstimate } from "@/lib/estimates/actions";
++import { Msg, primaryBtn } from "@/components/admin/ui";
++
++export default function NewEstimateButton() {
++  const router = useRouter();
++  const [pending, start] = useTransition();
++  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
++  return (
++    <div className="space-y-2">
++      <button
++        type="button"
++        disabled={pending}
++        onClick={() =>
++          start(async () => {
++            const r = await createEstimate();
++            if (r.ok) router.push(`/samata/${r.id}`);
++            else setMsg({ ok: false, text: r.error });
++          })
++        }
++        className={`${primaryBtn} flex w-full items-center justify-center gap-2`}
++      >
++        <Plus size={20} aria-hidden /> {pending ? "Kuriama..." : "Nauja sąmata"}
++      </button>
++      <Msg msg={msg} />
++    </div>
++  );
++}
+diff --git a/src/lib/estimates/actions.ts b/src/lib/estimates/actions.ts
+new file mode 100644
+index 0000000..6852c1d
+--- /dev/null
++++ b/src/lib/estimates/actions.ts
+@@ -0,0 +1,190 @@
++"use server";
++
++import { revalidatePath } from "next/cache";
++import { z } from "zod";
++import { createClient } from "@/lib/supabase/server";
++import { getActionContext, isAdmin } from "@/lib/auth/context";
++import { isValidDayKey } from "@/lib/dates";
++import type { ActionResult } from "@/lib/work/types";
++import { DEFAULT_UNIT, LINE_KINDS, MAX_LINES, parsePercentHundredths, parsePriceCents, parseQuantity } from "./calc";
++import { STATUSES } from "./types";
++
++type IdResult = { ok: true; id: string } | { ok: false; error: string };
++
++const ok = (message?: string): ActionResult => ({ ok: true, message });
++const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
++const uuid = z.string().uuid();
++
++function mapError(e: { code?: string; message?: string } | null, fallback: string): ActionResult {
++  if (!e) return ok();
++  if (e.code === "P0001" && e.message) return fail(e.message);
++  if (e.code === "23505") return fail("Toks pavadinimas jau yra kataloge.");
++  if (e.code === "42501") return fail("Neturite teisės arba įmonės prieiga sustabdyta.");
++  if (e.code === "23514" || e.code === "22023" || e.code === "22P02" || e.code === "22007") return fail("Patikrinkite įvestus duomenis.");
++  return fail(fallback);
++}
++
++async function adminGuard() {
++  const ctx = await getActionContext();
++  if (!ctx) return fail("Sesija baigėsi. Prisijunkite iš naujo.");
++  if (!ctx.companyId) return fail("Pirmiausia sukurkite įmonę.");
++  if (!isAdmin(ctx.role)) return fail("Sąmatas gali tvarkyti tik administratorius.");
++  return { db: await createClient(), companyId: ctx.companyId };
++}
++const bad = (g: unknown): g is { ok: false; error: string } => typeof g === "object" && g !== null && "ok" in g;
++
++const text = (label: string, max: number) => z.string().trim().max(max, `${label}: per ilgas tekstas.`);
++
++const lineSchema = z.object({
++  kind: z.enum(LINE_KINDS as [string, ...string[]]),
++  name: text("Pavadinimas", 200),
++  unit: text("Vienetas", 20),
++  qty: z.string().max(20),
++  price: z.string().max(20),
++});
++
++const saveSchema = z.object({
++  id: uuid,
++  learn: z.boolean(),
++  title: text("Pavadinimas", 200),
++  projectId: z.union([z.literal(""), uuid]),
++  clientName: text("Klientas", 160),
++  clientPhone: text("Telefonas", 40),
++  clientEmail: z.union([z.literal(""), z.string().trim().email("Neteisingas kliento el. paštas.").max(200)]),
++  address: text("Adresas", 300),
++  status: z.enum(STATUSES as [string, ...string[]]),
++  vat: z.string().max(10),
++  discount: z.string().max(10),
++  validUntil: z.union([z.literal(""), z.string().refine(isValidDayKey, "Neteisinga galiojimo data.")]),
++  notes: text("Pastabos", 4000),
++  lines: z.array(lineSchema).max(MAX_LINES, `Per daug eilučių (daugiausia ${MAX_LINES}).`),
++});
++
++/**
++ * Išsaugo visą sąmatą. Eilutės be pavadinimo, kiekio ir kainos praleidžiamos; tuščias kiekis ar kaina saugoma kaip 0
++ * (juodraštį galima išsaugoti nebaigtą). `learn` = true: nauji pavadinimai ir kainos įrašomi į katalogą.
++ */
++export async function saveEstimate(input: unknown): Promise<ActionResult> {
++  const parsed = saveSchema.safeParse(input);
++  if (!parsed.success) return fail(parsed.error.issues[0].message);
++  const d = parsed.data;
++  const g = await adminGuard();
++  if (bad(g)) return g;
++
++  const vat = d.vat.trim() === "" ? 0 : parsePercentHundredths(d.vat);
++  if (vat === null) return fail("PVM procentas neteisingas (0–100).");
++  const discount = d.discount.trim() === "" ? 0 : parsePercentHundredths(d.discount);
++  if (discount === null) return fail("Nuolaidos procentas neteisingas (0–100).");
++
++  const lines: { pos: number; kind: string; name: string; unit: string; quantity: number; price: number }[] = [];
++  for (const [i, l] of d.lines.entries()) {
++    const label = `${i + 1}. eilutė`;
++    if (!l.name && !l.qty.trim() && !l.price.trim()) continue;
++    if (!l.name) return fail(`${label}: įrašykite pavadinimą.`);
++    const qty = l.qty.trim() === "" ? 0 : parseQuantity(l.qty);
++    if (qty === null) return fail(`${label} (${l.name}): neteisingas kiekis.`);
++    const price = l.price.trim() === "" ? 0 : parsePriceCents(l.price);
++    if (price === null) return fail(`${label} (${l.name}): neteisinga kaina.`);
++    lines.push({
++      pos: lines.length,
++      kind: l.kind,
++      name: l.name,
++      unit: l.unit || DEFAULT_UNIT[l.kind as keyof typeof DEFAULT_UNIT],
++      quantity: qty / 1000,
++      price,
++    });
++  }
++
++  const header = {
++    title: d.title, projectId: d.projectId, clientName: d.clientName, clientPhone: d.clientPhone, clientEmail: d.clientEmail,
++    address: d.address, status: d.status, vatPercent: vat / 100, discountPercent: discount / 100, validUntil: d.validUntil, notes: d.notes,
++  };
++  const { error } = await g.db.rpc("save_estimate", { p_id: d.id, p_header: header, p_lines: lines, p_learn: d.learn });
++  if (error) return mapError(error, "Nepavyko išsaugoti sąmatos.");
++  revalidatePath("/samata");
++  if (d.learn) revalidatePath("/samata/katalogas");
++  return ok("Sąmata išsaugota.");
++}
++
++export async function createEstimate(): Promise<IdResult> {
++  const g = await adminGuard();
++  if (bad(g)) return g;
++  const { data, error } = await g.db.from("estimates").insert({ company_id: g.companyId, title: "" }).select("id").single();
++  if (error || !data) {
++    const m = mapError(error, "Nepavyko sukurti sąmatos.");
++    return m.ok ? fail("Nepavyko sukurti sąmatos.") : fail(m.error);
++  }
++  revalidatePath("/samata");
++  return { ok: true, id: data.id as string };
++}
++
++export async function duplicateEstimate(id: string): Promise<IdResult> {
++  if (!uuid.safeParse(id).success) return fail("Neteisinga sąmata.");
++  const g = await adminGuard();
++  if (bad(g)) return g;
++  const { data, error } = await g.db.rpc("duplicate_estimate", { p_id: id });
++  if (error || !data) {
++    const m = mapError(error, "Nepavyko sukurti kopijos.");
++    return m.ok ? fail("Nepavyko sukurti kopijos.") : fail(m.error);
++  }
++  revalidatePath("/samata");
++  return { ok: true, id: data as string };
++}
++
++export async function deleteEstimate(id: string): Promise<ActionResult> {
++  if (!uuid.safeParse(id).success) return fail("Neteisinga sąmata.");
++  const g = await adminGuard();
++  if (bad(g)) return g;
++  const { data, error } = await g.db.from("estimates").delete().eq("id", id).select("id");
++  if (error) return mapError(error, "Nepavyko ištrinti sąmatos.");
++  if (!data || data.length === 0) return fail("Sąmata nerasta arba prieiga sustabdyta.");
++  revalidatePath("/samata");
++  return ok("Sąmata ištrinta.");
++}
++
++/* ------------------------------------------------------------------ katalogas */
++const catalogSchema = z.object({
++  id: uuid.optional(),
++  kind: z.enum(LINE_KINDS as [string, ...string[]]),
++  name: z.string().trim().min(1, "Įrašykite pavadinimą.").max(200, "Pavadinimas per ilgas."),
++  unit: z.string().trim().min(1, "Įrašykite vienetą (pvz. m, vnt.).").max(20, "Vienetas per ilgas."),
++  price: z.string().max(20),
++});
++
++export async function saveCatalogItem(input: unknown): Promise<ActionResult> {
++  const parsed = catalogSchema.safeParse(input);
++  if (!parsed.success) return fail(parsed.error.issues[0].message);
++  const d = parsed.data;
++  const price = parsePriceCents(d.price);
++  if (price === null) return fail("Įveskite teisingą kainą (pvz. 12,50).");
++  const g = await adminGuard();
++  if (bad(g)) return g;
++
++  if (d.id) {
++    const { data, error } = await g.db
++      .from("estimate_catalog")
++      .update({ kind: d.kind, name: d.name, unit: d.unit, unit_price_cents: price })
++      .eq("id", d.id)
++      .select("id");
++    if (error) return mapError(error, "Nepavyko išsaugoti.");
++    if (!data || data.length === 0) return fail("Įrašas nerastas arba prieiga sustabdyta.");
++  } else {
++    const { error } = await g.db
++      .from("estimate_catalog")
++      .insert({ company_id: g.companyId, kind: d.kind, name: d.name, unit: d.unit, unit_price_cents: price });
++    if (error) return mapError(error, "Nepavyko pridėti.");
++  }
++  revalidatePath("/samata", "layout");
++  return ok("Katalogas atnaujintas.");
++}
++
++export async function deleteCatalogItem(id: string): Promise<ActionResult> {
++  if (!uuid.safeParse(id).success) return fail("Neteisingas įrašas.");
++  const g = await adminGuard();
++  if (bad(g)) return g;
++  const { data, error } = await g.db.from("estimate_catalog").delete().eq("id", id).select("id");
++  if (error) return mapError(error, "Nepavyko ištrinti.");
++  if (!data || data.length === 0) return fail("Įrašas nerastas arba prieiga sustabdyta.");
++  revalidatePath("/samata", "layout");
++  return ok("Ištrinta iš katalogo.");
++}
+diff --git a/src/lib/estimates/calc.ts b/src/lib/estimates/calc.ts
+new file mode 100644
+index 0000000..c07f078
+--- /dev/null
++++ b/src/lib/estimates/calc.ts
+@@ -0,0 +1,104 @@
++/**
++ * Sąmatos skaičiavimai. Visi pinigai – sveiki centai, kiekiai – tūkstantosios (3 skaitmenys po kablelio),
++ * procentai – šimtosios (21,5 % = 2150), todėl nėra slankiojo kablelio paklaidų.
++ * Ta pati logika yra duomenų bazėje (view estimate_subtotals, migracija 0016): suma = round(kiekis × kaina).
++ */
++import { formatMoney } from "@/lib/money";
++
++export type LineKind = "material" | "work" | "other";
++export const LINE_KINDS: LineKind[] = ["material", "work", "other"];
++export const KIND_LABEL: Record<LineKind, string> = { material: "Medžiagos", work: "Darbai", other: "Kita" };
++export const KIND_ADD_LABEL: Record<LineKind, string> = {
++  material: "Pridėti medžiagą",
++  work: "Pridėti darbą",
++  other: "Pridėti kitą eilutę",
++};
++export const DEFAULT_UNIT: Record<LineKind, string> = { material: "vnt.", work: "val.", other: "vnt." };
++export const UNITS = ["vnt.", "m", "m²", "m³", "kg", "l", "kompl.", "pak.", "rul.", "por.", "val.", "d.", "paslauga"];
++
++export const MAX_LINES = 300;
++export const MAX_QTY_MILLI = 100_000_000; // 100 000
++export const MAX_PRICE_CENTS = 100_000_000; // 1 000 000 €
++
++const clean = (s: string) => s.trim().replace(/\s/g, "").replace(",", ".");
++
++/** „12,5“ -> 12500. Neteisinga (arba tuščia) reikšmė -> null. Iki 3 skaitmenų po kablelio. */
++export function parseQuantity(input: string): number | null {
++  const m = /^(\d{1,6})(?:\.(\d{1,3}))?$/.exec(clean(input));
++  if (!m) return null;
++  const milli = Number(m[1]) * 1000 + Number((m[2] ?? "").padEnd(3, "0"));
++  return milli <= MAX_QTY_MILLI ? milli : null;
++}
++
++/** „12,5“ -> 1250 (centai). Iki 2 skaitmenų po kablelio, ne daugiau 1 000 000 €. */
++export function parsePriceCents(input: string): number | null {
++  const m = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(clean(input));
++  if (!m) return null;
++  const cents = Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
++  return cents <= MAX_PRICE_CENTS ? cents : null;
++}
++
++/** „21,5“ -> 2150 (šimtosios procento dalys). 0–100 %. */
++export function parsePercentHundredths(input: string): number | null {
++  const m = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(clean(input));
++  if (!m) return null;
++  const h = Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
++  return h <= 10_000 ? h : null;
++}
++
++/** 12500 -> „12,5“, 3000 -> „3“. */
++export function formatQty(milli: number): string {
++  const whole = Math.trunc(milli / 1000);
++  const frac = milli % 1000;
++  return frac === 0 ? String(whole) : `${whole},${String(frac).padStart(3, "0").replace(/0+$/, "")}`;
++}
++
++/** 1250 -> „12,50“ (laukelio reikšmė). */
++export const formatInputCents = (cents: number) => `${Math.trunc(cents / 100)},${String(cents % 100).padStart(2, "0")}`;
++
++/** 2150 -> „21,5“, 2100 -> „21“. */
++export function formatInputPercent(h: number): string {
++  const frac = h % 100;
++  return frac === 0 ? String(Math.trunc(h / 100)) : `${Math.trunc(h / 100)},${String(frac).padStart(2, "0").replace(/0+$/, "")}`;
++}
++
++export const formatEuro = formatMoney;
++
++/** Eilutės suma centais: kiekis × kaina, apvalinama iki cento (pusė – į viršų). */
++export function lineTotalCents(qtyMilli: number, priceCents: number): number {
++  return Number((BigInt(qtyMilli) * BigInt(priceCents) + 500n) / 1000n);
++}
++
++/** Procentas nuo sumos centais (procentas šimtosiomis), apvalinama iki cento. */
++export function percentOfCents(cents: number, hundredths: number): number {
++  return Number((BigInt(cents) * BigInt(hundredths) + 5000n) / 10000n);
++}
++
++export type CalcLine = { kind: LineKind; qtyMilli: number; priceCents: number };
++
++export type Totals = {
++  materials: number;
++  works: number;
++  other: number;
++  subtotal: number;
++  discount: number;
++  /** Suma po nuolaidos, be PVM. */
++  net: number;
++  vat: number;
++  total: number;
++};
++
++/** Iš tarpinės sumos (be nuolaidos) apskaičiuoja nuolaidą, PVM ir galutinę sumą. */
++export function totalsFromSubtotal(subtotal: number, discountHundredths: number, vatHundredths: number) {
++  const discount = percentOfCents(subtotal, discountHundredths);
++  const net = subtotal - discount;
++  const vat = percentOfCents(net, vatHundredths);
++  return { subtotal, discount, net, vat, total: net + vat };
++}
++
++export function calcTotals(lines: CalcLine[], discountHundredths: number, vatHundredths: number): Totals {
++  const by: Record<LineKind, number> = { material: 0, work: 0, other: 0 };
++  for (const l of lines) by[l.kind] += lineTotalCents(l.qtyMilli, l.priceCents);
++  const subtotal = by.material + by.work + by.other;
++  return { materials: by.material, works: by.work, other: by.other, ...totalsFromSubtotal(subtotal, discountHundredths, vatHundredths) };
++}
+diff --git a/src/lib/estimates/queries.ts b/src/lib/estimates/queries.ts
+new file mode 100644
+index 0000000..3d0379c
+--- /dev/null
++++ b/src/lib/estimates/queries.ts
+@@ -0,0 +1,119 @@
++import { createClient } from "@/lib/supabase/server";
++import type { SessionContext } from "@/lib/auth/context";
++import { totalsFromSubtotal, type LineKind } from "./calc";
++import { isStatus, type CatalogRow, type EstimateFull, type EstimateListRow, type EstimateStatus, type ProjectOption } from "./types";
++
++const toHundredths = (v: number | string) => Math.round(Number(v) * 100);
++
++/** Sąmatų sąrašas su galutine suma (su nuolaida ir PVM). RLS: tik administratorius. */
++export async function getEstimateList(ctx: SessionContext): Promise<{ rows: EstimateListRow[]; error: string | null }> {
++  if (!ctx.company) return { rows: [], error: null };
++  const supabase = await createClient();
++  const { data, error } = await supabase
++    .from("estimates")
++    .select("id, number, title, client_name, status, vat_percent, discount_percent, created_at")
++    .eq("company_id", ctx.company.id)
++    .order("created_at", { ascending: false })
++    .limit(200);
++  if (error) return { rows: [], error: error.message };
++  const list = data ?? [];
++  if (list.length === 0) return { rows: [], error: null };
++
++  const { data: subs, error: subErr } = await supabase
++    .from("estimate_subtotals")
++    .select("estimate_id, subtotal_cents")
++    .in("estimate_id", list.map((e) => e.id));
++  if (subErr) return { rows: [], error: subErr.message };
++  const subtotal = new Map((subs ?? []).map((s) => [s.estimate_id as string, Number(s.subtotal_cents)]));
++
++  const rows = list.map((e) => ({
++    id: e.id as string,
++    number: e.number as string,
++    title: (e.title as string) ?? "",
++    clientName: (e.client_name as string | null) ?? null,
++    status: (isStatus(e.status) ? e.status : "draft") as EstimateStatus,
++    createdAt: e.created_at as string,
++    totalCents: totalsFromSubtotal(subtotal.get(e.id) ?? 0, toHundredths(e.discount_percent), toHundredths(e.vat_percent)).total,
++  }));
++  return { rows, error: null };
++}
++
++export async function getEstimate(ctx: SessionContext, id: string): Promise<EstimateFull | null> {
++  if (!ctx.company) return null;
++  const supabase = await createClient();
++  const { data: e } = await supabase
++    .from("estimates")
++    .select("id, number, title, project_id, client_name, client_phone, client_email, address, status, vat_percent, discount_percent, valid_until, notes")
++    .eq("id", id)
++    .eq("company_id", ctx.company.id)
++    .maybeSingle();
++  if (!e) return null;
++  const { data: lines } = await supabase
++    .from("estimate_lines")
++    .select("id, kind, name, unit, quantity, unit_price_cents")
++    .eq("estimate_id", id)
++    .order("position", { ascending: true })
++    .limit(300);
++  return {
++    id: e.id,
++    number: e.number,
++    title: e.title ?? "",
++    projectId: e.project_id ?? null,
++    clientName: e.client_name ?? "",
++    clientPhone: e.client_phone ?? "",
++    clientEmail: e.client_email ?? "",
++    address: e.address ?? "",
++    status: isStatus(e.status) ? e.status : "draft",
++    vatHundredths: toHundredths(e.vat_percent),
++    discountHundredths: toHundredths(e.discount_percent),
++    validUntil: e.valid_until ?? "",
++    notes: e.notes ?? "",
++    lines: (lines ?? []).map((l) => ({
++      id: l.id as string,
++      kind: l.kind as LineKind,
++      name: l.name as string,
++      unit: l.unit as string,
++      qtyMilli: Math.round(Number(l.quantity) * 1000),
++      priceCents: Number(l.unit_price_cents),
++    })),
++  };
++}
++
++const PAGE = 1000; // Supabase vienu kartu grąžina daugiausia 1000 eilučių
++const MAX_PAGES = 5;
++
++/** Visas įmonės katalogas (naujausi pirma). Skaitomas puslapiais, kad nebūtų tyliai apkarpytas. */
++export async function getCatalog(ctx: SessionContext): Promise<{ rows: CatalogRow[]; truncated: boolean; error: string | null }> {
++  if (!ctx.company) return { rows: [], truncated: false, error: null };
++  const supabase = await createClient();
++  const rows: CatalogRow[] = [];
++  for (let page = 0; page < MAX_PAGES; page++) {
++    const { data, error } = await supabase
++      .from("estimate_catalog")
++      .select("id, kind, name, unit, unit_price_cents, last_used_at")
++      .eq("company_id", ctx.company.id)
++      .order("last_used_at", { ascending: false })
++      .order("id", { ascending: true })
++      .range(page * PAGE, page * PAGE + PAGE - 1);
++    if (error) return { rows, truncated: false, error: error.message };
++    for (const r of data ?? []) {
++      rows.push({ id: r.id, kind: r.kind as LineKind, name: r.name, unit: r.unit, priceCents: Number(r.unit_price_cents), lastUsedAt: r.last_used_at });
++    }
++    if ((data ?? []).length < PAGE) return { rows, truncated: false, error: null };
++  }
++  return { rows, truncated: true, error: null };
++}
++
++export async function getProjectOptions(ctx: SessionContext): Promise<ProjectOption[]> {
++  if (!ctx.company) return [];
++  const supabase = await createClient();
++  const { data } = await supabase
++    .from("projects")
++    .select("id, name, address, client_name, client_phone, client_email")
++    .eq("company_id", ctx.company.id)
++    .order("name", { ascending: true })
++    .limit(500);
++  return (data ?? []).map((p) => ({
++    id: p.id, name: p.name, address: p.address ?? null, clientName: p.client_name ?? null, clientPhone: p.client_phone ?? null, clientEmail: p.client_email ?? null,
++  }));
++}
+diff --git a/src/lib/estimates/search.ts b/src/lib/estimates/search.ts
+new file mode 100644
+index 0000000..d1c18b8
+--- /dev/null
++++ b/src/lib/estimates/search.ts
+@@ -0,0 +1,54 @@
++import type { LineKind } from "./calc";
++
++/** Vienas katalogo įrašas (medžiaga, darbas ar kita pozicija) su paskutiniu vienetu ir kaina. */
++export type CatalogEntry = { kind: LineKind; name: string; unit: string; priceCents: number; lastUsedAt: string };
++
++/** Mažosios raidės be diakritikų: „Čiaupas“ ir „ciaupas“ sutampa. */
++export const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
++
++/** Toks pat raktas kaip duomenų bazėje (kind + lower(btrim(name))): vienodi pavadinimai laikomi viena pozicija. */
++export const catalogKey = (kind: LineKind, name: string) => `${kind}:${name.trim().toLowerCase()}`;
++
++export type Indexed = CatalogEntry & { folded: string };
++export const indexCatalog = (items: CatalogEntry[]): Indexed[] => items.map((i) => ({ ...i, folded: fold(i.name) }));
++
++const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++
++/** Mažesnis balas = geresnis atitikimas; null = neatitinka. */
++function score(folded: string, q: string, tokens: string[]): number | null {
++  if (folded === q) return 0;
++  if (folded.startsWith(q)) return 1;
++  if (new RegExp(`(^|[\\s\\-/(.,])${escapeRe(q)}`).test(folded)) return 2;
++  if (folded.includes(q)) return 3;
++  if (tokens.length > 1 && tokens.every((t) => folded.includes(t))) return 4;
++  return null;
++}
++
++/**
++ * Siūlomi katalogo įrašai pagal įvestą pradžią ar raides (be diakritikų, žodžio pradžia ar bet kur pavadinime).
++ * Tuščia paieška = neseniai naudoti. Rūšiuojama: geresnis atitikimas, tada naujausiai naudotas.
++ */
++export function searchCatalog(index: Indexed[], kind: LineKind, query: string, limit = 8): CatalogEntry[] {
++  const q = fold(query);
++  const tokens = q.split(/\s+/).filter(Boolean);
++  const hits: { item: Indexed; s: number }[] = [];
++  for (const item of index) {
++    if (item.kind !== kind) continue;
++    const s = q ? score(item.folded, q, tokens) : 0;
++    if (s !== null) hits.push({ item, s });
++  }
++  hits.sort(
++    (a, b) =>
++      a.s - b.s ||
++      b.item.lastUsedAt.localeCompare(a.item.lastUsedAt) ||
++      a.item.name.localeCompare(b.item.name, "lt"),
++  );
++  return hits.slice(0, limit).map((h) => ({ kind: h.item.kind, name: h.item.name, unit: h.item.unit, priceCents: h.item.priceCents, lastUsedAt: h.item.lastUsedAt }));
++}
++
++/** Prideda arba atnaujina įrašus po išsaugojimo, kad naujos pozicijos būtų siūlomos be puslapio perkrovimo. */
++export function mergeCatalog(items: CatalogEntry[], learned: CatalogEntry[]): CatalogEntry[] {
++  const map = new Map(items.map((i) => [catalogKey(i.kind, i.name), i]));
++  for (const l of learned) map.set(catalogKey(l.kind, l.name), l);
++  return [...map.values()];
++}
+diff --git a/src/lib/estimates/types.ts b/src/lib/estimates/types.ts
+new file mode 100644
+index 0000000..e355108
+--- /dev/null
++++ b/src/lib/estimates/types.ts
+@@ -0,0 +1,52 @@
++import type { LineKind } from "./calc";
++
++export type EstimateStatus = "draft" | "sent" | "accepted" | "rejected";
++export const STATUSES: EstimateStatus[] = ["draft", "sent", "accepted", "rejected"];
++export const STATUS_LABEL: Record<EstimateStatus, string> = {
++  draft: "Juodraštis",
++  sent: "Išsiųsta",
++  accepted: "Patvirtinta",
++  rejected: "Atmesta",
++};
++export const isStatus = (v: string): v is EstimateStatus => (STATUSES as string[]).includes(v);
++
++export type EstimateLineRow = { id: string; kind: LineKind; name: string; unit: string; qtyMilli: number; priceCents: number };
++
++export type EstimateFull = {
++  id: string;
++  number: string;
++  title: string;
++  projectId: string | null;
++  clientName: string;
++  clientPhone: string;
++  clientEmail: string;
++  address: string;
++  status: EstimateStatus;
++  /** Šimtosiomis: 21 % = 2100. */
++  vatHundredths: number;
++  discountHundredths: number;
++  validUntil: string;
++  notes: string;
++  lines: EstimateLineRow[];
++};
++
++export type EstimateListRow = {
++  id: string;
++  number: string;
++  title: string;
++  clientName: string | null;
++  status: EstimateStatus;
++  createdAt: string;
++  totalCents: number;
++};
++
++export type ProjectOption = {
++  id: string;
++  name: string;
++  address: string | null;
++  clientName: string | null;
++  clientPhone: string | null;
++  clientEmail: string | null;
++};
++
++export type CatalogRow = { id: string; kind: LineKind; name: string; unit: string; priceCents: number; lastUsedAt: string };
+diff --git a/supabase/migrations/0016_estimates.sql b/supabase/migrations/0016_estimates.sql
+new file mode 100644
+index 0000000..2a19b61
+--- /dev/null
++++ b/supabase/migrations/0016_estimates.sql
+@@ -0,0 +1,243 @@
++-- DarboRitmas · 0016 · Sąmatos: skaičiuoklė ir medžiagų / darbų katalogas
++-- Visas lenteles mato ir keičia tik įmonės administratorius (kainos darbuotojams nerodomos).
++-- Katalogas „mokosi“ iš sąmatų: išsaugant sąmatą kiekviena pozicija su kaina įrašoma arba atnaujinama kataloge,
++-- o kitą kartą ją galima pasirinkti pradėjus rašyti pavadinimą. Kiekiai (m, kg, vnt.) kaskart įvedami iš naujo.
++
++-- ---------------------------------------------------------------- lentelės
++-- Sąmatų numeracija: 2026-001, 2026-002... atskirai kiekvienai įmonei ir metams. Rašo tik triggeris (be politikų).
++create table public.estimate_counters (
++  company_id  uuid not null references public.companies (id) on delete cascade,
++  year        integer not null,
++  last_number integer not null default 0,
++  primary key (company_id, year)
++);
++
++create table public.estimates (
++  id               uuid primary key default gen_random_uuid(),
++  company_id       uuid not null references public.companies (id) on delete cascade,
++  number           text not null,
++  title            text not null default '' check (char_length(title) <= 200),
++  project_id       uuid,
++  client_name      text check (char_length(client_name) <= 160),
++  client_phone     text check (char_length(client_phone) <= 40),
++  client_email     text check (char_length(client_email) <= 200),
++  address          text check (char_length(address) <= 300),
++  status           text not null default 'draft' check (status in ('draft', 'sent', 'accepted', 'rejected')),
++  vat_percent      numeric(5, 2) not null default 21 check (vat_percent between 0 and 100),
++  discount_percent numeric(5, 2) not null default 0 check (discount_percent between 0 and 100),
++  valid_until      date,
++  notes            text check (char_length(notes) <= 4000),
++  created_by       uuid default auth.uid() references public.profiles (id) on delete set null,
++  created_at       timestamptz not null default now(),
++  updated_at       timestamptz not null default now(),
++  unique (id, company_id),
++  unique (company_id, number),
++  foreign key (project_id, company_id) references public.projects (id, company_id) on delete set null (project_id)
++);
++create index estimates_company_idx on public.estimates (company_id, created_at desc);
++
++-- Sąmatos eilutės. Suma = kiekis × vieneto kaina, apvalinama iki cento (skaičiuojama, o ne saugoma).
++create table public.estimate_lines (
++  id               uuid primary key default gen_random_uuid(),
++  company_id       uuid not null,
++  estimate_id      uuid not null,
++  position         integer not null check (position >= 0),
++  kind             text not null check (kind in ('material', 'work', 'other')),
++  name             text not null check (char_length(btrim(name)) between 1 and 200),
++  unit             text not null default 'vnt.' check (char_length(btrim(unit)) between 1 and 20),
++  quantity         numeric(12, 3) not null check (quantity >= 0 and quantity <= 100000),
++  unit_price_cents integer not null check (unit_price_cents between 0 and 100000000),
++  created_at       timestamptz not null default now(),
++  foreign key (estimate_id, company_id) references public.estimates (id, company_id) on delete cascade
++);
++create index estimate_lines_estimate_idx on public.estimate_lines (estimate_id, position);
++
++-- Katalogas: kiekviena kada nors įvesta medžiaga / darbas su paskutiniu vienetu ir kaina.
++create table public.estimate_catalog (
++  id               uuid primary key default gen_random_uuid(),
++  company_id       uuid not null references public.companies (id) on delete cascade,
++  kind             text not null check (kind in ('material', 'work', 'other')),
++  name             text not null check (char_length(btrim(name)) between 1 and 200),
++  name_key         text generated always as (lower(btrim(name))) stored,
++  unit             text not null default 'vnt.' check (char_length(btrim(unit)) between 1 and 20),
++  unit_price_cents integer not null check (unit_price_cents between 0 and 100000000),
++  last_used_at     timestamptz not null default now(),
++  created_at       timestamptz not null default now(),
++  updated_at       timestamptz not null default now(),
++  unique (company_id, kind, name_key)
++);
++create index estimate_catalog_recent_idx on public.estimate_catalog (company_id, last_used_at desc);
++
++create trigger estimates_updated before update on public.estimates
++  for each row execute function public.set_updated_at();
++create trigger estimate_catalog_updated before update on public.estimate_catalog
++  for each row execute function public.set_updated_at();
++
++-- ---------------------------------------------------------------- triggeriai
++create function public.estimates_before_insert() returns trigger
++language plpgsql security definer set search_path = public as $$
++declare
++  y integer := extract(year from (now() at time zone 'Europe/Vilnius'))::integer;
++  n integer;
++begin
++  insert into public.estimate_counters (company_id, year, last_number) values (new.company_id, y, 1)
++  on conflict (company_id, year) do update set last_number = public.estimate_counters.last_number + 1
++  returning last_number into n;
++  new.number := y::text || '-' || lpad(n::text, 3, '0');
++  return new;
++end $$;
++create trigger estimates_before_ins before insert on public.estimates
++  for each row execute function public.estimates_before_insert();
++
++create function public.estimates_guard() returns trigger
++language plpgsql as $$
++begin
++  if new.company_id <> old.company_id or new.number <> old.number then
++    raise exception 'Sąmatos įmonės ar numerio keisti negalima' using errcode = '42501';
++  end if;
++  return new;
++end $$;
++create trigger estimates_guard_upd before update on public.estimates
++  for each row execute function public.estimates_guard();
++
++-- ---------------------------------------------------------------- suvestinė sąrašui
++-- Tarpinė suma (be nuolaidos ir PVM) kiekvienai sąmatai; nuolaidą ir PVM pritaiko programa (src/lib/estimates/calc.ts).
++create view public.estimate_subtotals with (security_invoker = true) as
++select e.id as estimate_id,
++       e.company_id,
++       coalesce(sum(round(l.quantity * l.unit_price_cents)), 0)::bigint as subtotal_cents
++from public.estimates e
++left join public.estimate_lines l on l.estimate_id = e.id
++group by e.id, e.company_id;
++
++-- ---------------------------------------------------------------- RLS
++alter table public.estimate_counters enable row level security;   -- be politikų: tik triggeris
++alter table public.estimates         enable row level security;
++alter table public.estimate_lines    enable row level security;
++alter table public.estimate_catalog  enable row level security;
++
++create policy estimates_select on public.estimates for select to authenticated
++  using (public.is_company_admin(company_id));
++create policy estimates_insert on public.estimates for insert to authenticated
++  with check (public.is_company_admin(company_id) and public.company_has_access(company_id));
++create policy estimates_update on public.estimates for update to authenticated
++  using (public.is_company_admin(company_id) and public.company_has_access(company_id))
++  with check (public.is_company_admin(company_id));
++create policy estimates_delete on public.estimates for delete to authenticated
++  using (public.is_company_admin(company_id) and public.company_has_access(company_id));
++
++create policy estimate_lines_select on public.estimate_lines for select to authenticated
++  using (public.is_company_admin(company_id));
++create policy estimate_lines_insert on public.estimate_lines for insert to authenticated
++  with check (public.is_company_admin(company_id) and public.company_has_access(company_id));
++create policy estimate_lines_delete on public.estimate_lines for delete to authenticated
++  using (public.is_company_admin(company_id) and public.company_has_access(company_id));
++
++create policy estimate_catalog_select on public.estimate_catalog for select to authenticated
++  using (public.is_company_admin(company_id));
++create policy estimate_catalog_insert on public.estimate_catalog for insert to authenticated
++  with check (public.is_company_admin(company_id) and public.company_has_access(company_id));
++create policy estimate_catalog_update on public.estimate_catalog for update to authenticated
++  using (public.is_company_admin(company_id) and public.company_has_access(company_id))
++  with check (public.is_company_admin(company_id));
++create policy estimate_catalog_delete on public.estimate_catalog for delete to authenticated
++  using (public.is_company_admin(company_id) and public.company_has_access(company_id));
++
++revoke all on public.estimate_counters, public.estimates, public.estimate_lines, public.estimate_catalog,
++              public.estimate_subtotals from anon, authenticated;
++-- Numerį ir įmonę nustato tik serveris: į insert / update teises jie neįtraukti.
++grant select, delete on public.estimates to authenticated;
++grant insert (company_id, title, project_id, client_name, client_phone, client_email, address, status,
++              vat_percent, discount_percent, valid_until, notes) on public.estimates to authenticated;
++grant update (title, project_id, client_name, client_phone, client_email, address, status,
++              vat_percent, discount_percent, valid_until, notes) on public.estimates to authenticated;
++grant select, insert, delete on public.estimate_lines to authenticated;
++grant select, insert, update, delete on public.estimate_catalog to authenticated;
++grant select on public.estimate_subtotals to authenticated;
++
++-- ---------------------------------------------------------------- RPC
++-- Išsaugo visą sąmatą viena atomine operacija: antraštę, eilutes (pakeičia visas) ir, jei p_learn, katalogą.
++-- Automatinis išsaugojimas (p_learn = false) katalogo nekeičia, kad nesusikauptų pusiau įvesti pavadinimai.
++-- Vykdoma skambinančiojo teisėmis (security invoker): galioja visos RLS taisyklės.
++create function public.save_estimate(p_id uuid, p_header jsonb, p_lines jsonb, p_learn boolean default true)
++returns void
++language plpgsql security invoker set search_path = public as $$
++declare
++  v_company uuid;
++  v_rows    integer;
++begin
++  if p_header is null or jsonb_typeof(p_header) <> 'object' or p_lines is null or jsonb_typeof(p_lines) <> 'array' then
++    raise exception 'Neteisingi duomenys' using errcode = '22023';
++  end if;
++  if jsonb_array_length(p_lines) > 300 then
++    raise exception 'Per daug eilučių (daugiausia 300)' using errcode = '22023';
++  end if;
++
++  select e.company_id into v_company from public.estimates e where e.id = p_id;
++  if v_company is null then
++    raise exception 'Sąmata nerasta';
++  end if;
++
++  update public.estimates set
++    title            = coalesce(btrim(p_header ->> 'title'), ''),
++    project_id       = nullif(p_header ->> 'projectId', '')::uuid,
++    client_name      = nullif(btrim(p_header ->> 'clientName'), ''),
++    client_phone     = nullif(btrim(p_header ->> 'clientPhone'), ''),
++    client_email     = nullif(btrim(p_header ->> 'clientEmail'), ''),
++    address          = nullif(btrim(p_header ->> 'address'), ''),
++    status           = p_header ->> 'status',
++    vat_percent      = (p_header ->> 'vatPercent')::numeric,
++    discount_percent = (p_header ->> 'discountPercent')::numeric,
++    valid_until      = nullif(p_header ->> 'validUntil', '')::date,
++    notes            = nullif(btrim(p_header ->> 'notes'), '')
++  where id = p_id;
++  get diagnostics v_rows = row_count;
++  if v_rows = 0 then  -- RLS neleido keisti (pvz. pasibaigusi prieiga)
++    raise exception 'Neturite teisės keisti šios sąmatos' using errcode = '42501';
++  end if;
++
++  delete from public.estimate_lines where estimate_id = p_id;
++  insert into public.estimate_lines (company_id, estimate_id, position, kind, name, unit, quantity, unit_price_cents)
++  select v_company, p_id, i.pos, i.kind, btrim(i.name), btrim(i.unit), i.quantity, i.price
++    from jsonb_to_recordset(p_lines) as i(pos integer, kind text, name text, unit text, quantity numeric, price integer);
++
++  if p_learn then
++    -- Kiekviena pozicija su kaina įrašoma / atnaujinama kataloge (laimi paskutinė sąmatos eilutė).
++    -- Eilutės be kainos neįsimenamos: nepilnai užpildyta eilutė neturi sugadinti katalogo kainos.
++    insert into public.estimate_catalog (company_id, kind, name, unit, unit_price_cents, last_used_at)
++    select distinct on (l.kind, lower(btrim(l.name))) l.company_id, l.kind, l.name, l.unit, l.unit_price_cents, now()
++      from public.estimate_lines l
++     where l.estimate_id = p_id and l.unit_price_cents > 0
++     order by l.kind, lower(btrim(l.name)), l.position desc
++    on conflict (company_id, kind, name_key) do update
++      set name = excluded.name, unit = excluded.unit, unit_price_cents = excluded.unit_price_cents,
++          last_used_at = excluded.last_used_at;
++  end if;
++end $$;
++
++-- Sukuria sąmatos kopiją (juodraštį) su visomis eilutėmis: greičiausias būdas pradėti panašią sąmatą.
++create function public.duplicate_estimate(p_id uuid) returns uuid
++language plpgsql security invoker set search_path = public as $$
++declare
++  v_new uuid;
++begin
++  insert into public.estimates (company_id, title, project_id, client_name, client_phone, client_email, address,
++                                status, vat_percent, discount_percent, notes)
++  select e.company_id, left(btrim(e.title || ' (kopija)'), 200), e.project_id, e.client_name, e.client_phone,
++         e.client_email, e.address, 'draft', e.vat_percent, e.discount_percent, e.notes
++    from public.estimates e where e.id = p_id
++  returning id into v_new;
++  if v_new is null then
++    raise exception 'Sąmata nerasta';
++  end if;
++
++  insert into public.estimate_lines (company_id, estimate_id, position, kind, name, unit, quantity, unit_price_cents)
++  select l.company_id, v_new, l.position, l.kind, l.name, l.unit, l.quantity, l.unit_price_cents
++    from public.estimate_lines l where l.estimate_id = p_id;
++  return v_new;
++end $$;
++
++revoke execute on function public.save_estimate(uuid, jsonb, jsonb, boolean), public.duplicate_estimate(uuid)
++  from public, anon;
++grant execute on function public.save_estimate(uuid, jsonb, jsonb, boolean), public.duplicate_estimate(uuid)
++  to authenticated;
+diff --git a/supabase/tests/rls_test.sql b/supabase/tests/rls_test.sql
+index 2c517f9..b8fe871 100644
+--- a/supabase/tests/rls_test.sql
++++ b/supabase/tests/rls_test.sql
+@@ -379,6 +379,78 @@ select t.as_user('B');
+ select t.ok(t.n($$select count(*) from public.notifications$$) = 0, 'kita įmonė pranešimų nemato');
+ reset role;
+ 
++-- 11. Sąmatos (migracija 0016): tik administratorius, numeracija, atominis išsaugojimas, katalogas mokosi
++reset role;
++create function t.hdr(p_discount numeric default 10) returns jsonb language sql as $$
++  select jsonb_build_object('title', 'Vonios remontas', 'projectId', '', 'clientName', 'Jonas', 'clientPhone', '',
++    'clientEmail', '', 'address', '', 'status', 'draft', 'vatPercent', 21, 'discountPercent', p_discount,
++    'validUntil', '', 'notes', '')
++$$;
++grant execute on function t.hdr(numeric) to authenticated;
++
++select t.as_user('A');
++insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000001', t.id('CX'), 'Vonios remontas');
++insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000002', t.id('CX'), 'Antra');
++select t.ok((select number ~ '^[0-9]{4}-001$' from public.estimates where id = '50000000-0000-0000-0000-000000000001'), 'sąmatos numeris sugeneruojamas serveryje');
++select t.ok((select number ~ '^[0-9]{4}-002$' from public.estimates where id = '50000000-0000-0000-0000-000000000002'), 'kita sąmata gauna kitą numerį');
++select t.err($$insert into public.estimates (company_id, number) values (t.id('CX'), 'X-1')$$, '42501');
++select t.err($$update public.estimates set number = 'X-2'$$, '42501');
++
++-- Išsaugojimas: 3 eilutės, dvi su tuo pačiu pavadinimu (laimi paskutinė), viena su 0 kaina (neįsimenama).
++select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(),
++  '[{"pos":0,"kind":"material","name":"Varinis vamzdis 15 mm","unit":"m","quantity":2.5,"price":320},
++    {"pos":1,"kind":"work","name":"Montavimas","unit":"val.","quantity":3,"price":2500},
++    {"pos":2,"kind":"material","name":"  varinis VAMZDIS 15 mm ","unit":"m","quantity":1,"price":340},
++    {"pos":3,"kind":"other","name":"Transportas","unit":"vnt.","quantity":1,"price":0}]'::jsonb);
++select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 4, 'išsaugotos visos eilutės');
++select t.ok((select subtotal_cents from public.estimate_subtotals where estimate_id = '50000000-0000-0000-0000-000000000001') = 8640, 'tarpinė suma = Σ round(kiekis × kaina)');
++select t.ok((select discount_percent from public.estimates where id = '50000000-0000-0000-0000-000000000001') = 10, 'antraštė išsaugota (nuolaida)');
++select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 2, 'katalogas: dvi pozicijos (dublikatas sujungtas, eilutė be kainos neįsimenama)');
++select t.ok((select unit_price_cents from public.estimate_catalog where name_key = 'varinis vamzdis 15 mm') = 340, 'kataloge paskutinė kaina');
++
++-- Automatinis išsaugojimas (p_learn = false) katalogo nekeičia; eilutės pakeičiamos, ne dubliuojamos.
++select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(),
++  '[{"pos":0,"kind":"material","name":"Pusiau įvestas pavadin","unit":"m","quantity":1,"price":400}]'::jsonb, false);
++select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 1, 'išsaugant eilutės pakeičiamos');
++select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 2, 'automatinis išsaugojimas nekeičia katalogo');
++
++-- Neteisingi duomenys atmetami, o ankstesnė būsena lieka (viena transakcija).
++select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(), '[{"pos":0,"kind":"work","name":"x","unit":"val.","quantity":-1,"price":1}]'::jsonb)$$, '23514');
++select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(150), '[]'::jsonb)$$, '23514');
++select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 1, 'nepavykęs išsaugojimas nekeičia eilučių');
++
++-- Kopija: juodraštis su visomis eilutėmis ir nauju numeriu.
++select public.duplicate_estimate('50000000-0000-0000-0000-000000000001');
++select t.ok(t.n($$select count(*) from public.estimates where title = 'Vonios remontas (kopija)' and status = 'draft'$$) = 1, 'kopija sukurta');
++select t.ok(t.n($$select count(*) from public.estimate_lines l join public.estimates e on e.id = l.estimate_id where e.title = 'Vonios remontas (kopija)'$$) = 1, 'kopijoje yra eilutės');
++
++-- Katalogo tvarkymas ir unikalumas.
++select t.ok(t.rows($$update public.estimate_catalog set unit_price_cents = 2600 where name_key = 'montavimas'$$) = 1, 'administratorius keičia katalogo kainą');
++select t.err($$insert into public.estimate_catalog (company_id, kind, name, unit, unit_price_cents) values (t.id('CX'), 'work', ' MONTAVIMAS ', 'val.', 1)$$, '23505');
++select t.ok(t.rows($$delete from public.estimates where id = '50000000-0000-0000-0000-000000000002'$$) = 1, 'administratorius trina sąmatą');
++
++-- Darbuotojas sąmatų, kainų ir katalogo nemato ir negali keisti.
++select t.as_user('W');
++select t.ok(t.n($$select count(*) from public.estimates$$) = 0, 'darbuotojas sąmatų nemato');
++select t.ok(t.n($$select count(*) from public.estimate_lines$$) = 0, 'darbuotojas sąmatų eilučių nemato');
++select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 0, 'darbuotojas katalogo nemato');
++select t.ok(t.n($$select count(*) from public.estimate_subtotals$$) = 0, 'darbuotojas sąmatų sumų nemato');
++select t.err($$insert into public.estimates (company_id, title) values (t.id('CX'), 'Darbuotojo')$$, '42501');
++select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(), '[]'::jsonb)$$, 'P0001');
++select t.err($$select public.duplicate_estimate('50000000-0000-0000-0000-000000000001')$$, 'P0001');
++select t.err($$select count(*) from public.estimate_counters$$, '42501');
++
++-- Kita įmonė sąmatų nemato ir negali jų keisti.
++select t.as_user('B');
++select t.ok(t.n($$select count(*) from public.estimates$$) = 0, 'kita įmonė sąmatų nemato');
++select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(), '[]'::jsonb)$$, 'P0001');
++reset role;
++-- Ištrynus sąmatą, eilutės dingsta kartu (cascade), katalogas lieka.
++delete from public.estimates where id = '50000000-0000-0000-0000-000000000001';
++select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 0, 'ištrynus sąmatą dingsta jos eilutės');
++select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 2, 'katalogas išlieka ištrynus sąmatą');
++reset role;
++
+ -- 9. Anon neturi prieigos
+ set role anon;
+ do $$ begin
+diff --git a/tests/unit/estimates.test.ts b/tests/unit/estimates.test.ts
+new file mode 100644
+index 0000000..32031ae
+--- /dev/null
++++ b/tests/unit/estimates.test.ts
+@@ -0,0 +1,138 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import {
++  calcTotals, formatInputCents, formatInputPercent, formatQty, lineTotalCents, parsePercentHundredths, parsePriceCents,
++  parseQuantity, percentOfCents, totalsFromSubtotal,
++} from "../../src/lib/estimates/calc";
++import { catalogKey, fold, indexCatalog, mergeCatalog, searchCatalog, type CatalogEntry } from "../../src/lib/estimates/search";
++
++test("parseQuantity: kablelis ar taškas, iki 3 skaitmenų, ribos", () => {
++  assert.equal(parseQuantity("12"), 12000);
++  assert.equal(parseQuantity("12,5"), 12500);
++  assert.equal(parseQuantity(" 0.125 "), 125);
++  assert.equal(parseQuantity("1 250,5"), 1_250_500);
++  assert.equal(parseQuantity("0"), 0);
++  assert.equal(parseQuantity("100000"), 100_000_000);
++  assert.equal(parseQuantity("100000,001"), null);
++  assert.equal(parseQuantity("1,2345"), null);
++  assert.equal(parseQuantity("-3"), null);
++  assert.equal(parseQuantity(""), null);
++  assert.equal(parseQuantity("abc"), null);
++});
++
++test("parsePriceCents: iki 2 skaitmenų, iki 1 000 000 €", () => {
++  assert.equal(parsePriceCents("3,2"), 320);
++  assert.equal(parsePriceCents("3.20"), 320);
++  assert.equal(parsePriceCents("0,05"), 5);
++  assert.equal(parsePriceCents("1000000"), 100_000_000);
++  assert.equal(parsePriceCents("1000000,01"), null);
++  assert.equal(parsePriceCents("3,205"), null);
++  assert.equal(parsePriceCents(""), null);
++  assert.equal(parsePriceCents("-1"), null);
++});
++
++test("parsePercentHundredths", () => {
++  assert.equal(parsePercentHundredths("21"), 2100);
++  assert.equal(parsePercentHundredths("21,5"), 2150);
++  assert.equal(parsePercentHundredths("0"), 0);
++  assert.equal(parsePercentHundredths("100"), 10000);
++  assert.equal(parsePercentHundredths("100,01"), null);
++  assert.equal(parsePercentHundredths("1000"), null);
++});
++
++test("formatai laukeliams", () => {
++  assert.equal(formatQty(12500), "12,5");
++  assert.equal(formatQty(3000), "3");
++  assert.equal(formatQty(125), "0,125");
++  assert.equal(formatQty(1050), "1,05");
++  assert.equal(formatInputCents(1250), "12,50");
++  assert.equal(formatInputCents(5), "0,05");
++  assert.equal(formatInputPercent(2100), "21");
++  assert.equal(formatInputPercent(2150), "21,5");
++  assert.equal(formatInputPercent(2105), "21,05");
++});
++
++test("eilutės suma apvalinama iki cento (pusė į viršų)", () => {
++  assert.equal(lineTotalCents(2500, 320), 800); // 2,5 m × 3,20 €
++  assert.equal(lineTotalCents(1000, 1999), 1999);
++  assert.equal(lineTotalCents(333, 100), 33); // 0,333 × 1,00 € = 0,333 -> 33 ct
++  assert.equal(lineTotalCents(5, 100), 1); // 0,005 × 1,00 € = 0,5 ct -> 1 ct
++  assert.equal(lineTotalCents(4, 100), 0);
++  assert.equal(lineTotalCents(100_000_000, 100_000_000), 10_000_000_000_000); // didžiausia eilutė, be paklaidų
++});
++
++test("percentOfCents ir PVM", () => {
++  assert.equal(percentOfCents(10000, 2100), 2100);
++  assert.equal(percentOfCents(1, 5000), 1); // 0,5 ct -> 1 ct
++  assert.equal(percentOfCents(8640, 1000), 864);
++});
++
++test("calcTotals: medžiagos, darbai, nuolaida, PVM", () => {
++  const lines = [
++    { kind: "material" as const, qtyMilli: 2500, priceCents: 320 }, // 8,00
++    { kind: "work" as const, qtyMilli: 3000, priceCents: 2500 }, // 75,00
++    { kind: "material" as const, qtyMilli: 1000, priceCents: 340 }, // 3,40
++  ];
++  const t = calcTotals(lines, 1000, 2100); // 10 % nuolaida, 21 % PVM
++  assert.equal(t.materials, 1140);
++  assert.equal(t.works, 7500);
++  assert.equal(t.other, 0);
++  assert.equal(t.subtotal, 8640);
++  assert.equal(t.discount, 864);
++  assert.equal(t.net, 7776);
++  assert.equal(t.vat, 1633); // 77,76 × 21 % = 16,3296 -> 16,33
++  assert.equal(t.total, 9409);
++});
++
++test("calcTotals be eilučių ir su 0 %", () => {
++  const t = calcTotals([], 0, 0);
++  assert.deepEqual(t, { materials: 0, works: 0, other: 0, subtotal: 0, discount: 0, net: 0, vat: 0, total: 0 });
++  assert.deepEqual(totalsFromSubtotal(10000, 0, 2100), { subtotal: 10000, discount: 0, net: 10000, vat: 2100, total: 12100 });
++});
++
++/* ------------------------------------------------------------------ katalogo paieška */
++const E = (kind: CatalogEntry["kind"], name: string, priceCents: number, lastUsedAt: string, unit = "vnt."): CatalogEntry => ({ kind, name, unit, priceCents, lastUsedAt });
++const CATALOG = indexCatalog([
++  E("material", "Varinis vamzdis 15 mm", 320, "2026-03-01T10:00:00Z", "m"),
++  E("material", "Varinis alkūnė 90°", 150, "2026-05-01T10:00:00Z"),
++  E("material", "PPR vamzdis 20 mm", 90, "2026-04-01T10:00:00Z", "m"),
++  E("material", "Čiaupas maišytuvas", 4500, "2026-02-01T10:00:00Z"),
++  E("material", "Maišytuvo žarnelė", 600, "2026-01-01T10:00:00Z"),
++  E("work", "Vamzdžių montavimas", 2500, "2026-05-05T10:00:00Z", "val."),
++]);
++const names = (r: CatalogEntry[]) => r.map((x) => x.name);
++
++test("fold: be diakritikų ir didžiųjų raidžių", () => {
++  assert.equal(fold("  Čiaupas ŠALTAS "), "ciaupas saltas");
++  assert.equal(fold("Ūkis žąsų"), "ukis zasu");
++  assert.equal(fold("Alkūnė"), "alkune");
++});
++
++test("paieška: pradžia, raidės be diakritikų, žodžio pradžia, tik tos pačios rūšies", () => {
++  assert.deepEqual(names(searchCatalog(CATALOG, "material", "var")), ["Varinis alkūnė 90°", "Varinis vamzdis 15 mm"]); // naujausias pirmas
++  assert.deepEqual(names(searchCatalog(CATALOG, "material", "ciau")), ["Čiaupas maišytuvas"]);
++  assert.deepEqual(names(searchCatalog(CATALOG, "material", "vamz")), ["PPR vamzdis 20 mm", "Varinis vamzdis 15 mm"]); // žodžio pradžia
++  assert.deepEqual(names(searchCatalog(CATALOG, "work", "var")), []);
++  assert.deepEqual(names(searchCatalog(CATALOG, "work", "montav")), ["Vamzdžių montavimas"]);
++});
++
++test("paieška: pradžios atitikimas pranoksta įtraukimą, keli žodžiai bet kokia tvarka", () => {
++  assert.deepEqual(names(searchCatalog(CATALOG, "material", "maisyt"))[0], "Maišytuvo žarnelė"); // prasideda „maisyt“
++  assert.deepEqual(names(searchCatalog(CATALOG, "material", "15 var")), ["Varinis vamzdis 15 mm"]);
++  assert.deepEqual(names(searchCatalog(CATALOG, "material", "xyz")), []);
++});
++
++test("paieška: tuščia = neseniai naudoti, ribojama", () => {
++  const r = searchCatalog(CATALOG, "material", "", 3);
++  assert.deepEqual(names(r), ["Varinis alkūnė 90°", "PPR vamzdis 20 mm", "Varinis vamzdis 15 mm"]);
++  assert.equal(r[0].priceCents, 150);
++});
++
++test("katalogo raktas ir sujungimas po išsaugojimo", () => {
++  assert.equal(catalogKey("material", "  Varinis VAMZDIS "), catalogKey("material", "varinis vamzdis"));
++  assert.notEqual(catalogKey("material", "x"), catalogKey("work", "x"));
++  const base = [E("material", "Varinis vamzdis 15 mm", 320, "2026-03-01T10:00:00Z", "m")];
++  const merged = mergeCatalog(base, [E("material", "varinis vamzdis 15 mm", 340, "2026-06-01T10:00:00Z", "m"), E("work", "Montavimas", 2500, "2026-06-01T10:00:00Z", "val.")]);
++  assert.equal(merged.length, 2);
++  assert.equal(merged.find((m) => m.kind === "material")?.priceCents, 340);
++});

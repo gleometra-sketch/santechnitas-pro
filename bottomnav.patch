@@ -1,0 +1,37 @@
+diff --git a/src/components/BottomNav.tsx b/src/components/BottomNav.tsx
+index b580adc..b76a8fb 100644
+--- a/src/components/BottomNav.tsx
++++ b/src/components/BottomNav.tsx
+@@ -3,7 +3,7 @@
+ import { useEffect, useState } from "react";
+ import Link from "next/link";
+ import { usePathname } from "next/navigation";
+-import { CalendarDays, Car, Clock, ListChecks, Package } from "lucide-react";
++import { CalendarDays, Calculator, Car, Clock, ListChecks, Package } from "lucide-react";
+ 
+ // „short“ – trumpa etiketė siauram ekranui (kad penkios skiltys tilptų į vieną eilutę).
+ const items = [
+@@ -13,10 +13,11 @@ const items = [
+ ];
+ const materials = { href: "/medziagos", label: "Medžiagos", Icon: Package };
+ const cars = { href: "/automobiliai", label: "Automobiliai", short: "Auto", Icon: Car };
++const estimates = { href: "/samata", label: "Sąmata", Icon: Calculator };
+ 
+ const TEXT_FIELD = "input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file]), textarea, select";
+ 
+-export default function BottomNav({ showMaterials = false, showCars = false }: { showMaterials?: boolean; showCars?: boolean }) {
++export default function BottomNav({ showMaterials = false, showCars = false, showEstimates = false }: { showMaterials?: boolean; showCars?: boolean; showEstimates?: boolean }) {
+   const pathname = usePathname();
+   const [typing, setTyping] = useState(false);
+ 
+@@ -33,8 +34,8 @@ export default function BottomNav({ showMaterials = false, showCars = false }: {
+     };
+   }, []);
+ 
+-  const list: { href: string; label: string; short?: string; Icon: typeof ListChecks }[] = [...items, ...(showMaterials ? [materials] : []), ...(showCars ? [cars] : [])];
+-  const cols = list.length >= 5 ? "grid-cols-5" : list.length === 4 ? "grid-cols-4" : "grid-cols-3";
++  const list: { href: string; label: string; short?: string; Icon: typeof ListChecks }[] = [...items, ...(showMaterials ? [materials] : []), ...(showCars ? [cars] : []), ...(showEstimates ? [estimates] : [])];
++  const cols = list.length >= 6 ? "grid-cols-6" : list.length === 5 ? "grid-cols-5" : list.length === 4 ? "grid-cols-4" : "grid-cols-3";
+   return (
+     <nav
+       aria-label="Pagrindinis meniu"

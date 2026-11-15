@@ -29,6 +29,7 @@ Kitos komandos: `npm run typecheck` (tipų tikrinimas), `npm run build` (gamybin
 | Telegram pranešimai administratoriams | Atlikta (žr. `docs/TELEGRAM.md`) |
 | Pranešimų sistema (varpelis, eilė) | Atlikta (žr. `docs/PRANESIMAI.md`) |
 | Automobiliai ir priminimai | Atlikta (žr. `docs/AUTOMOBILIAI.md`) |
+| Sąmata (skaičiuoklė ir katalogas) | Atlikta (žr. `docs/SAMATOS.md`) |
 | 8. Testavimas | Laukia |
 | 9. Publikavimas Vercel | Laukia |
 

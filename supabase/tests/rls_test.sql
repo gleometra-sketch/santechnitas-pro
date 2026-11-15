@@ -379,6 +379,86 @@ select t.as_user('B');
 select t.ok(t.n($$select count(*) from public.notifications$$) = 0, 'kita įmonė pranešimų nemato');
 reset role;
 
+-- 11. Sąmatos (migracija 0016): tik administratorius, numeracija, atominis išsaugojimas, katalogas mokosi
+reset role;
+create function t.hdr(p_discount numeric default 10) returns jsonb language sql as $$
+  select jsonb_build_object('title', 'Vonios remontas', 'projectId', '', 'clientName', 'Jonas', 'clientPhone', '',
+    'clientEmail', '', 'address', '', 'status', 'draft', 'vatPercent', 21, 'discountPercent', p_discount,
+    'validUntil', '', 'notes', '')
+$$;
+grant execute on function t.hdr(numeric) to authenticated;
+
+-- Kaip programoje: administratorius kuria sąmatą nenurodydamas id ir numerio (juos nustato duomenų bazė).
+select t.as_user('A');
+insert into public.estimates (company_id, title) values (t.id('CX'), 'Numeracijos testas');
+insert into public.estimates (company_id, title) values (t.id('CX'), 'Numeracijos testas 2');
+select t.ok((select number ~ '^[0-9]{4}-001$' from public.estimates where title = 'Numeracijos testas'), 'sąmatos numeris sugeneruojamas serveryje');
+select t.ok((select number ~ '^[0-9]{4}-002$' from public.estimates where title = 'Numeracijos testas 2'), 'kita sąmata gauna kitą numerį');
+select t.err($$insert into public.estimates (id, company_id, title) values (gen_random_uuid(), t.id('CX'), 'Su id')$$, '42501');
+select t.err($$insert into public.estimates (company_id, number) values (t.id('CX'), 'X-1')$$, '42501');
+select t.err($$update public.estimates set number = 'X-2'$$, '42501');
+
+-- Tolesniems testams reikia žinomų id: įrašome juos kaip serveris (numeraciją vis tiek suteikia triggeris).
+reset role;
+insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000001', t.id('CX'), 'Vonios remontas');
+insert into public.estimates (id, company_id, title) values ('50000000-0000-0000-0000-000000000002', t.id('CX'), 'Antra');
+select t.as_user('A');
+
+-- Išsaugojimas: 3 eilutės, dvi su tuo pačiu pavadinimu (laimi paskutinė), viena su 0 kaina (neįsimenama).
+select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(),
+  '[{"pos":0,"kind":"material","name":"Varinis vamzdis 15 mm","unit":"m","quantity":2.5,"price":320},
+    {"pos":1,"kind":"work","name":"Montavimas","unit":"val.","quantity":3,"price":2500},
+    {"pos":2,"kind":"material","name":"  varinis VAMZDIS 15 mm ","unit":"m","quantity":1,"price":340},
+    {"pos":3,"kind":"other","name":"Transportas","unit":"vnt.","quantity":1,"price":0}]'::jsonb);
+select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 4, 'išsaugotos visos eilutės');
+select t.ok((select subtotal_cents from public.estimate_subtotals where estimate_id = '50000000-0000-0000-0000-000000000001') = 8640, 'tarpinė suma = Σ round(kiekis × kaina)');
+select t.ok((select discount_percent from public.estimates where id = '50000000-0000-0000-0000-000000000001') = 10, 'antraštė išsaugota (nuolaida)');
+select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 2, 'katalogas: dvi pozicijos (dublikatas sujungtas, eilutė be kainos neįsimenama)');
+select t.ok((select unit_price_cents from public.estimate_catalog where name_key = 'varinis vamzdis 15 mm') = 340, 'kataloge paskutinė kaina');
+
+-- Automatinis išsaugojimas (p_learn = false) katalogo nekeičia; eilutės pakeičiamos, ne dubliuojamos.
+select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(),
+  '[{"pos":0,"kind":"material","name":"Pusiau įvestas pavadin","unit":"m","quantity":1,"price":400}]'::jsonb, false);
+select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 1, 'išsaugant eilutės pakeičiamos');
+select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 2, 'automatinis išsaugojimas nekeičia katalogo');
+
+-- Neteisingi duomenys atmetami, o ankstesnė būsena lieka (viena transakcija).
+select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(), '[{"pos":0,"kind":"work","name":"x","unit":"val.","quantity":-1,"price":1}]'::jsonb)$$, '23514');
+select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(150), '[]'::jsonb)$$, '23514');
+select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 1, 'nepavykęs išsaugojimas nekeičia eilučių');
+
+-- Kopija: juodraštis su visomis eilutėmis ir nauju numeriu.
+select public.duplicate_estimate('50000000-0000-0000-0000-000000000001');
+select t.ok(t.n($$select count(*) from public.estimates where title = 'Vonios remontas (kopija)' and status = 'draft'$$) = 1, 'kopija sukurta');
+select t.ok(t.n($$select count(*) from public.estimate_lines l join public.estimates e on e.id = l.estimate_id where e.title = 'Vonios remontas (kopija)'$$) = 1, 'kopijoje yra eilutės');
+
+-- Katalogo tvarkymas ir unikalumas.
+select t.ok(t.rows($$update public.estimate_catalog set unit_price_cents = 2600 where name_key = 'montavimas'$$) = 1, 'administratorius keičia katalogo kainą');
+select t.err($$insert into public.estimate_catalog (company_id, kind, name, unit, unit_price_cents) values (t.id('CX'), 'work', ' MONTAVIMAS ', 'val.', 1)$$, '23505');
+select t.ok(t.rows($$delete from public.estimates where id = '50000000-0000-0000-0000-000000000002'$$) = 1, 'administratorius trina sąmatą');
+
+-- Darbuotojas sąmatų, kainų ir katalogo nemato ir negali keisti.
+select t.as_user('W');
+select t.ok(t.n($$select count(*) from public.estimates$$) = 0, 'darbuotojas sąmatų nemato');
+select t.ok(t.n($$select count(*) from public.estimate_lines$$) = 0, 'darbuotojas sąmatų eilučių nemato');
+select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 0, 'darbuotojas katalogo nemato');
+select t.ok(t.n($$select count(*) from public.estimate_subtotals$$) = 0, 'darbuotojas sąmatų sumų nemato');
+select t.err($$insert into public.estimates (company_id, title) values (t.id('CX'), 'Darbuotojo')$$, '42501');
+select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(), '[]'::jsonb)$$, 'P0001');
+select t.err($$select public.duplicate_estimate('50000000-0000-0000-0000-000000000001')$$, 'P0001');
+select t.err($$select count(*) from public.estimate_counters$$, '42501');
+
+-- Kita įmonė sąmatų nemato ir negali jų keisti.
+select t.as_user('B');
+select t.ok(t.n($$select count(*) from public.estimates$$) = 0, 'kita įmonė sąmatų nemato');
+select t.err($$select public.save_estimate('50000000-0000-0000-0000-000000000001', t.hdr(), '[]'::jsonb)$$, 'P0001');
+reset role;
+-- Ištrynus sąmatą, eilutės dingsta kartu (cascade), katalogas lieka.
+delete from public.estimates where id = '50000000-0000-0000-0000-000000000001';
+select t.ok(t.n($$select count(*) from public.estimate_lines where estimate_id = '50000000-0000-0000-0000-000000000001'$$) = 0, 'ištrynus sąmatą dingsta jos eilutės');
+select t.ok(t.n($$select count(*) from public.estimate_catalog$$) = 2, 'katalogas išlieka ištrynus sąmatą');
+reset role;
+
 -- 9. Anon neturi prieigos
 set role anon;
 do $$ begin

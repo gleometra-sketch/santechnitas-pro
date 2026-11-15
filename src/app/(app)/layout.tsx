@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <AccessExpired ctx={ctx} />
         )}
       </main>
-      <BottomNav showMaterials={admin} showCars={showCars} />
+      <BottomNav showMaterials={admin} showCars={showCars} showEstimates={admin} />
     </>
   );
 }
