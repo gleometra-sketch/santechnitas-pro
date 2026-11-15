@@ -270,3 +270,39 @@ export async function patchMaterialItem(itemId: string, patch: { name?: string; 
   if (error) return mapError(error, "Nepavyko išsaugoti.");
   return (data ?? []).length ? ok() : fail("Medžiaga nerasta arba neturite teisės.");
 }
+
+/**
+ * Administratorius pastabos tekstą paverčia medžiagomis su kiekiu ir vienetu (jos atsiranda trūkstamų sąraše,
+ * priskirtos pastabos autoriui), o pačią pastabą pažymi atlikta. Darbuotojas kiekių ir vienetų nerašo.
+ */
+export async function addMaterialsFromNote(noteId: string, items: unknown): Promise<ActionResult> {
+  if (!idSchema.safeParse(noteId).success) return fail("Neteisingas įrašas.");
+  const parsed = z.array(itemSchema).min(1, "Pridėkite bent vieną medžiagą.").max(50).safeParse(items);
+  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const g = await guard();
+  if (bad(g)) return g;
+  if (!g.admin) return fail(NOT_ADMIN);
+
+  const { data: note, error: noteErr } = await g.db.from("notes").select("id, author_id, project_id").eq("id", noteId).eq("company_id", g.companyId).maybeSingle();
+  if (noteErr) return mapError(noteErr, "Nepavyko perskaityti pastabos.");
+  if (!note) return fail("Pastaba nerasta arba neturite teisės.");
+
+  const { data: req, error: reqErr } = await g.db
+    .from("material_requests")
+    .insert({ company_id: g.companyId, employee_id: note.author_id, project_id: note.project_id ?? null, comment: "Iš pastabos biurui" })
+    .select("id")
+    .single();
+  if (reqErr || !req) return mapError(reqErr, "Nepavyko sukurti medžiagų prašymo.");
+
+  const { error: itemsErr } = await g.db.from("material_request_items").insert(
+    parsed.data.map((i) => ({ company_id: g.companyId, request_id: req.id, material_name: i.name, quantity: Math.round(i.quantity * 100) / 100, unit: i.unit })),
+  );
+  if (itemsErr) {
+    await g.db.from("material_requests").delete().eq("id", req.id).eq("company_id", g.companyId); // neliks tuščio prašymo
+    return mapError(itemsErr, "Nepavyko išsaugoti medžiagų.");
+  }
+
+  await g.db.from("notes").update({ is_done: true }).eq("id", noteId).eq("company_id", g.companyId);
+  refresh();
+  return ok("Medžiagos įtrauktos į sąrašą.");
+}

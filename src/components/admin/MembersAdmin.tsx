@@ -51,7 +51,7 @@ function Row({ m, selfId, companyMode, today, onMsg }: { m: MemberRow; selfId: s
   const locked = m.role === "owner" || isSelf;
 
   return (
-    <li className={`rounded-card bg-white p-5 shadow-card ${m.status === "removed" ? "opacity-70" : ""}`}>
+    <li className={`rounded-card bg-white p-4 shadow-card sm:p-5 ${m.status === "removed" ? "opacity-70" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-lg font-bold">{m.name ?? m.email}{isSelf && <span className="ml-2 text-sm font-medium text-muted">(jūs)</span>}</p>
@@ -132,7 +132,7 @@ export default function MembersAdmin({ members, selfId, companyMode, today }: { 
 
   return (
     <div className="space-y-4">
-      <section className="rounded-card bg-white p-5 shadow-card">
+      <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
         <h2 className="flex items-center gap-2 text-lg font-bold"><Timer size={22} aria-hidden /> Laiko apskaita</h2>
         <p className="mt-1 text-sm text-muted">Numatytasis būdas visiems darbuotojams. Jį galima keisti bet kada, o konkrečiam darbuotojui nustatyti kitą žemiau.</p>
         <div role="radiogroup" aria-label="Laiko apskaitos būdas" className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -152,7 +152,7 @@ export default function MembersAdmin({ members, selfId, companyMode, today }: { 
         </div>
       </section>
 
-      <section className="rounded-card bg-white p-5 shadow-card">
+      <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
         <details>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold"><UserPlus size={22} aria-hidden /> Pridėti darbuotoją</summary>
           <div className="mt-3 space-y-3">

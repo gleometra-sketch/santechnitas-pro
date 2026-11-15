@@ -18,35 +18,35 @@ const bars = [
 export default function Landing() {
   return (
     <div className="bg-white text-navy">
-      <header className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-8">
-        <Link href="/" aria-label="DarboRitmas – pradžia"><Logo size={44} /></Link>
-        <nav aria-label="Pagrindinis" className="flex flex-wrap items-center gap-x-7 gap-y-2 font-semibold">
-          <a href="#funkcijos" className="text-accent hover:text-accent-dark">Funkcijos</a>
-          <a href="#kainos" className="text-accent hover:text-accent-dark">Kainos</a>
+      <header className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 px-5 py-4 sm:px-8 sm:py-6">
+        <Link href="/" aria-label="DarboRitmas – pradžia"><Logo size={40} wordmarkClassName="hidden min-[400px]:inline" /></Link>
+        <nav aria-label="Pagrindinis" className="flex items-center gap-x-4 font-semibold sm:gap-x-7">
+          <a href="#funkcijos" className="hidden text-accent hover:text-accent-dark sm:inline">Funkcijos</a>
+          <a href="#kainos" className="hidden text-accent hover:text-accent-dark sm:inline">Kainos</a>
           <Link href="/prisijungimas" className="text-accent hover:text-accent-dark">Prisijungti</Link>
-          <Link href="/registracija" className="rounded-[10px] bg-navy px-5 py-3 text-white hover:bg-navy-700">Išbandyti</Link>
+          <Link href="/registracija" className="rounded-[10px] bg-navy px-4 py-3 text-white hover:bg-navy-700 sm:px-5">Išbandyti</Link>
         </nav>
       </header>
 
       <main>
         <section className="flex flex-wrap items-stretch">
-          <div className="box-border flex-[1_1_480px] bg-accent px-5 pb-20 pt-16 text-white sm:px-14 sm:pb-24 sm:pt-20">
+          <div className="box-border flex-[1_1_480px] bg-accent px-5 pb-14 pt-12 text-white sm:px-14 sm:pb-24 sm:pt-20">
             <p className="mb-6 inline-block rounded-lg bg-navy px-3.5 py-2 text-sm font-semibold">Darbo objektų kalendorius ir laiko apskaita</p>
-            <h1 className="mb-6 font-display text-[40px] font-bold leading-[1.04] tracking-[-0.025em] sm:text-6xl">
+            <h1 className="mb-6 font-display text-[34px] font-bold leading-[1.06] tracking-[-0.025em] sm:text-6xl">
               Visi objektai viename kalendoriuje. Kiekviena valanda –{" "}
               <span className="rounded-lg bg-navy px-3">apskaityta.</span>
             </h1>
-            <p className="mb-9 max-w-[540px] text-lg leading-relaxed sm:text-xl">
+            <p className="mb-7 max-w-[540px] text-lg leading-relaxed sm:mb-9 sm:text-xl">
               Planuokite darbus objektuose, leiskite darbuotojams telefone žymėti laiką ir užsakyti medžiagas. Be Excel lentelių ir skambučių.
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/registracija" className="rounded-xl bg-white px-7 py-4 text-lg font-semibold text-navy hover:bg-surface">Išbandyti DarboRitmą</Link>
-              <a href="#funkcijos" className="rounded-xl border-2 border-white px-7 py-3.5 text-lg font-semibold text-white hover:bg-white/10">Kaip veikia</a>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
+              <Link href="/registracija" className="rounded-xl bg-white px-7 py-4 text-center text-lg font-semibold text-navy hover:bg-surface">Išbandyti DarboRitmą</Link>
+              <a href="#funkcijos" className="rounded-xl border-2 border-white px-7 py-3.5 text-center text-lg font-semibold text-white hover:bg-white/10">Kaip veikia</a>
             </div>
           </div>
 
-          <div className="box-border flex flex-[1_1_420px] items-center bg-brand-red px-5 py-16 sm:px-14 sm:py-20">
-            <div aria-hidden className="w-full rounded-2xl border-[3px] border-navy bg-white p-6 shadow-[10px_10px_0_#0B1B3F]">
+          <div className="box-border flex flex-[1_1_420px] items-center bg-brand-red px-5 py-12 sm:px-14 sm:py-20">
+            <div aria-hidden className="w-full mr-2.5 rounded-2xl border-[3px] border-navy bg-white p-5 shadow-[8px_8px_0_#0B1B3F] sm:mr-0 sm:p-6 sm:shadow-[10px_10px_0_#0B1B3F]">
               <div className="mb-4 flex justify-between text-sm font-bold text-muted"><span>Pr</span><span>An</span><span>Tr</span><span>Kt</span><span>Pn</span></div>
               <div className="space-y-3">
                 {bars.map((b) => (
@@ -63,11 +63,11 @@ export default function Landing() {
         <Pricing />
 
         <section className="flex flex-wrap text-white">
-          <div className="box-border flex flex-[1_1_480px] items-center bg-accent px-5 py-16 sm:px-14 sm:py-[72px]">
-            <h2 className="max-w-[640px] font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-[44px]">Sudėliokite komandos darbus į vieną ritmą.</h2>
+          <div className="box-border flex flex-[1_1_480px] items-center bg-accent px-5 py-12 sm:px-14 sm:py-[72px]">
+            <h2 className="max-w-[640px] font-display text-3xl font-bold leading-[1.08] tracking-tight sm:text-[44px]">Sudėliokite komandos darbus į vieną ritmą.</h2>
           </div>
-          <div className="box-border flex flex-[1_1_360px] items-center bg-brand-red px-5 py-14 sm:px-14 sm:py-[72px]">
-            <Link href="/registracija" className="rounded-xl bg-white px-8 py-[18px] text-lg font-semibold text-navy hover:bg-surface">Išbandyti DarboRitmą</Link>
+          <div className="box-border flex flex-[1_1_360px] items-center bg-brand-red px-5 py-10 sm:px-14 sm:py-[72px]">
+            <Link href="/registracija" className="w-full rounded-xl bg-white px-8 py-[18px] text-center text-lg font-semibold text-navy hover:bg-surface sm:w-auto">Išbandyti DarboRitmą</Link>
           </div>
         </section>
       </main>

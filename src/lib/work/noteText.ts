@@ -21,7 +21,7 @@ export function composeNote(rows: NoteRow[], extra: string): { body: string } | 
   }
   const text = extra.trim();
   const body = [...lines, ...(text ? [text] : [])].join("\n");
-  if (!body) return { error: "Įrašykite medžiagą arba pastabą prieš siųsdami." };
+  if (!body) return { error: "Įrašykite pastabą prieš siųsdami." };
   if (body.length > NOTE_MAX) return { error: "Pastaba per ilga. Sutrumpinkite arba siųskite dalimis." };
   return { body };
 }

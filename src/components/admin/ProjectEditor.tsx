@@ -13,7 +13,7 @@ export default function ProjectEditor({ project }: { project: ProjectRow }) {
     return <button onClick={() => setOpen(true)} className={`${ghostBtn} flex w-full items-center justify-center gap-2`}><Pencil size={18} aria-hidden /> Redaguoti objektą ir klientą</button>;
   }
   return (
-    <div className="rounded-card bg-white p-5 shadow-card">
+    <div className="rounded-card bg-white p-4 shadow-card sm:p-5">
       <ProjectForm
         initial={{ name: project.name, address: project.address ?? "", orderNo: project.orderNo ?? "", notes: project.notes ?? "", clientName: project.clientName ?? "", clientPhone: project.clientPhone ?? "", clientEmail: project.clientEmail ?? "" }}
         submitLabel="Išsaugoti"

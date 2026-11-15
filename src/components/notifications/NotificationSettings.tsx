@@ -85,45 +85,32 @@ export default function NotificationSettings({ isAdmin }: { isAdmin: boolean }) 
         </p>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[20rem] text-left text-sm">
-          <thead>
-            <tr className="border-b border-black/10">
-              <th scope="col" className="py-2 pr-4 font-semibold">Pranešimas</th>
-              {channels.map((c) => (
-                <th key={c.id} scope="col" className="px-2 py-2 text-center font-semibold">{c.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((e) => (
-              <tr key={e} className="border-b border-black/10">
-                <th scope="row" className="py-3 pr-4 font-normal">
-                  <span className="block font-semibold">{eventDef(e).label}</span>
-                  <span className="block text-xs text-muted">{eventDef(e).description}</span>
-                </th>
-                {channels.map((c) => {
-                  const usable = connected.has(c.id);
-                  return (
-                    <td key={c.id} className="px-2 py-1 text-center">
-                      <label className="flex min-h-11 min-w-11 items-center justify-center">
-                        <input
-                          type="checkbox"
-                          className="h-6 w-6 accent-accent disabled:opacity-30"
-                          checked={usable && isOn(e, c.id)}
-                          disabled={!usable}
-                          onChange={() => toggle(e, c.id)}
-                          aria-label={`${eventDef(e).label}: ${c.label}`}
-                        />
-                      </label>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ul className="space-y-3">
+        {events.map((e) => (
+          <li key={e} className="rounded-2xl border border-black/10 p-3">
+            <p className="font-semibold">{eventDef(e).label}</p>
+            <p className="text-sm text-muted">{eventDef(e).description}</p>
+            <div className="mt-1 divide-y divide-black/5">
+              {channels.map((c) => {
+                const usable = connected.has(c.id);
+                return (
+                  <label key={c.id} className={`flex min-h-12 items-center justify-between gap-3 ${usable ? "" : "opacity-50"}`}>
+                    <span>{c.label}{!usable && <span className="ml-2 text-xs text-muted">neprijungta</span>}</span>
+                    <input
+                      type="checkbox"
+                      className="h-6 w-6 shrink-0 accent-accent disabled:opacity-30"
+                      checked={usable && isOn(e, c.id)}
+                      disabled={!usable}
+                      onChange={() => toggle(e, c.id)}
+                      aria-label={`${eventDef(e).label}: ${c.label}`}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </li>
+        ))}
+      </ul>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset>
@@ -135,12 +122,12 @@ export default function NotificationSettings({ isAdmin }: { isAdmin: boolean }) 
             <input type="time" value={quietStart} aria-label="Tylos valandų pradžia"
               onChange={(ev) => setQuietStart(ev.target.value)}
               onBlur={() => saveSettings({ quiet_start: quietStart || null })}
-              className={field} />
+              className={`${field} min-w-0 flex-1`} />
             <span aria-hidden>–</span>
             <input type="time" value={quietEnd} aria-label="Tylos valandų pabaiga"
               onChange={(ev) => setQuietEnd(ev.target.value)}
               onBlur={() => saveSettings({ quiet_end: quietEnd || null })}
-              className={field} />
+              className={`${field} min-w-0 flex-1`} />
           </div>
         </fieldset>
 
@@ -150,7 +137,7 @@ export default function NotificationSettings({ isAdmin }: { isAdmin: boolean }) 
             <p className="mb-2 text-xs text-muted">Naudojamas, jei pranešimo nepavyko pristatyti pasirinktu kanalu.</p>
             <select id="fallback" value={fallback}
               onChange={(ev) => { setFallback(ev.target.value); saveSettings({ fallback_channel: ev.target.value || null }); }}
-              className={field}>
+              className={`${field} w-full`}>
               <option value="">Nenaudoti</option>
               {external.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>

@@ -59,7 +59,7 @@ function EntryRow({ e, userId, projects, locked, onMsg }: { e: TimeRow; userId: 
     });
   };
   return (
-    <li className="rounded-card bg-white p-5 shadow-card">
+    <li className="rounded-card bg-white p-4 shadow-card sm:p-5">
       {editing ? (
         <EntryForm userId={userId} entry={e} projects={projects} defaultDay={toLocalInput(e.startedAt).slice(0, 10)} onDone={(m) => { setEditing(false); if (m) onMsg(m); }} />
       ) : (
@@ -91,12 +91,12 @@ export default function TimeAdmin({ userId, entries, defaultDay, projects, appro
   const splitRows = [...byProject.entries()].sort((a, b) => b[1] - a[1]);
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline justify-between rounded-card bg-white p-5 shadow-card">
+      <div className="flex items-baseline justify-between rounded-card bg-white p-4 shadow-card sm:p-5">
         <span>Iš viso per mėnesį</span>
         <strong>{formatDuration(total)}</strong>
       </div>
       {showSplit && (
-        <section aria-label="Laikas pagal objektą" className="rounded-card bg-white p-5 shadow-card">
+        <section aria-label="Laikas pagal objektą" className="rounded-card bg-white p-4 shadow-card sm:p-5">
           <h3 className="mb-2 font-bold">Pagal objektą</h3>
           <ul className="space-y-1.5">
             {splitRows.map(([id, minutes]) => (
@@ -116,7 +116,7 @@ export default function TimeAdmin({ userId, entries, defaultDay, projects, appro
         </p>
       )}
       {adding && !locked ? (
-        <section className="rounded-card bg-white p-5 shadow-card">
+        <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
           <EntryForm userId={userId} entry={null} projects={projects} defaultDay={defaultDay} onDone={(m) => { setAdding(false); setMsg(m); }} />
         </section>
       ) : locked ? null : (

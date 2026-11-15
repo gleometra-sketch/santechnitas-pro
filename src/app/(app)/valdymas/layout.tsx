@@ -13,7 +13,7 @@ export default async function ValdymasLayout({ children }: { children: React.Rea
   const stale = await getStaleEntries(ctx);
   return (
     <div className="space-y-5">
-      <h1 className="text-3xl font-extrabold">Valdymas</h1>
+      <h1 className="text-2xl font-extrabold sm:text-3xl">Valdymas</h1>
       <AdminTabs />
       <StaleAlert entries={stale} />
       {children}

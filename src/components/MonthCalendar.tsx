@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { MONTHS, WEEKDAYS_SHORT, addDays, longDayLabel, monthGrid, parseKey, weekStart } from "@/lib/dates";
 import type { TaskView } from "@/lib/work/types";
@@ -11,6 +11,11 @@ export default function MonthCalendar({ today, tasks }: { today: string; tasks: 
   const [mode, setMode] = useState<"month" | "week">("month");
   const [view, setView] = useState({ year: ty, month: tm });
   const [selected, setSelected] = useState(today);
+
+  // Telefone numatytasis vaizdas – savaitė (mėnesio tinklelis ten per smulkus ir aukštas).
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 639px)").matches) setMode("week");
+  }, []);
 
   const byDay = new Map<string, TaskView[]>();
   for (const t of tasks) if (t.date) byDay.set(t.date, [...(byDay.get(t.date) ?? []), t]);
@@ -35,20 +40,18 @@ export default function MonthCalendar({ today, tasks }: { today: string; tasks: 
   const [wy, wm] = parseKey(wk);
   const title = mode === "month" ? `${MONTHS[view.month - 1]} ${view.year}` : `${MONTHS[wm - 1]} ${wy}`;
 
-  const btn = "flex h-12 items-center justify-center rounded-2xl border border-black/10 bg-white";
+  const btn = "flex h-11 items-center justify-center rounded-2xl border border-black/10 bg-white";
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-extrabold">Kalendorius</h1>
-          <p className="mt-1 font-semibold">{title}</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={goPrev} aria-label={mode === "month" ? "Ankstesnis mėnuo" : "Ankstesnė savaitė"} className={`${btn} w-12`}><ChevronLeft aria-hidden /></button>
-          <button onClick={goToday} className={`${btn} px-4 font-semibold`}>Šiandien</button>
-          <button onClick={goNext} aria-label={mode === "month" ? "Kitas mėnuo" : "Kita savaitė"} className={`${btn} w-12`}><ChevronRight aria-hidden /></button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-extrabold sm:text-3xl">Kalendorius</h1>
+        <p className="truncate font-semibold">{title}</p>
+      </div>
+      <div className="grid grid-cols-[3rem_1fr_3rem] gap-2">
+        <button onClick={goPrev} aria-label={mode === "month" ? "Ankstesnis mėnuo" : "Ankstesnė savaitė"} className={btn}><ChevronLeft aria-hidden /></button>
+        <button onClick={goToday} className={`${btn} font-semibold`}>Šiandien</button>
+        <button onClick={goNext} aria-label={mode === "month" ? "Kitas mėnuo" : "Kita savaitė"} className={btn}><ChevronRight aria-hidden /></button>
       </div>
 
       <div role="tablist" aria-label="Kalendoriaus vaizdas" className="grid grid-cols-2 gap-1 rounded-2xl bg-black/5 p-1">
@@ -70,23 +73,21 @@ export default function MonthCalendar({ today, tasks }: { today: string; tasks: 
                 const [, m, d] = parseKey(k);
                 const list = byDay.get(k) ?? [];
                 const isSel = k === selected;
+                const open = list.filter((t) => t.status !== "done").length;
+                const finished = list.length - open;
                 return (
                   <button
                     key={k}
                     onClick={() => setSelected(k)}
                     aria-label={`${longDayLabel(k)}${list.length ? `, darbų: ${list.length}` : ""}`}
                     aria-pressed={isSel}
-                    className={`relative min-h-[4.5rem] border-b border-r border-black/5 p-1.5 text-left ${isSel ? "bg-accent-soft" : ""}`}
+                    className={`flex h-12 flex-col items-center justify-center gap-1 border-b border-r border-black/5 ${isSel ? "bg-accent-soft" : ""}`}
                   >
-                    <span className={`text-base ${k === today ? "font-bold text-accent" : m === view.month ? "text-ink/70" : "text-ink/30"}`}>{d}</span>
-                    {list.length > 0 && (
-                      <>
-                        <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-bold text-white">{list.length}</span>
-                        <span className="mt-1.5 block space-y-1">
-                          {list.slice(0, 2).map((t) => <span key={t.id} className={`block h-1.5 rounded-full ${t.status === "done" ? "bg-go" : "bg-muted/70"}`} />)}
-                        </span>
-                      </>
-                    )}
+                    <span className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-base leading-none ${k === today ? "bg-accent font-bold text-white" : m === view.month ? "text-ink/80" : "text-ink/30"}`}>{d}</span>
+                    <span aria-hidden className="flex h-1.5 items-center gap-0.5">
+                      {Array.from({ length: Math.min(open, 3) }, (_, i) => <span key={`o${i}`} className="h-1.5 w-1.5 rounded-full bg-accent" />)}
+                      {Array.from({ length: Math.min(finished, Math.max(0, 3 - open)) }, (_, i) => <span key={`d${i}`} className="h-1.5 w-1.5 rounded-full bg-go" />)}
+                    </span>
                   </button>
                 );
               })}
@@ -102,7 +103,7 @@ export default function MonthCalendar({ today, tasks }: { today: string; tasks: 
           </section>
         </>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {weekDays.map((k) => {
             const list = byDay.get(k) ?? [];
             return (

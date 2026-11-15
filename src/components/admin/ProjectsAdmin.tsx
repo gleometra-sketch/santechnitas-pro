@@ -61,7 +61,7 @@ function ProjectCard({ p }: { p: ProjectRow }) {
       setMsg(r.ok ? null : { ok: false, text: r.error });
     });
   return (
-    <li className={`rounded-card bg-white p-5 shadow-card ${p.archived ? "opacity-70" : ""}`}>
+    <li className={`rounded-card bg-white p-4 shadow-card sm:p-5 ${p.archived ? "opacity-70" : ""}`}>
       {editing ? (
         <ProjectForm initial={{ name: p.name, address: p.address ?? "", orderNo: p.orderNo ?? "", notes: p.notes ?? "", clientName: p.clientName ?? "", clientPhone: p.clientPhone ?? "", clientEmail: p.clientEmail ?? "" }} submitLabel="Išsaugoti" onSubmit={(f) => updateProject(p.id, f)} onCancel={() => setEditing(false)} />
       ) : (
@@ -94,7 +94,7 @@ export default function ProjectsAdmin({ projects }: { projects: ProjectRow[] }) 
   const archived = projects.filter((p) => p.archived);
   return (
     <div className="space-y-5">
-      <section className="rounded-card bg-white p-5 shadow-card">
+      <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
         <details>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold"><Plus size={22} aria-hidden /> Naujas objektas</summary>
           <div className="mt-3"><ProjectForm initial={blank} submitLabel="Sukurti objektą" onSubmit={(f) => createProject(f)} /></div>

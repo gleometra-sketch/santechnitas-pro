@@ -72,7 +72,7 @@ export default async function MedziagosPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-5">
-      <h1 className="text-3xl font-extrabold">Medžiagos</h1>
+      <h1 className="text-2xl font-extrabold sm:text-3xl">Medžiagos</h1>
 
       <section aria-label="Suvestinė" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {cards.map((c) => (
@@ -98,7 +98,7 @@ export default async function MedziagosPage({ searchParams }: { searchParams: Pr
         ))}
       </nav>
 
-      <details open={filtered} className="rounded-card bg-white p-5 shadow-card">
+      <details open={filtered} className="rounded-card bg-white p-4 shadow-card sm:p-5">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-bold">
           <SlidersHorizontal size={20} aria-hidden /> Filtrai{filtered && <span className="rounded-full bg-accent-soft px-2 text-sm text-accent-dark">įjungti</span>}
         </summary>

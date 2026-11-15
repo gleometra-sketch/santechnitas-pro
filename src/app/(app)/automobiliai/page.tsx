@@ -11,7 +11,7 @@ export default async function AutomobiliaiPage() {
   const { cars, error } = await getCarsResult(ctx);
   return (
     <div className="space-y-4">
-      <h1 className="text-3xl font-extrabold">Automobiliai</h1>
+      <h1 className="text-2xl font-extrabold sm:text-3xl">Automobiliai</h1>
       {error ? (
         <p role="alert" className="rounded-2xl bg-red-50 p-4 font-medium text-danger">
           {admin

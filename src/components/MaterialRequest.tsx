@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { PackagePlus, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import MaterialLine from "@/components/MaterialLine";
 import { createMaterialRequest } from "@/lib/work/actions";
 import { UNITS, type MaterialRequestView } from "@/lib/work/types";
@@ -39,12 +39,8 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
   };
 
   return (
-    <section className="rounded-card bg-white p-5 shadow-card">
-      <details>
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold">
-          <PackagePlus size={22} aria-hidden /> Reikalingos medžiagos
-        </summary>
-        <div className="mt-3 space-y-3">
+    <div>
+      <div className="space-y-3">
           {rows.map((r, idx) => (
             <MaterialLine
               key={r.key}
@@ -96,8 +92,7 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
               </ul>
             </div>
           )}
-        </div>
-      </details>
-    </section>
+      </div>
+    </div>
   );
 }

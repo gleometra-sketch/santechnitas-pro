@@ -26,7 +26,7 @@ export default async function ObjektoKortele({ params }: { params: Promise<{ id:
     getProjectHours(ctx, id),
   ]);
   const missing = materials.filter((m) => !m.purchased);
-  const card = "rounded-card bg-white p-5 shadow-card";
+  const card = "rounded-card bg-white p-4 shadow-card sm:p-5";
   const h2 = "mb-3 flex items-center gap-2 text-lg font-bold";
 
   return (

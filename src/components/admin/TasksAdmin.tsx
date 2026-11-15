@@ -54,7 +54,7 @@ function NewTask({ projects, assignees }: { projects: Option[]; assignees: Optio
       } else setMsg({ ok: false, text: r.error });
     });
   return (
-    <section className="rounded-card bg-white p-5 shadow-card">
+    <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
       <details>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold"><Plus size={22} aria-hidden /> Naujas darbas</summary>
         <div className="mt-3 space-y-3">
@@ -100,7 +100,7 @@ function TaskCard({ t, projects, assignees }: { t: AdminTask; projects: Option[]
   };
 
   return (
-    <li className={`rounded-card bg-white p-5 shadow-card ${t.status === "done" ? "opacity-80" : ""}`}>
+    <li className={`rounded-card bg-white p-4 shadow-card sm:p-5 ${t.status === "done" ? "opacity-80" : ""}`}>
       {editing ? (
         <div className="space-y-3">
           <TaskFields f={f} set={(p) => setF((x) => ({ ...x, ...p }))} projects={projects} assignees={assignees} />

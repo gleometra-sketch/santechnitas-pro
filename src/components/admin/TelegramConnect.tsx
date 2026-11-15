@@ -27,7 +27,7 @@ export default function TelegramConnect({ connected, username, categories }: Pro
     });
 
   return (
-    <section className="space-y-4 rounded-card bg-white p-5 shadow-card">
+    <section className="space-y-4 rounded-card bg-white p-4 shadow-card sm:p-5">
       <div>
         <h2 className="text-xl font-extrabold">Telegram pranešimai</h2>
         <p className="mt-1 text-muted">Gaukite pranešimus telefone, kai darbuotojai pateikia medžiagų poreikį, pastabą ar pradeda / baigia darbą.</p>

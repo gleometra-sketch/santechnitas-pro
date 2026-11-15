@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCheck, MapPin, Navigation, Phone, User } from "lucide-react";
+import { Check, CheckCheck, ChevronDown, MapPin, Navigation, Phone, RotateCcw, User } from "lucide-react";
 import FileUploader from "@/components/FileUploader";
 import { moveTask, setTaskStatus, toggleChecklistItem } from "@/lib/work/actions";
 import type { ActionResult, TaskView } from "@/lib/work/types";
 
+const phoneHref = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;
+const mapHref = (a: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}`;
+const iconBtn = "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white text-accent-dark";
+
 export default function TaskCard({ task, today }: { task: TaskView; today: string }) {
+  const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [date, setDate] = useState(task.date ?? today);
@@ -22,29 +27,62 @@ export default function TaskCard({ task, today }: { task: TaskView; today: strin
 
   return (
     <article className={`rounded-card bg-white shadow-card ${isDone ? "opacity-75" : ""}`}>
-      <details>
-        <summary className="cursor-pointer list-none rounded-card p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-xl font-bold">{task.title}</h3>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`task-${task.id}`}
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-start gap-3 rounded-card p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex items-start justify-between gap-2">
+            <span className="text-lg font-bold leading-snug">{task.title}</span>
             {isDone && <span className="shrink-0 rounded-full bg-go-soft px-2 py-0.5 text-sm font-semibold text-go-dark">Atlikta</span>}
-          </div>
+          </span>
           {task.address && (
-            <p className="mt-1 flex items-start gap-2 text-muted">
-              <MapPin size={18} className="mt-1 shrink-0 text-danger" aria-hidden />
+            <span className="mt-1 flex items-start gap-1.5 text-sm text-muted">
+              <MapPin size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden />
               {task.address}
-            </p>
+            </span>
           )}
-          <p className="mt-3 flex items-center gap-3 text-muted">
-            {task.items.length > 0 && (
-              <span className="flex items-center gap-1.5">
-                <CheckCheck size={18} aria-hidden /> {done}/{task.items.length}
-              </span>
-            )}
-            {task.orderNo && <span>{task.orderNo}</span>}
-          </p>
-        </summary>
+          {(task.items.length > 0 || task.orderNo) && (
+            <span className="mt-2 flex items-center gap-3 text-sm text-muted">
+              {task.items.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <CheckCheck size={16} aria-hidden /> {done}/{task.items.length}
+                </span>
+              )}
+              {task.orderNo && <span>{task.orderNo}</span>}
+            </span>
+          )}
+        </span>
+        <ChevronDown size={22} aria-hidden className={`mt-1 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
 
-        <div className="space-y-4 border-t border-black/10 p-5">
+      {/* Greiti veiksmai matomi ir sulankstytoje kortelėje */}
+      <div className="flex gap-2 px-4 pb-4">
+        <button
+          disabled={pending}
+          onClick={() => run(() => setTaskStatus(task.id, isDone ? "planned" : "done"))}
+          className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl font-semibold disabled:opacity-60 ${isDone ? "border border-black/15" : "bg-go text-white"}`}
+        >
+          {isDone ? <><RotateCcw size={18} aria-hidden /> Grąžinti</> : <><Check size={20} aria-hidden /> Atlikta</>}
+        </button>
+        {task.address && (
+          <a href={mapHref(task.address)} target="_blank" rel="noopener noreferrer" aria-label="Atidaryti žemėlapyje" className={iconBtn}>
+            <Navigation size={20} aria-hidden />
+          </a>
+        )}
+        {task.clientPhone && (
+          <a href={phoneHref(task.clientPhone)} aria-label={`Skambinti klientui: ${task.clientPhone}`} className={iconBtn}>
+            <Phone size={20} aria-hidden />
+          </a>
+        )}
+      </div>
+      {msg && <p role={msg.ok ? "status" : "alert"} className={`-mt-1 px-4 pb-4 font-medium ${msg.ok ? "text-go-dark" : "text-danger"}`}>{msg.text}</p>}
+
+      {open && (
+        <div id={`task-${task.id}`} className="space-y-4 border-t border-black/10 p-4">
           {task.description && <p className="whitespace-pre-line">{task.description}</p>}
 
           {(task.clientName || task.clientPhone) && (
@@ -52,7 +90,7 @@ export default function TaskCard({ task, today }: { task: TaskView; today: strin
               <p className="flex items-center gap-2 text-sm text-muted"><User size={16} aria-hidden /> Klientas</p>
               {task.clientName && <p className="font-semibold">{task.clientName}</p>}
               {task.clientPhone && (
-                <a href={`tel:${task.clientPhone.replace(/[^\d+]/g, "")}`} className="mt-1 inline-flex min-h-11 items-center gap-2 font-semibold text-accent-dark">
+                <a href={phoneHref(task.clientPhone)} className="mt-1 inline-flex min-h-11 items-center gap-2 font-semibold text-accent-dark">
                   <Phone size={18} aria-hidden /> {task.clientPhone}
                 </a>
               )}
@@ -69,24 +107,13 @@ export default function TaskCard({ task, today }: { task: TaskView; today: strin
                       checked={i.isDone}
                       disabled={pending}
                       onChange={(e) => run(() => toggleChecklistItem(i.id, e.target.checked))}
-                      className="h-6 w-6 accent-[#5bb365]"
+                      className="h-6 w-6 shrink-0 accent-[#5bb365]"
                     />
                     <span className={i.isDone ? "text-muted line-through" : ""}>{i.title}</span>
                   </label>
                 </li>
               ))}
             </ul>
-          )}
-
-          {task.address && (
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(task.address)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-black/10 font-semibold"
-            >
-              <Navigation size={18} aria-hidden /> Atidaryti žemėlapyje
-            </a>
           )}
 
           <div>
@@ -106,44 +133,35 @@ export default function TaskCard({ task, today }: { task: TaskView; today: strin
             <FileUploader companyId={task.companyId} projectId={task.projectId} taskId={task.id} accept="image/*" label="Pridėti nuotrauką" photo />
           </div>
 
-          <div className="flex gap-3">
-            <button
-              disabled={pending}
-              onClick={() => run(() => setTaskStatus(task.id, isDone ? "planned" : "done"))}
-              className={`min-h-12 flex-1 rounded-2xl font-semibold disabled:opacity-60 ${isDone ? "border border-black/15" : "bg-go text-white"}`}
-            >
-              {isDone ? "Grąžinti į vykdomus" : "Pažymėti atlikta"}
-            </button>
-          </div>
-
-          <div>
-            <label htmlFor={`d-${task.id}`} className="block text-sm font-medium text-muted">Perkelti darbą į kitą dieną</label>
-            <div className="mt-1 flex gap-2">
-              <input
-                id={`d-${task.id}`}
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="min-h-12 min-w-0 flex-1 rounded-2xl border border-black/15 px-3"
-              />
-              <button
-                disabled={pending || !date}
-                onClick={() => run(() => moveTask(task.id, date))}
-                className="min-h-12 rounded-2xl bg-accent px-4 font-semibold text-white disabled:opacity-60"
-              >
-                Perkelti
-              </button>
+          <details className="rounded-2xl border border-black/10">
+            <summary className="flex min-h-12 cursor-pointer items-center px-3 font-semibold text-muted">Perkelti į kitą dieną</summary>
+            <div className="border-t border-black/10 p-3">
+              <label htmlFor={`d-${task.id}`} className="sr-only">Nauja data</label>
+              <div className="flex gap-2">
+                <input
+                  id={`d-${task.id}`}
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="min-h-12 min-w-0 flex-1 rounded-2xl border border-black/15 px-3"
+                />
+                <button
+                  disabled={pending || !date}
+                  onClick={() => run(() => moveTask(task.id, date))}
+                  className="min-h-12 rounded-2xl bg-accent px-4 font-semibold text-white disabled:opacity-60"
+                >
+                  Perkelti
+                </button>
+              </div>
+              {task.date && (
+                <button disabled={pending} onClick={() => run(() => moveTask(task.id, null))} className="mt-2 min-h-11 text-sm font-semibold text-accent-dark underline">
+                  Pašalinti datą
+                </button>
+              )}
             </div>
-            {task.date && (
-              <button disabled={pending} onClick={() => run(() => moveTask(task.id, null))} className="mt-2 min-h-11 text-sm font-semibold text-accent-dark underline">
-                Pašalinti datą
-              </button>
-            )}
-          </div>
-
-          {msg && <p role={msg.ok ? "status" : "alert"} className={`font-medium ${msg.ok ? "text-go-dark" : "text-danger"}`}>{msg.text}</p>}
+          </details>
         </div>
-      </details>
+      )}
     </article>
   );
 }

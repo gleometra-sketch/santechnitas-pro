@@ -20,7 +20,7 @@ export default async function ValandosPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-5">
-      <h1 className="text-3xl font-extrabold">Valandos</h1>
+      <h1 className="text-2xl font-extrabold sm:text-3xl">Valandos</h1>
       <WorkClock compact status={work.status} workedMsAtRender={work.workedMsAtRender} todayMinutes={work.todayMinutes} mode={work.mode} projects={work.projects} projectId={work.projectId} defaultProjectId={work.defaultProjectId} startedAt={work.startedAt} stale={work.stale} />
 
       <div className="grid grid-cols-2 gap-3">
@@ -44,7 +44,7 @@ export default async function ValandosPage({ searchParams }: { searchParams: Pro
         )}
       </div>
 
-      <section className="rounded-card bg-white p-5 shadow-card">
+      <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
         <div className="flex items-baseline justify-between gap-3">
           <span>Iš viso per mėnesį</span>
           <strong>{formatDuration(month.totalMinutes)}</strong>
@@ -55,7 +55,7 @@ export default async function ValandosPage({ searchParams }: { searchParams: Pro
       <section className="space-y-3">
         {month.days.length === 0 && <p className="text-muted">Šį mėnesį darbo laiko įrašų nėra.</p>}
         {month.days.map((d) => (
-          <div key={d.date} className="flex items-center justify-between rounded-card bg-white p-5 shadow-card">
+          <div key={d.date} className="flex items-center justify-between rounded-card bg-white p-4 shadow-card sm:p-5">
             <div>
               <p className="font-semibold">{shortDay(d.date)}</p>
               <p className="text-muted">{d.start}–{d.end ?? "vyksta"}</p>

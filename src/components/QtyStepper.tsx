@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import { stepQty } from "@/lib/work/qty";
 
-const arrow = "flex h-9 w-full items-center justify-center rounded-lg border border-black/15 bg-white text-ink active:bg-accent-soft disabled:opacity-30";
+const btn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/15 bg-white text-ink active:bg-accent-soft disabled:opacity-30";
 
-/** Kiekis su rodyklėmis: ▲ virš skaičiaus, ▼ po juo. Skaičių vis tiek galima įrašyti ranka. */
+/** Kiekis su „−“ ir „+“ vienoje eilutėje (~44 px aukščio). Skaičių vis tiek galima įrašyti ranka. */
 export default function QtyStepper({
   value,
   onChange,
@@ -16,7 +16,7 @@ export default function QtyStepper({
 }: {
   value: string;
   onChange: (text: string) => void; // žmogus rašo ranka
-  onStep: (next: string) => void; // paspaustos rodyklės
+  onStep: (next: string) => void; // paspaustas „−“ arba „+“
   onCommit?: () => void; // laukas prarado fokusą / Enter
   label?: string;
   disabled?: boolean;
@@ -24,9 +24,9 @@ export default function QtyStepper({
   const up = stepQty(value, 1);
   const down = stepQty(value, -1);
   return (
-    <div className="flex w-20 shrink-0 flex-col items-stretch gap-1">
-      <button type="button" disabled={disabled || up === null} onClick={() => up && onStep(up)} aria-label={`${label}: padidinti`} className={arrow}>
-        <ChevronUp size={20} aria-hidden />
+    <div className="flex shrink-0 items-center gap-1.5">
+      <button type="button" disabled={disabled || down === null} onClick={() => down && onStep(down)} aria-label={`${label}: sumažinti`} className={btn}>
+        <Minus size={18} aria-hidden />
       </button>
       <input
         aria-label={label}
@@ -38,10 +38,10 @@ export default function QtyStepper({
         onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
         onFocus={(e) => e.currentTarget.select()}
         placeholder="0"
-        className="h-11 w-full min-w-0 rounded-lg border border-black/15 bg-white px-1 text-center text-lg font-extrabold tabular-nums focus:border-accent focus:outline-none"
+        className="h-11 w-16 min-w-0 rounded-xl border border-black/15 bg-white px-1 text-center text-lg font-extrabold tabular-nums focus:border-accent focus:outline-none"
       />
-      <button type="button" disabled={disabled || down === null} onClick={() => down && onStep(down)} aria-label={`${label}: sumažinti`} className={arrow}>
-        <ChevronDown size={20} aria-hidden />
+      <button type="button" disabled={disabled || up === null} onClick={() => up && onStep(up)} aria-label={`${label}: padidinti`} className={btn}>
+        <Plus size={18} aria-hidden />
       </button>
     </div>
   );

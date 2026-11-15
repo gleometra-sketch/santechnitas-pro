@@ -18,3 +18,7 @@ Lentelės `material_requests` ir `material_request_items` (migracijos 0004, 0006
 ## Apribojimai
 - Rodoma iki 500 naujausių įrašų (siaurinkite filtrais).
 - Atskiro „įgalioto biuro darbuotojo“ vaidmens nėra: teisės priklauso nuo `owner`/`admin`.
+
+## Pastaba → medžiagos
+
+Darbuotojo pastaba biurui yra tik tekstas. Medžiagų skiltyje prie neatliktos pastabos paspaudus „Į medžiagas“, kiekviena pastabos eilutė tampa medžiagos eilute; administratorius nurodo kiekį ir vienetą ir išsaugo. Medžiagos priskiriamos pastabos autoriui (ir objektui, jei toks nurodytas), o pastaba pažymima atlikta (`addMaterialsFromNote` faile `src/lib/work/actions.ts`).

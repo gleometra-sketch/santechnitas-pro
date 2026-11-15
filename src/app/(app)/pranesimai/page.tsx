@@ -9,7 +9,7 @@ export default async function PranesimaiPage() {
   const admin = isAdmin(ctx.role);
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-extrabold">Pranešimai</h1>
+      <h1 className="text-2xl font-extrabold sm:text-3xl">Pranešimai</h1>
       {admin && (
         <p className="rounded-2xl bg-white p-4 text-sm shadow-card">
           Telegram pranešimus (medžiagos, pastabos, darbo pradžia, automobiliai) prijungiate skiltyje{" "}

@@ -14,3 +14,7 @@ button, a, input, textarea { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Telefonas: niekada nesiplėsti į šoną; datos / laiko laukai (ypač iOS) neišlenda iš kortelės. */
+body { overflow-x: clip; }
+input[type="date"], input[type="datetime-local"], input[type="time"] { min-width: 0; max-width: 100%; }

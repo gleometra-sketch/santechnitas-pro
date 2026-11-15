@@ -4,14 +4,14 @@ import { PLANS } from "@/lib/plans";
 export default function Pricing() {
   return (
     <section id="kainos" className="scroll-mt-4 bg-surface">
-      <div className="mx-auto max-w-[1200px] px-5 py-20 sm:px-8 sm:py-24">
-        <h2 className="font-display text-4xl font-bold tracking-tight sm:text-[44px]">Abonementai</h2>
-        <p className="mb-12 mt-3 max-w-2xl text-lg text-muted">14 dienų išbandykite nemokamai, be banko kortelės. Mokėkite kas mėnesį ir planą keiskite bet kada.</p>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-stretch gap-6">
+      <div className="mx-auto max-w-[1200px] px-5 py-14 sm:px-8 sm:py-24">
+        <h2 className="font-display text-3xl font-bold tracking-tight sm:text-[44px]">Abonementai</h2>
+        <p className="mb-8 mt-3 sm:mb-12 max-w-2xl text-lg text-muted">14 dienų išbandykite nemokamai, be banko kortelės. Mokėkite kas mėnesį ir planą keiskite bet kada.</p>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] items-stretch gap-6">
           {PLANS.map((p) => (
             <div
               key={p.id}
-              className={`flex flex-col rounded-2xl border-2 border-navy p-8 ${p.highlight ? "bg-navy text-white shadow-[10px_10px_0_#D92D20]" : "bg-white"}`}
+              className={`flex flex-col rounded-2xl border-2 border-navy p-6 sm:p-8 ${p.highlight ? "bg-navy text-white shadow-[6px_6px_0_#D92D20] sm:shadow-[10px_10px_0_#D92D20]" : "bg-white"}`}
             >
               <h3 className="mb-2 font-display text-[26px] font-bold">{p.name}</h3>
               <div className="mb-6 font-display text-[40px] font-bold leading-tight">

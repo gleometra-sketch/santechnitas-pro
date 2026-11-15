@@ -9,7 +9,7 @@ export default function PrivacyPage() {
       <p className="rounded-2xl bg-accent-soft p-3 text-sm">
         Šablonas. Prieš paleidžiant programą klientams įrašykite duomenų valdytojo rekvizitus ir peržiūrėkite tekstą su teisininku.
       </p>
-      <h1 className="text-3xl font-extrabold">Privatumo politika</h1>
+      <h1 className="text-2xl font-extrabold sm:text-3xl">Privatumo politika</h1>
       <h2 className="text-xl font-bold">Kokius duomenis saugome</h2>
       <p>Vardą, el. paštą, įmonės pavadinimą, darbo laiko įrašus, pertraukas, objektų adresus, pastabas, jūsų įkeltus failus (nuotraukas, balso įrašus) ir mokėjimų istoriją.</p>
       <h2 className="text-xl font-bold">Kam jų reikia</h2>

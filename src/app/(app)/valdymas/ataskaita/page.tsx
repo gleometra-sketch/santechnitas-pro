@@ -33,7 +33,7 @@ export default async function AtaskaitaPage({ searchParams }: { searchParams: Pr
 
       <section aria-label="Suvestinė" className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-white p-4 shadow-card">
-          <p className="text-3xl font-extrabold">{formatDuration(report.totalMinutes)}</p>
+          <p className="text-2xl font-extrabold sm:text-3xl">{formatDuration(report.totalMinutes)}</p>
           <p className="mt-1 text-sm text-muted">Valandos iš viso</p>
         </div>
         <div className="rounded-2xl bg-white p-4 shadow-card">
@@ -65,7 +65,7 @@ export default async function AtaskaitaPage({ searchParams }: { searchParams: Pr
 
       <ul className="space-y-3">
         {report.rows.map((r) => (
-          <li key={r.userId} className="rounded-card bg-white p-5 shadow-card">
+          <li key={r.userId} className="rounded-card bg-white p-4 shadow-card sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate text-lg font-bold">{r.name}</h3>
@@ -102,7 +102,7 @@ export default async function AtaskaitaPage({ searchParams }: { searchParams: Pr
       </ul>
 
       {showProjects && (
-        <section aria-label="Pagal objektą" className="rounded-card bg-white p-5 shadow-card">
+        <section aria-label="Pagal objektą" className="rounded-card bg-white p-4 shadow-card sm:p-5">
           <h3 className="mb-2 text-lg font-bold">Visi darbuotojai pagal objektą</h3>
           <ul className="space-y-1.5">
             {report.byProject.map((p) => (

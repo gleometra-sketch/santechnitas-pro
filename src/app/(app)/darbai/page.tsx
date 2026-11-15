@@ -1,6 +1,6 @@
+import { NotebookPen } from "lucide-react";
 import WorkClock from "@/components/WorkClock";
-import OfficeNote from "@/components/OfficeNote";
-import MaterialRequest from "@/components/MaterialRequest";
+import OfficeReport from "@/components/OfficeReport";
 import TaskCard from "@/components/TaskCard";
 import { requireContext } from "@/lib/auth/context";
 import { addDays, longDayLabel, todayKey, weekStart } from "@/lib/dates";
@@ -41,10 +41,13 @@ export default async function DarbaiPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-3xl font-extrabold">Darbai</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold sm:text-3xl">Darbai</h1>
+        <a href="#pranesti" className="flex min-h-11 items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 text-sm font-semibold text-accent-dark">
+          <NotebookPen size={16} aria-hidden /> Pranešti biurui
+        </a>
+      </div>
       <WorkClock status={work.status} workedMsAtRender={work.workedMsAtRender} todayMinutes={work.todayMinutes} mode={work.mode} projects={work.projects} projectId={work.projectId} defaultProjectId={work.defaultProjectId} startedAt={work.startedAt} stale={work.stale} />
-      <OfficeNote notes={notes} />
-      <MaterialRequest projects={projects} requests={requests} />
 
       <section className="space-y-4">
         <h2 className="text-xl font-bold">Suplanuoti darbai <span className="ml-1 text-sm text-muted">{open.length}</span></h2>
@@ -83,6 +86,8 @@ export default async function DarbaiPage() {
           </details>
         )}
       </section>
+
+      <OfficeReport notes={notes} projects={projects} requests={requests} />
     </div>
   );
 }

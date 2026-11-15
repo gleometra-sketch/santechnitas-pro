@@ -5,7 +5,7 @@ Visi trys ekranai naudoja tikrus Supabase duomenis; prieigą riboja RLS (žr. `D
 ## Darbai
 - **PRADĖTI / pertrauka / tęsti / baigti darbą.** Laiką fiksuoja serveris, ne telefonas. Vienu metu galimas tik vienas neužbaigtas įrašas, todėl dvigubas paspaudimas nieko nesugadina. Jei užduotį pradėjote telefone, o atsidarėte kompiuteryje, rodomas tas pats laikmatis.
 - **Šiandien nedirbu** (galima atšaukti).
-- **Pastaba biurui:** tekstu arba diktuojant balsu (naršyklės atpažinimas, lietuvių k.). Pastabą galima pažymėti „atlikta“ arba ištrinti. Tikras garso failo įrašymas į saugyklą dar neįdiegtas.
+- **Pranešti biurui** (Darbai skiltyje, apačioje; nuoroda viršuje): du skirtukai. **Pastaba** – tik teksto laukas ir mikrofonas (be kiekių ir vienetų), diktuojama lietuvių k. naršyklės atpažinimu; pastabą galima pažymėti „atlikta“ arba ištrinti. **Medžiagos** – prašymas su kiekiu ir vienetu. Kiekius ir vienetus pastabai suveda administratorius skiltyje Medžiagos („Į medžiagas“). Tikras garso failo įrašymas į saugyklą dar neįdiegtas.
 - **Reikalingos medžiagos:** kelios eilutės (pavadinimas, kiekis, vienetas), objektas, komentaras. Prašymas išsaugomas viena atomine operacija. Matote savo prašymų būseną („Laukiama“ / „Nupirkta“).
 - **Suplanuoti darbai:** Pavėluoti, Ši savaitė, Kita savaitė, Vėliau, Be datos, Atlikti. Kortelėje: pavadinimas, adresas (nuoroda į žemėlapį), užsakymo Nr., punktų progresas (pvz. 0/17). Paspaudus kortelę: užduočių sąrašas, „Pažymėti atlikta“, perkėlimas į kitą dieną.
 

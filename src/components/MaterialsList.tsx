@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, NotebookPen, RotateCcw } from "lucide-react";
+import { Check, ChevronDown, ListPlus, NotebookPen, RotateCcw } from "lucide-react";
 import { patchMaterialItem, setMaterialPurchased, setOfficeNoteDone } from "@/lib/work/actions";
+import NoteToMaterials from "@/components/NoteToMaterials";
 import QtyStepper from "@/components/QtyStepper";
 import { UNITS, type AdminMaterialItem, type AdminNote, type MaterialStatusFilter } from "@/lib/work/types";
 
@@ -113,8 +114,8 @@ function Row({ item, purchased, onToggled, onError }: Props) {
   };
 
   return (
-    <li ref={rowRef} className={`px-3 py-2 ${purchased ? "bg-go-soft/40" : ""}`}>
-      <div className="flex flex-wrap items-center gap-2">
+    <li ref={rowRef} className={`px-3 py-3 ${purchased ? "bg-go-soft/40" : ""}`}>
+      <div className="space-y-2">
         <input
           aria-label="Medžiagos pavadinimas"
           value={name}
@@ -122,26 +123,28 @@ function Row({ item, purchased, onToggled, onError }: Props) {
           onChange={(e) => setName(e.target.value)}
           onBlur={commitName}
           onKeyDown={enterBlurs}
-          className={`${field} w-full min-w-0 basis-full font-semibold sm:flex-1 sm:basis-0 ${purchased ? "text-muted line-through" : ""}`}
+          className={`${field} w-full min-w-0 font-semibold ${purchased ? "text-muted line-through" : ""}`}
         />
-        <QtyStepper label={`Kiekis: ${item.name}`} value={qty} onChange={setQty} onStep={stepTo} onCommit={commitNow} />
-        <select aria-label="Matavimo vienetas" value={unit} onChange={(e) => changeUnit(e.target.value)} className={`${field} w-[5.25rem] cursor-pointer`}>
-          {UNITS.map((u) => <option key={u}>{u}</option>)}
-        </select>
-        <span aria-live="polite" className={`w-5 text-go-dark transition-opacity ${flash ? "opacity-100" : "opacity-0"}`}>
-          <Check size={18} aria-label="Išsaugota" />
-        </span>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <QtyStepper label={`Kiekis: ${item.name}`} value={qty} onChange={setQty} onStep={stepTo} onCommit={commitNow} />
+          <select aria-label="Matavimo vienetas" value={unit} onChange={(e) => changeUnit(e.target.value)} className={`${field} h-11 w-[5.25rem] cursor-pointer`}>
+            {UNITS.map((u) => <option key={u}>{u}</option>)}
+          </select>
+          <span aria-live="polite" className={`w-5 text-go-dark transition-opacity ${flash ? "opacity-100" : "opacity-0"}`}>
+            <Check size={18} aria-label="Išsaugota" />
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
           {purchased ? (
-            <button disabled={busy} onClick={toggle} aria-label={`Grąžinti į sąrašą: ${item.name}`} title="Grąžinti į sąrašą" className="flex min-h-11 items-center gap-1.5 rounded-lg border border-black/15 px-3 text-sm font-semibold disabled:opacity-60">
+            <button disabled={busy} onClick={toggle} aria-label={`Grąžinti į sąrašą: ${item.name}`} title="Grąžinti į sąrašą" className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-black/15 px-3 font-semibold disabled:opacity-60">
               <RotateCcw size={16} aria-hidden /> Grąžinti
             </button>
           ) : (
-            <button disabled={busy} onClick={toggle} aria-label={`Nupirkta: ${item.name}`} className="flex min-h-11 items-center gap-1.5 rounded-lg bg-go-dark px-3 text-sm font-semibold text-white disabled:opacity-60">
+            <button disabled={busy} onClick={toggle} aria-label={`Nupirkta: ${item.name}`} className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-go-dark px-3 font-semibold text-white disabled:opacity-60">
               <Check size={18} aria-hidden /> Nupirkta
             </button>
           )}
-          <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex min-h-11 w-10 items-center justify-center rounded-lg text-muted">
+          <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex min-h-12 w-12 items-center justify-center rounded-xl border border-black/10 text-muted">
             <ChevronDown size={20} aria-hidden className={open ? "rotate-180" : ""} />
           </button>
         </div>
@@ -165,6 +168,7 @@ function Row({ item, purchased, onToggled, onError }: Props) {
 
 function NoteRow({ note, done, onToggled, onError }: { note: AdminNote; done: boolean; onToggled: (id: string, done: boolean) => void; onError: (text: string | null) => void }) {
   const [busy, setBusy] = useState(false);
+  const [splitting, setSplitting] = useState(false);
   const toggle = async () => {
     setBusy(true);
     onError(null);
@@ -175,26 +179,30 @@ function NoteRow({ note, done, onToggled, onError }: { note: AdminNote; done: bo
   };
   return (
     <li className={`px-3 py-3 ${done ? "bg-go-soft/40" : "bg-amber-50/70"}`}>
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-0 flex-1 basis-full sm:basis-0">
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-            <span className="flex items-center gap-1 font-bold text-amber-800"><NotebookPen size={16} aria-hidden /> Pastaba biurui</span>
-            <span className="font-medium text-muted">{note.authorName} · {fmtDate(note.createdAt)}</span>
-          </p>
-          <p className={`mt-1 whitespace-pre-wrap break-words text-base font-semibold ${done ? "text-muted line-through" : ""}`}>
-            {note.body || (note.voice ? "(balso pastaba be teksto)" : "")}
-          </p>
-        </div>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+        <span className="flex items-center gap-1 font-bold text-amber-800"><NotebookPen size={16} aria-hidden /> Pastaba biurui</span>
+        <span className="font-medium text-muted">{note.authorName} · {fmtDate(note.createdAt)}</span>
+      </p>
+      <p className={`mt-1 whitespace-pre-wrap break-words text-base font-semibold ${done ? "text-muted line-through" : ""}`}>
+        {note.body || (note.voice ? "(balso pastaba be teksto)" : "")}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
         {done ? (
-          <button disabled={busy} onClick={toggle} aria-label="Grąžinti pastabą į neatliktų sąrašą" className="flex min-h-11 items-center gap-1.5 rounded-lg border border-black/15 px-3 text-sm font-semibold disabled:opacity-60">
+          <button disabled={busy} onClick={toggle} aria-label="Grąžinti pastabą į neatliktų sąrašą" className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-black/15 px-3 font-semibold disabled:opacity-60">
             <RotateCcw size={16} aria-hidden /> Grąžinti
           </button>
         ) : (
-          <button disabled={busy} onClick={toggle} aria-label="Pažymėti pastabą atlikta" className="flex min-h-11 items-center gap-1.5 rounded-lg bg-go-dark px-3 text-sm font-semibold text-white disabled:opacity-60">
-            <Check size={18} aria-hidden /> Atlikta
-          </button>
+          <>
+            <button onClick={() => setSplitting((v) => !v)} aria-expanded={splitting} className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 font-semibold text-white">
+              <ListPlus size={18} aria-hidden /> Į medžiagas
+            </button>
+            <button disabled={busy} onClick={toggle} aria-label="Pažymėti pastabą atlikta" className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-go-dark px-3 font-semibold text-white disabled:opacity-60">
+              <Check size={18} aria-hidden /> Atlikta
+            </button>
+          </>
         )}
       </div>
+      {splitting && !done && <NoteToMaterials noteId={note.id} body={note.body} onSaved={() => { setSplitting(false); onToggled(note.id, true); }} />}
     </li>
   );
 }
