@@ -10,10 +10,8 @@ type Row = { key: number; name: string; qty: string; unit: (typeof UNITS)[number
 const emptyRow = (key: number): Row => ({ key, name: "", qty: "", unit: "vnt." });
 const ltDate = (iso: string) => new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 
-export default function MaterialRequest({ projects, requests }: { projects: { id: string; name: string; address: string | null }[]; requests: MaterialRequestView[] }) {
+export default function MaterialRequest({ requests }: { requests: MaterialRequestView[] }) {
   const [rows, setRows] = useState<Row[]>([emptyRow(1)]);
-  const [projectId, setProjectId] = useState("");
-  const [comment, setComment] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
 
@@ -29,11 +27,10 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
       items.push({ name: r.name, quantity: qty, unit: r.unit });
     }
     start(async () => {
-      const res = await createMaterialRequest({ projectId: projectId || null, comment, items });
+      const res = await createMaterialRequest({ projectId: null, items });
       if (res.ok) {
         setMsg({ ok: true, text: "Išsiųsta biurui." });
         setRows([emptyRow(Date.now())]);
-        setComment("");
       } else setMsg({ ok: false, text: res.error });
     });
   };
@@ -54,18 +51,6 @@ export default function MaterialRequest({ projects, requests }: { projects: { id
           <button onClick={() => setRows((all) => [...all, emptyRow(Date.now())])} className="flex min-h-11 items-center gap-1 font-semibold text-accent-dark">
             <Plus size={18} aria-hidden /> Pridėti dar vieną
           </button>
-
-          <label className="block">
-            <span className="text-sm font-medium text-muted">Objektas (nebūtina)</span>
-            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl border border-black/15 bg-white px-3">
-              <option value="">Nenurodytas</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}{p.address ? ` – ${p.address}` : ""}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-muted">Komentaras (nebūtina)</span>
-            <input value={comment} onChange={(e) => setComment(e.target.value)} maxLength={1000} className="mt-1 min-h-12 w-full rounded-xl border border-black/15 px-3" />
-          </label>
 
           {msg && <p role={msg.ok ? "status" : "alert"} className={`font-medium ${msg.ok ? "text-go-dark" : "text-danger"}`}>{msg.text}</p>}
           <button disabled={pending} onClick={submit} className="min-h-14 w-full rounded-2xl bg-accent text-lg font-semibold text-white disabled:opacity-60">

@@ -8,10 +8,29 @@ type SpeechRec = {
   interimResults: boolean;
   onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((e: { error?: string }) => void) | null;
   start: () => void;
   stop: () => void;
 };
+
+/** Aiškus klaidos paaiškinimas pagal naršyklės klaidos kodą. */
+export function micErrorText(code?: string): string {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "Mikrofonas neleidžiamas. Telefono ar naršyklės nustatymuose leiskite mikrofoną šiai programai ir bandykite dar kartą.";
+    case "no-speech":
+      return "Nieko neišgirdau. Bandykite dar kartą ir kalbėkite arčiau mikrofono.";
+    case "audio-capture":
+      return "Mikrofono nepavyko panaudoti (nerastas arba jį naudoja kita programa).";
+    case "network":
+      return "Nėra interneto ryšio balso atpažinimui. Rašykite tekstu arba bandykite vėliau.";
+    case "aborted":
+      return "";
+    default:
+      return "Nepavyko įrašyti balso. Patikrinkite mikrofono leidimą arba rašykite tekstu.";
+  }
+}
 
 /** Balso įvedimas (lietuvių k.). Gautą tekstą perduoda per onText; klaidas – per onError. */
 export default function MicButton({
@@ -39,9 +58,9 @@ export default function MicButton({
     rec.interimResults = false;
     rec.onresult = (e) => onText(Array.from(e.results).map((r) => r[0].transcript).join(" ").trim());
     rec.onend = () => setListening(false);
-    rec.onerror = () => {
+    rec.onerror = (e) => {
       setListening(false);
-      onError?.("Nepavyko įrašyti balso. Patikrinkite mikrofono leidimą.");
+      onError?.(micErrorText(e?.error));
     };
     recRef.current = rec;
     setListening(true);

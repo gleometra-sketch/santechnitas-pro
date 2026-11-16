@@ -136,17 +136,25 @@ function Row({ item, purchased, onToggled, onError }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {purchased ? (
-            <button disabled={busy} onClick={toggle} aria-label={`Grąžinti į sąrašą: ${item.name}`} title="Grąžinti į sąrašą" className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-black/15 px-3 font-semibold disabled:opacity-60">
-              <RotateCcw size={16} aria-hidden /> Grąžinti
-            </button>
+            <>
+              <span className="min-w-0 flex-1 truncate text-sm text-muted">{item.purchasedAt ? `Nupirkta ${fmtDate(item.purchasedAt)}` : "Nupirkta"}</span>
+              <button disabled={busy} onClick={toggle} aria-label={`Grąžinti į sąrašą: ${item.name}`} title="Grąžinti į sąrašą" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/15 text-muted hover:text-ink disabled:opacity-60">
+                <RotateCcw size={16} aria-hidden />
+              </button>
+              <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 text-muted">
+                <ChevronDown size={18} aria-hidden className={open ? "rotate-180" : ""} />
+              </button>
+            </>
           ) : (
-            <button disabled={busy} onClick={toggle} aria-label={`Nupirkta: ${item.name}`} className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-go-dark px-3 font-semibold text-white disabled:opacity-60">
-              <Check size={18} aria-hidden /> Nupirkta
-            </button>
+            <>
+              <button disabled={busy} onClick={toggle} aria-label={`Nupirkta: ${item.name}`} className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-go-dark px-3 font-semibold text-white disabled:opacity-60">
+                <Check size={18} aria-hidden /> Nupirkta
+              </button>
+              <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex min-h-12 w-12 items-center justify-center rounded-xl border border-black/10 text-muted">
+                <ChevronDown size={20} aria-hidden className={open ? "rotate-180" : ""} />
+              </button>
+            </>
           )}
-          <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex min-h-12 w-12 items-center justify-center rounded-xl border border-black/10 text-muted">
-            <ChevronDown size={20} aria-hidden className={open ? "rotate-180" : ""} />
-          </button>
         </div>
       </div>
 
@@ -186,10 +194,10 @@ function NoteRow({ note, done, onToggled, onError }: { note: AdminNote; done: bo
       <p className={`mt-1 whitespace-pre-wrap break-words text-base font-semibold ${done ? "text-muted line-through" : ""}`}>
         {note.body || (note.voice ? "(balso pastaba be teksto)" : "")}
       </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className={`mt-2 flex flex-wrap gap-2 ${done ? "justify-end" : ""}`}>
         {done ? (
-          <button disabled={busy} onClick={toggle} aria-label="Grąžinti pastabą į neatliktų sąrašą" className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-black/15 px-3 font-semibold disabled:opacity-60">
-            <RotateCcw size={16} aria-hidden /> Grąžinti
+          <button disabled={busy} onClick={toggle} aria-label="Grąžinti pastabą į neatliktų sąrašą" title="Grąžinti į neatliktų sąrašą" className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/15 text-muted hover:text-ink disabled:opacity-60">
+            <RotateCcw size={16} aria-hidden />
           </button>
         ) : (
           <>

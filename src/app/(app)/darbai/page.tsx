@@ -4,7 +4,7 @@ import OfficeReport from "@/components/OfficeReport";
 import TaskCard from "@/components/TaskCard";
 import { requireContext } from "@/lib/auth/context";
 import { addDays, longDayLabel, todayKey, weekStart } from "@/lib/dates";
-import { getMyMaterialRequests, getMyNotes, getMyProjects, getTasksForList, getWorkState } from "@/lib/work/queries";
+import { getMyMaterialRequests, getMyNotes, getTasksForList, getWorkState } from "@/lib/work/queries";
 import type { TaskView } from "@/lib/work/types";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +17,10 @@ function byDay(tasks: TaskView[]) {
 export default async function DarbaiPage() {
   const ctx = await requireContext();
   const today = todayKey();
-  const [work, tasks, notes, projects, requests] = await Promise.all([
+  const [work, tasks, notes, requests] = await Promise.all([
     getWorkState(ctx),
     getTasksForList(ctx),
     getMyNotes(ctx),
-    getMyProjects(ctx),
     getMyMaterialRequests(ctx),
   ]);
 
@@ -87,7 +86,7 @@ export default async function DarbaiPage() {
         )}
       </section>
 
-      <OfficeReport notes={notes} projects={projects} requests={requests} />
+      <OfficeReport notes={notes} requests={requests} />
     </div>
   );
 }

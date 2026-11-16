@@ -21,7 +21,7 @@ export default function CarKmForm({ carId, km, reminderDays }: { carId: string; 
   };
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="mt-2 space-y-1.5">
       <div className="flex gap-2">
         <input
           inputMode="numeric"
@@ -29,9 +29,9 @@ export default function CarKmForm({ carId, km, reminderDays }: { carId: string; 
           onChange={(e) => setValue(e.target.value)}
           placeholder={`Dabar ${km.toLocaleString("lt-LT")} km`}
           aria-label="Naujas kilometražo rodmuo"
-          className="min-h-12 w-full rounded-xl border border-black/15 bg-white px-3"
+          className="min-h-11 w-full rounded-xl border border-black/15 bg-white px-3"
         />
-        <button disabled={pending || !value.trim()} onClick={submit} className="min-h-12 shrink-0 rounded-2xl bg-accent px-5 font-semibold text-white disabled:opacity-60">
+        <button disabled={pending || !value.trim()} onClick={submit} className="min-h-11 shrink-0 rounded-xl bg-accent px-4 font-semibold text-white disabled:opacity-60">
           {pending ? "Saugoma..." : "Išsaugoti"}
         </button>
       </div>
@@ -41,7 +41,7 @@ export default function CarKmForm({ carId, km, reminderDays }: { carId: string; 
           defaultValue={reminderDays}
           disabled={pending}
           onChange={(e) => start(async () => { const r = await setCarReminderDays(carId, Number(e.target.value)); setMsg(r.ok ? { ok: true, text: r.message ?? "Išsaugota." } : { ok: false, text: r.error }); })}
-          className="min-h-11 rounded-xl border border-black/15 bg-white px-3 text-base text-black"
+          className="min-h-10 rounded-xl border border-black/15 bg-white px-2 text-sm text-black"
         >
           {REMINDER_CHOICES.map((d) => <option key={d} value={d}>kas {d} d.</option>)}
         </select>

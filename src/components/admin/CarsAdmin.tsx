@@ -6,7 +6,7 @@ import CarStatusTiles from "@/components/CarStatusTiles";
 import { REMINDER_CHOICES, type CarRow } from "@/lib/cars/logic";
 import type { CarAssignmentRow } from "@/lib/cars/queries";
 import type { ActionResult } from "@/lib/work/types";
-import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "./ui";
+import { Field, Msg, inputCls, primaryBtn } from "./ui";
 
 export type DriverOption = { userId: string; name: string };
 type Form = {
@@ -66,6 +66,8 @@ function CarForm({ initial, drivers, isNew, onMsg, onDone }: { initial: Form; dr
   );
 }
 
+const smallBtn = "min-h-10 rounded-xl border border-black/15 px-3 text-sm font-semibold disabled:opacity-60";
+
 function CarCard({ car, drivers, history, today, onMsg }: { car: CarRow; drivers: DriverOption[]; history: CarAssignmentRow[]; today: string; onMsg: (m: Note) => void }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -73,19 +75,19 @@ function CarCard({ car, drivers, history, today, onMsg }: { car: CarRow; drivers
     start(async () => { const r = await fn(); onMsg(r.ok ? { ok: true, text: r.message ?? "Išsaugota." } : { ok: false, text: r.error }); });
   const name = (id: string | null) => drivers.find((d) => d.userId === id)?.name ?? "—";
   return (
-    <div className={`rounded-2xl bg-white p-4 shadow-card ${car.active ? "" : "opacity-80"}`}>
+    <div className={`rounded-2xl bg-white p-3 shadow-card ${car.active ? "" : "opacity-80"}`}>
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xl font-extrabold">{car.name} <span className="font-bold text-muted">{car.plate}</span></p>
-          <p className="text-base font-semibold text-muted">Vairuotojas: {name(car.driver_id)}</p>
+        <div className="min-w-0">
+          <p className="truncate text-base font-extrabold">{car.name} <span className="font-bold text-muted">{car.plate}</span></p>
+          <p className="truncate text-sm font-semibold text-muted">Vairuotojas: {name(car.driver_id)}</p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${car.active ? "bg-go-soft text-go-dark" : "bg-surface text-muted"}`}>{car.active ? "Aktyvus" : "Neaktyvus"}</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${car.active ? "bg-go-soft text-go-dark" : "bg-surface text-muted"}`}>{car.active ? "Aktyvus" : "Neaktyvus"}</span>
       </div>
       <CarStatusTiles car={car} today={today} />
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button disabled={pending} onClick={() => run(() => setCarActive(car.id, !car.active))} className={ghostBtn}>{car.active ? "Pažymėti neaktyviu" : "Pažymėti aktyviu"}</button>
-        <button onClick={() => setOpen(!open)} className={ghostBtn}>{open ? "Uždaryti" : "Redaguoti"}</button>
-        <button disabled={pending} onClick={() => { if (confirm(`Ištrinti ${car.name}?`)) run(() => deleteCar(car.id)); }} className={`${ghostBtn} text-danger`}>Ištrinti</button>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button disabled={pending} onClick={() => run(() => setCarActive(car.id, !car.active))} className={smallBtn}>{car.active ? "Pažymėti neaktyviu" : "Pažymėti aktyviu"}</button>
+        <button onClick={() => setOpen(!open)} className={smallBtn}>{open ? "Uždaryti" : "Redaguoti"}</button>
+        <button disabled={pending} onClick={() => { if (confirm(`Ištrinti ${car.name}?`)) run(() => deleteCar(car.id)); }} className={`${smallBtn} text-danger`}>Ištrinti</button>
       </div>
       {open && <CarForm initial={fromCar(car)} drivers={drivers} isNew={false} onMsg={onMsg} onDone={() => setOpen(false)} />}
       {history.length > 0 && (

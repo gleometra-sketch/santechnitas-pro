@@ -9,7 +9,7 @@ import type { MaterialRequestView, NoteView } from "@/lib/work/types";
 type Tab = "note" | "materials";
 
 /** „Pranešti biurui“: vienas blokas su dviem skirtukais (laisva pastaba arba medžiagų prašymas su kiekiais). */
-export default function OfficeReport({ notes, projects, requests }: { notes: NoteView[]; projects: { id: string; name: string; address: string | null }[]; requests: MaterialRequestView[] }) {
+export default function OfficeReport({ notes, requests }: { notes: NoteView[]; requests: MaterialRequestView[] }) {
   const [tab, setTab] = useState<Tab>("note");
   const tabs: { id: Tab; label: string; Icon: typeof NotebookPen }[] = [
     { id: "note", label: "Pastaba", Icon: NotebookPen },
@@ -38,7 +38,7 @@ export default function OfficeReport({ notes, projects, requests }: { notes: Not
         <OfficeNote notes={notes} />
       </div>
       <div role="tabpanel" id="panel-materials" aria-labelledby="tab-materials" hidden={tab !== "materials"}>
-        <MaterialRequest projects={projects} requests={requests} />
+        <MaterialRequest requests={requests} />
       </div>
     </section>
   );

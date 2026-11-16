@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import PermissionPrompt from "@/components/PermissionPrompt";
 import { AccessExpired, TrialBanner } from "@/components/AccessNotices";
 import { isAdmin, requireContext } from "@/lib/auth/context";
 import { getCarsResult } from "@/lib/cars/queries";
@@ -27,7 +28,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <AccessExpired ctx={ctx} />
         )}
       </main>
-      <BottomNav showMaterials={admin} showCars={showCars} showEstimates={admin} />
+      <BottomNav showMaterials={admin} showCars={showCars} />
+      <PermissionPrompt />
     </>
   );
 }
