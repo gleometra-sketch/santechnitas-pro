@@ -17,14 +17,14 @@ export default async function DokumentaiPage({ searchParams }: { searchParams: P
 
   return (
     <div className="space-y-4">
+      {/* Sąmatas kuriame objekto kortelėje (apačioje, „Sąmatos ir sutartys“); čia – tik sutartys. */}
       <div className="flex flex-wrap gap-3">
-        <Link href={`/valdymas/dokumentai/naujas?kind=estimate${q}`} className="flex min-h-12 items-center rounded-2xl bg-accent px-5 font-semibold text-white">Nauja sąmata</Link>
-        <Link href={`/valdymas/dokumentai/naujas?kind=contract${q}`} className="flex min-h-12 items-center rounded-2xl border border-black/15 px-5 font-semibold">Nauja sutartis</Link>
+        <Link href={`/valdymas/dokumentai/naujas?kind=contract${q}`} className="flex min-h-12 items-center rounded-2xl bg-accent px-5 font-semibold text-white">Nauja sutartis</Link>
       </div>
 
       {project && <p className="rounded-2xl bg-accent-soft p-3 text-sm">Rodomi tik objekto „{names.get(project) ?? "?"}“ dokumentai. <Link href="/valdymas/dokumentai" className="underline">Rodyti visus</Link></p>}
 
-      {shown.length === 0 && <p className="rounded-2xl bg-white p-4 text-muted shadow-card">Dokumentų dar nėra. Sukurkite pirmą sąmatą arba sutartį.</p>}
+      {shown.length === 0 && <p className="rounded-2xl bg-white p-4 text-muted shadow-card">Dokumentų dar nėra. Sukurkite pirmą sutartį, o sąmatą sukurkite objekto kortelėje.</p>}
       {shown.map((d) => (
         <Link key={d.id} href={`/valdymas/dokumentai/${d.id}`} className="block rounded-2xl bg-white p-4 shadow-card">
           <div className="flex items-start justify-between gap-2">
