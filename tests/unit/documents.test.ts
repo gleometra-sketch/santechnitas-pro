@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { EMPTY_ITEM } from "../../src/lib/documents/draft";
 import { buildContractText, computeTotals, countPlaceholders, lineCents, parseNum, shareLinks, splitGross } from "../../src/lib/documents/logic";
 
 test("parseNum: kablelis, tarpai, netinkama reikšmė", () => {
@@ -7,6 +8,16 @@ test("parseNum: kablelis, tarpai, netinkama reikšmė", () => {
   assert.equal(parseNum("1 250,40"), 1250.4);
   assert.equal(parseNum(7), 7);
   assert.ok(Number.isNaN(parseNum("abc")));
+  assert.ok(Number.isNaN(parseNum(undefined)));
+  assert.ok(Number.isNaN(parseNum(null)));
+  assert.ok(Number.isNaN(parseNum(undefined)));
+  assert.ok(Number.isNaN(parseNum(null)));
+});
+
+test("EMPTY_ITEM: visi laukai yra tekstai (serverio puslapis jį kopijuoja kaip naujos sąmatos pirmą eilutę)", () => {
+  assert.deepEqual(Object.keys(EMPTY_ITEM).sort(), ["description", "quantity", "unit", "unit_price"]);
+  for (const v of Object.values(EMPTY_ITEM)) assert.equal(typeof v, "string");
+  assert.ok(!Number.isNaN(parseNum({ ...EMPTY_ITEM }.quantity)));
 });
 
 test("lineCents: kiekis × kaina centais be slankiojo kablelio klaidų", () => {
@@ -64,4 +75,9 @@ test("shareLinks: tekstas ir nuorodos teisingai užkoduoti", () => {
   assert.ok(l.sms.startsWith("sms:+37060000000?&body="));
   assert.ok(l.whatsapp.startsWith("https://wa.me/?text="));
   assert.ok(!l.whatsapp.includes("&Ona"), "& turi būti užkoduotas");
+});
+
+test("EMPTY_ITEM: naujos eilutės šablonas turi visus laukus (serverio puslapis jį kopijuoja)", () => {
+  assert.deepEqual(Object.keys(EMPTY_ITEM).sort(), ["description", "quantity", "unit", "unit_price"]);
+  assert.deepEqual({ ...EMPTY_ITEM }, { description: "", quantity: "1", unit: "vnt.", unit_price: "" });
 });

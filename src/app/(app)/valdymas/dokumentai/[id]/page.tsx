@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import DocumentEditor, { EMPTY_ITEM, type Draft } from "@/components/documents/DocumentEditor";
+import DocumentEditor from "@/components/documents/DocumentEditor";
+import { EMPTY_ITEM, type Draft } from "@/lib/documents/draft";
 import DocumentStatusPanel from "@/components/documents/DocumentStatusPanel";
 import { getProjects } from "@/lib/admin/queries";
 import { requireContext } from "@/lib/auth/context";

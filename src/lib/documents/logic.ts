@@ -28,8 +28,9 @@ const eurFmt = new Intl.NumberFormat("lt-LT", { style: "currency", currency: "EU
 export const eur = (n: number) => eurFmt.format(n);
 
 /** Skaičius iš įvesties laukelio (priima kablelį kaip kablelį po kablelio). */
-export function parseNum(v: string | number): number {
+export function parseNum(v: string | number | null | undefined): number {
   if (typeof v === "number") return v;
+  if (typeof v !== "string") return NaN; // tuščia ar trūkstama reikšmė neturi nulaužti skaičiavimo
   const n = Number(v.replace(/\s/g, "").replace(",", "."));
   return Number.isFinite(n) ? n : NaN;
 }

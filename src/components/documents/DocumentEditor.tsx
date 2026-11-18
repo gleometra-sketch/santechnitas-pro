@@ -4,16 +4,10 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveDocument, sendDocument } from "@/lib/documents/actions";
 import { KIND_LABEL, buildContractText, computeTotals, countPlaceholders, eur, lineTotal, parseNum, splitGross, type DocKind, type Seller } from "@/lib/documents/logic";
+import { EMPTY_ITEM, type Draft, type DraftItem } from "@/lib/documents/draft";
 import type { DocumentSummary } from "@/lib/documents/types";
 import type { ProjectRow } from "@/lib/admin/types";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "@/components/admin/ui";
-
-export type DraftItem = { description: string; quantity: string; unit: string; unit_price: string };
-export type Draft = {
-  id?: string; kind: DocKind; title: string; projectId: string; estimateId: string; clientName: string; clientEmail: string; clientPhone: string;
-  clientAddress: string; workAddress: string; vatRate: string; validUntil: string; notes: string; body: string; totalGross: string; items: DraftItem[];
-};
-export const EMPTY_ITEM: DraftItem = { description: "", quantity: "1", unit: "vnt.", unit_price: "" };
 
 export default function DocumentEditor({ initial, projects, estimates, seller, today }: {
   initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string;
