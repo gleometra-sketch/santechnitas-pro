@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import { createEstimate } from "@/lib/estimates/actions";
 import { Msg, primaryBtn } from "@/components/admin/ui";
 
-export default function NewEstimateButton() {
+export default function NewEstimateButton({ projectId }: { projectId?: string } = {}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -17,7 +17,7 @@ export default function NewEstimateButton() {
         disabled={pending}
         onClick={() =>
           start(async () => {
-            const r = await createEstimate();
+            const r = await createEstimate(projectId);
             if (r.ok) router.push(`/samata/${r.id}`);
             else setMsg({ ok: false, text: r.error });
           })

@@ -1,3 +1,4 @@
+import NewEstimateButton from "@/components/estimates/NewEstimateButton";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock, FileText, Mail, MapPin, Navigation, Package, Phone, User } from "lucide-react";
@@ -65,7 +66,7 @@ export default async function ObjektoKortele({ params }: { params: Promise<{ id:
         <h3 className={h2}><FileText size={20} aria-hidden /> Sąmatos ir sutartys</h3>
         <div className="flex flex-wrap gap-3">
           <Link href={`/valdymas/dokumentai?project=${id}`} className="flex min-h-12 items-center rounded-2xl border border-black/15 px-4 font-semibold">Objekto dokumentai</Link>
-          <Link href={`/valdymas/dokumentai/naujas?kind=estimate&project=${id}`} className="flex min-h-12 items-center rounded-2xl bg-accent px-4 font-semibold text-white">Nauja sąmata</Link>
+          <div className="min-w-48"><NewEstimateButton projectId={id} /></div>
           <Link href={`/valdymas/dokumentai/naujas?kind=contract&project=${id}`} className="flex min-h-12 items-center rounded-2xl border border-black/15 px-4 font-semibold">Nauja sutartis</Link>
         </div>
       </section>

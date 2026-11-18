@@ -4,6 +4,7 @@ import {
   calcTotals, formatInputCents, formatInputPercent, formatQty, lineTotalCents, parsePercentHundredths, parsePriceCents,
   parseQuantity, percentOfCents, totalsFromSubtotal,
 } from "../../src/lib/estimates/calc";
+import { learnFromItems } from "../../src/lib/estimates/learn";
 import { catalogKey, fold, indexCatalog, mergeCatalog, searchCatalog, type CatalogEntry } from "../../src/lib/estimates/search";
 
 test("parseQuantity: kablelis ar taškas, iki 3 skaitmenų, ribos", () => {
@@ -135,4 +136,29 @@ test("katalogo raktas ir sujungimas po išsaugojimo", () => {
   const merged = mergeCatalog(base, [E("material", "varinis vamzdis 15 mm", 340, "2026-06-01T10:00:00Z", "m"), E("work", "Montavimas", 2500, "2026-06-01T10:00:00Z", "val.")]);
   assert.equal(merged.length, 2);
   assert.equal(merged.find((m) => m.kind === "material")?.priceCents, 340);
+});
+
+test("searchCatalog: „any“ ieško visose rūšyse", () => {
+  const idx = indexCatalog([
+    { kind: "material", name: "Čiaupas", unit: "vnt.", priceCents: 1000, lastUsedAt: "2026-01-01" },
+    { kind: "work", name: "Čiaupo keitimas", unit: "val.", priceCents: 3000, lastUsedAt: "2026-02-01" },
+  ]);
+  assert.deepEqual(searchCatalog(idx, "any", "ciau").map((e) => e.name), ["Čiaupo keitimas", "Čiaupas"]);
+  assert.deepEqual(searchCatalog(idx, "work", "ciau").map((e) => e.name), ["Čiaupo keitimas"]);
+});
+
+test("learnFromItems: tik eilutės su pavadinimu ir kaina > 0, paskutinė laimi, nežinomas kiekis nesvarbus", () => {
+  const r = learnFromItems([
+    { kind: "work", description: " Čiaupo keitimas ", unit: "val.", unit_price: "35,5" },
+    { description: "Vamzdis", unit: "m", unit_price: 2.5 },
+    { description: "Be kainos", unit: "vnt.", unit_price: "" },
+    { description: "Nulis", unit: "vnt.", unit_price: 0 },
+    { description: "   ", unit: "vnt.", unit_price: 5 },
+    { description: "vamzdis", unit: "", unit_price: "3" },
+    { description: "a".repeat(201), unit: "vnt.", unit_price: 1 },
+  ]);
+  assert.deepEqual(r, [
+    { kind: "work", name: "Čiaupo keitimas", unit: "val.", priceCents: 3550 },
+    { kind: "material", name: "vamzdis", unit: "vnt.", priceCents: 300 },
+  ]);
 });

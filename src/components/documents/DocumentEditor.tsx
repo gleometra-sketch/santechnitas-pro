@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveDocument, sendDocument } from "@/lib/documents/actions";
 import { KIND_LABEL, buildContractText, computeTotals, countPlaceholders, eur, lineTotal, parseNum, splitGross, type DocKind, type Seller } from "@/lib/documents/logic";
@@ -8,15 +8,33 @@ import { EMPTY_ITEM, type Draft, type DraftItem } from "@/lib/documents/draft";
 import type { DocumentSummary } from "@/lib/documents/types";
 import type { ProjectRow } from "@/lib/admin/types";
 import { Field, Msg, ghostBtn, inputCls, primaryBtn } from "@/components/admin/ui";
+import NameCombobox from "@/components/estimates/NameCombobox";
+import { KIND_LABEL as LINE_KIND_LABEL, LINE_KINDS, formatInputCents, type LineKind } from "@/lib/estimates/calc";
+import { learnFromItems } from "@/lib/estimates/learn";
+import { indexCatalog, mergeCatalog, searchCatalog, type CatalogEntry } from "@/lib/estimates/search";
+import type { CatalogRow } from "@/lib/estimates/types";
 
-export default function DocumentEditor({ initial, projects, estimates, seller, today }: {
-  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string;
+export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [] }: {
+  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[];
 }) {
   const router = useRouter();
   const [f, setF] = useState<Draft>(initial);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
   const isEstimate = f.kind === "estimate";
+  // Katalogas (medžiagos ir darbai su paskutinėmis kainomis): siūlymai vos įvedus pavadinimo pradžią.
+  const [entries, setEntries] = useState<CatalogEntry[]>(() => catalog.map((c) => ({ kind: c.kind, name: c.name, unit: c.unit, priceCents: c.priceCents, lastUsedAt: c.lastUsedAt })));
+  const index = useMemo(() => indexCatalog(entries), [entries]);
+  const search = useCallback((q: string) => searchCatalog(index, "any", q), [index]);
+  const pickEntry = (i: number, e: CatalogEntry) => {
+    setItem(i, { description: e.name, kind: e.kind, unit: e.unit, unit_price: formatInputCents(e.priceCents) });
+    // Kursorius pereina į kiekį: jį įvedame kiekvieną kartą.
+    setTimeout(() => {
+      const el = document.getElementById(`item-${i}-qty`) as HTMLInputElement | null;
+      el?.focus();
+      el?.select();
+    }, 0);
+  };
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setF((p) => ({ ...p, [k]: v }));
   const setItem = (i: number, patch: Partial<DraftItem>) => setF((p) => ({ ...p, items: p.items.map((it, n) => (n === i ? { ...it, ...patch } : it)) }));
 
@@ -60,6 +78,11 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
       if (!saved.ok) return setMsg({ ok: false, text: saved.error });
       const id = saved.id!;
       setF((p) => ({ ...p, id })); // kad kitas išsaugojimas atnaujintų tą patį juodraštį, o ne kurtų naują
+      if (isEstimate) {
+        // Tos pačios pozicijos kitoje sąmatoje siūlomos iškart, be puslapio perkrovimo.
+        const now = new Date().toISOString();
+        setEntries((prev) => mergeCatalog(prev, learnFromItems(f.items).map((l) => ({ ...l, lastUsedAt: now }))));
+      }
       if (send) {
         const sent = await sendDocument(id);
         if (!sent.ok) return setMsg({ ok: false, text: sent.error });
@@ -102,9 +125,28 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
           <datalist id="units">{["vnt.", "m", "m²", "m³", "val.", "kompl.", "kg", "l"].map((u) => <option key={u} value={u} />)}</datalist>
           {f.items.map((it, i) => (
             <div key={i} className="space-y-2 rounded-xl border border-black/10 p-3">
-              <textarea value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} rows={2} placeholder="Ką atliekame / kokia medžiaga" className={`${inputCls} min-h-0 py-2`} aria-label={`Eilutė ${i + 1}: aprašymas`} />
+              <div className="flex items-start gap-2">
+                <div className="mt-1 min-w-0 flex-1">
+                  <NameCombobox
+                    id={`item-${i}-name`}
+                    value={it.description}
+                    onChange={(description) => setItem(i, { description })}
+                    onPick={(e) => pickEntry(i, e)}
+                    search={search}
+                    placeholder="Ką atliekame / kokia medžiaga (pradėkite rašyti)"
+                  />
+                </div>
+                <select
+                  value={it.kind}
+                  onChange={(e) => setItem(i, { kind: e.target.value as LineKind })}
+                  aria-label={`Eilutė ${i + 1}: rūšis`}
+                  className="mt-1 min-h-12 w-28 shrink-0 rounded-xl border border-black/15 bg-white px-2 text-sm"
+                >
+                  {LINE_KINDS.map((k) => <option key={k} value={k}>{LINE_KIND_LABEL[k]}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-3 gap-2">
-                <Field label="Kiekis"><input value={it.quantity} onChange={(e) => setItem(i, { quantity: e.target.value })} inputMode="decimal" className={inputCls} /></Field>
+                <Field label="Kiekis"><input id={`item-${i}-qty`} value={it.quantity} onChange={(e) => setItem(i, { quantity: e.target.value })} inputMode="decimal" className={inputCls} /></Field>
                 <Field label="Mato vnt."><input value={it.unit} onChange={(e) => setItem(i, { unit: e.target.value })} list="units" className={inputCls} /></Field>
                 <Field label="Kaina, €"><input value={it.unit_price} onChange={(e) => setItem(i, { unit_price: e.target.value })} inputMode="decimal" className={inputCls} placeholder="0,00" /></Field>
               </div>

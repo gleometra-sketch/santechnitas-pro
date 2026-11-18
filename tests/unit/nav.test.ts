@@ -22,3 +22,10 @@ test("isNavActive: sąmatos punktas aktyvus visuose dokumentų puslapiuose, bet 
 test("isNavActive: be match naudoja href be užklausos dalies", () => {
   assert.equal(isNavActive("/valdymas/dokumentai/naujas", "/valdymas/dokumentai/naujas?kind=estimate"), true);
 });
+
+test("isNavActive: Sąmata (/samata) aktyvi sąmatos ir katalogo puslapiuose", () => {
+  assert.equal(isNavActive("/samata", "/samata"), true);
+  assert.equal(isNavActive("/samata/katalogas", "/samata"), true);
+  assert.equal(isNavActive("/samata/abc", "/samata"), true);
+  assert.equal(isNavActive("/valdymas/dokumentai", "/samata"), false);
+});

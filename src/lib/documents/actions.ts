@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getActionContext, isAdmin } from "@/lib/auth/context";
 import { isValidDayKey } from "@/lib/dates";
 import { parseNum } from "./logic";
+import { learnFromItems } from "@/lib/estimates/learn";
 
 export type DocResult = { ok: true; message?: string; id?: string; url?: string } | { ok: false; error: string };
 const ok = (extra: { message?: string; id?: string; url?: string } = {}): DocResult => ({ ok: true, ...extra });
@@ -41,6 +42,7 @@ const num = (label: string, min: number, max: number) =>
 const dateOrEmpty = z.union([z.literal(""), z.string().refine(isValidDayKey, "Neteisinga data.")]);
 
 const itemSchema = z.object({
+  kind: z.enum(["material", "work", "other"]).optional(),
   description: z.string().trim().min(1, "Užpildykite visų eilučių aprašymus.").max(500, "Eilutės aprašymas per ilgas."),
   quantity: num("Kiekis", 0, 1_000_000),
   unit: z.string().trim().max(20, "Mato vienetas per ilgas.").optional(),
@@ -66,6 +68,33 @@ const docSchema = z.object({
   items: z.array(itemSchema).max(200, "Per daug eilučių (daugiausia 200).").default([]),
 });
 
+/**
+ * Sąmatos pozicijas su kaina įsimena sąmatų kataloge (/samata/katalogas), kad kitą kartą jas pasiūlytų vos įvedus pradžią.
+ * Jau esamai pozicijai (pagal pavadinimą) atnaujinama kaina, vienetas ir panaudojimo laikas, o rūšis nekeičiama.
+ * Klaida čia nenutraukia išsaugojimo: sąmata jau išsaugota.
+ */
+async function learnCatalog(db: Awaited<ReturnType<typeof createClient>>, companyId: string, items: z.infer<typeof itemSchema>[]) {
+  try {
+    const learned = learnFromItems(items.map((i) => ({ kind: i.kind, description: i.description, unit: i.unit, unit_price: i.unit_price })));
+    if (learned.length === 0) return;
+    const keys = learned.map((l) => l.name.toLowerCase());
+    const { data: existing, error } = await db.from("estimate_catalog").select("id, name_key").eq("company_id", companyId).in("name_key", keys);
+    if (error) return;
+    const have = new Map((existing ?? []).map((r) => [r.name_key as string, r.id as string]));
+    const now = new Date().toISOString();
+    const fresh: Record<string, unknown>[] = [];
+    for (const l of learned) {
+      const id = have.get(l.name.toLowerCase());
+      if (id) await db.from("estimate_catalog").update({ unit: l.unit, unit_price_cents: l.priceCents, last_used_at: now }).eq("id", id).eq("company_id", companyId);
+      else fresh.push({ company_id: companyId, kind: l.kind, name: l.name, unit: l.unit, unit_price_cents: l.priceCents, last_used_at: now });
+    }
+    if (fresh.length) await db.from("estimate_catalog").insert(fresh);
+    revalidatePath("/samata/katalogas");
+  } catch {
+    /* katalogas nėra kritinis */
+  }
+}
+
 export async function saveDocument(input: unknown): Promise<DocResult> {
   const p = docSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0].message);
@@ -84,6 +113,7 @@ export async function saveDocument(input: unknown): Promise<DocResult> {
     p_items: d.items.map((i) => ({ description: i.description, quantity: i.quantity, unit: i.unit ?? "vnt.", unit_price: i.unit_price })),
   });
   if (error) return mapError(error, "Nepavyko išsaugoti dokumento.");
+  if (d.kind === "estimate") await learnCatalog(g.db, g.companyId, d.items);
   refresh();
   return ok({ id: data as string, message: "Juodraštis išsaugotas." });
 }

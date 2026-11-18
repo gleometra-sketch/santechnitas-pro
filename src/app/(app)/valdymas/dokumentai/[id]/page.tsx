@@ -8,6 +8,7 @@ import { getProjects } from "@/lib/admin/queries";
 import { requireContext } from "@/lib/auth/context";
 import { todayKey } from "@/lib/dates";
 import { getCompanyProfile, getDocumentDetail, getDocuments } from "@/lib/documents/queries";
+import { getCatalog } from "@/lib/estimates/queries";
 import type { DocKind } from "@/lib/documents/logic";
 import type { DocumentDetail } from "@/lib/documents/types";
 
@@ -22,7 +23,7 @@ const fromDoc = (d: DocumentDetail): Draft => ({
   id: d.id, kind: d.kind, title: d.title, projectId: d.projectId ?? "", estimateId: d.estimateId ?? "", clientName: d.clientName,
   clientEmail: d.clientEmail ?? "", clientPhone: d.clientPhone ?? "", clientAddress: d.clientAddress ?? "", workAddress: d.workAddress ?? "",
   vatRate: String(d.vatRate), validUntil: d.validUntil ?? "", notes: d.notes ?? "", body: d.body ?? "", totalGross: d.kind === "contract" ? String(d.totalGross) : "",
-  items: d.items.length ? d.items.map((i) => ({ description: i.description, quantity: String(i.quantity), unit: i.unit, unit_price: String(i.unit_price) })) : [{ ...EMPTY_ITEM }],
+  items: d.items.length ? d.items.map((i) => ({ kind: "material" as const, description: i.description, quantity: String(i.quantity), unit: i.unit, unit_price: String(i.unit_price) })) : [{ ...EMPTY_ITEM }],
 });
 
 export default async function DokumentoPuslapis({ params, searchParams }: {
@@ -32,7 +33,7 @@ export default async function DokumentoPuslapis({ params, searchParams }: {
   const sp = await searchParams;
   if (id !== "naujas" && !UUID.test(id)) notFound();
   const ctx = await requireContext();
-  const [projects, seller, docs] = await Promise.all([getProjects(ctx), getCompanyProfile(ctx), getDocuments(ctx)]);
+  const [projects, seller, docs, catalog] = await Promise.all([getProjects(ctx), getCompanyProfile(ctx), getDocuments(ctx), getCatalog(ctx)]);
   const estimates = docs.filter((d) => d.kind === "estimate");
   const today = todayKey();
   const back = <Link href="/valdymas/dokumentai" className="text-sm font-semibold underline">← Visi dokumentai</Link>;
@@ -47,13 +48,13 @@ export default async function DokumentoPuslapis({ params, searchParams }: {
       Object.assign(initial, { estimateId: base.id, projectId: base.projectId ?? initial.projectId, clientName: base.clientName, clientEmail: base.clientEmail ?? "", clientPhone: base.clientPhone ?? "",
         clientAddress: base.clientAddress ?? "", workAddress: base.workAddress ?? "", vatRate: String(base.vatRate), totalGross: String(base.totalGross), title: `Sutartis: ${base.title}` });
     }
-    return <div className="space-y-4">{back}<DocumentEditor initial={initial} projects={projects} estimates={estimates} seller={seller} today={today} /></div>;
+    return <div className="space-y-4">{back}<DocumentEditor initial={initial} projects={projects} estimates={estimates} seller={seller} today={today} catalog={catalog.rows} /></div>;
   }
 
   const doc = await getDocumentDetail(ctx, id);
   if (!doc) notFound();
   if (doc.status === "draft") {
-    return <div className="space-y-4">{back}<DocumentEditor initial={fromDoc(doc)} projects={projects} estimates={estimates} seller={seller} today={today} /></div>;
+    return <div className="space-y-4">{back}<DocumentEditor initial={fromDoc(doc)} projects={projects} estimates={estimates} seller={seller} today={today} catalog={catalog.rows} /></div>;
   }
   const origin = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "") || `https://${(await headers()).get("host") ?? "localhost:3000"}`;
   const url = doc.publicToken ? `${origin}/d/${doc.publicToken}` : null;

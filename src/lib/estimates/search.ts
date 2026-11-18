@@ -28,12 +28,12 @@ function score(folded: string, q: string, tokens: string[]): number | null {
  * Siūlomi katalogo įrašai pagal įvestą pradžią ar raides (be diakritikų, žodžio pradžia ar bet kur pavadinime).
  * Tuščia paieška = neseniai naudoti. Rūšiuojama: geresnis atitikimas, tada naujausiai naudotas.
  */
-export function searchCatalog(index: Indexed[], kind: LineKind, query: string, limit = 8): CatalogEntry[] {
+export function searchCatalog(index: Indexed[], kind: LineKind | "any", query: string, limit = 8): CatalogEntry[] {
   const q = fold(query);
   const tokens = q.split(/\s+/).filter(Boolean);
   const hits: { item: Indexed; s: number }[] = [];
   for (const item of index) {
-    if (item.kind !== kind) continue;
+    if (kind !== "any" && item.kind !== kind) continue;
     const s = q ? score(item.folded, q, tokens) : 0;
     if (s !== null) hits.push({ item, s });
   }

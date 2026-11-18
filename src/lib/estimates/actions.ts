@@ -106,10 +106,18 @@ export async function saveEstimate(input: unknown): Promise<ActionResult> {
   return ok("Sąmata išsaugota.");
 }
 
-export async function createEstimate(): Promise<IdResult> {
+/** Nauja sąmata. Su objektu (iš objekto kortelės) kliento duomenys, adresas ir pavadinimas užsipildo patys. */
+export async function createEstimate(projectId?: string): Promise<IdResult> {
+  if (projectId !== undefined && !uuid.safeParse(projectId).success) return fail("Neteisingas objektas.");
   const g = await adminGuard();
   if (bad(g)) return g;
-  const { data, error } = await g.db.from("estimates").insert({ company_id: g.companyId, title: "" }).select("id").single();
+  let row: Record<string, unknown> = { company_id: g.companyId, title: "" };
+  if (projectId) {
+    const { data: p } = await g.db.from("projects").select("id, name, address, client_name, client_phone, client_email").eq("id", projectId).eq("company_id", g.companyId).maybeSingle();
+    if (!p) return fail("Objektas nerastas.");
+    row = { ...row, project_id: p.id, title: `Sąmata: ${p.name}`.slice(0, 200), client_name: p.client_name ?? "", client_phone: p.client_phone ?? "", client_email: p.client_email ?? "", address: p.address ?? "" };
+  }
+  const { data, error } = await g.db.from("estimates").insert(row).select("id").single();
   if (error || !data) {
     const m = mapError(error, "Nepavyko sukurti sąmatos.");
     return m.ok ? fail("Nepavyko sukurti sąmatos.") : fail(m.error);
