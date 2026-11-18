@@ -14,8 +14,10 @@ import { learnFromItems } from "@/lib/estimates/learn";
 import { indexCatalog, mergeCatalog, searchCatalog, type CatalogEntry } from "@/lib/estimates/search";
 import type { CatalogRow } from "@/lib/estimates/types";
 
-export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [] }: {
-  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[];
+export type MainEstimate = { id: string; number: string; title: string; clientName: string; totalCents: number };
+
+export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [], mainEstimates = [] }: {
+  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[]; mainEstimates?: MainEstimate[];
 }) {
   const router = useRouter();
   const [f, setF] = useState<Draft>(initial);
@@ -54,12 +56,17 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
     }));
   };
   const pickEstimate = (id: string) => {
+    if (id.startsWith("est:")) {
+      const m = mainEstimates.find((x) => `est:${x.id}` === id);
+      setF((s) => ({ ...s, estimateId: id, totalGross: m ? String(m.totalCents / 100) : s.totalGross }));
+      return;
+    }
     const e = estimates.find((x) => x.id === id);
     setF((s) => ({ ...s, estimateId: id, totalGross: e ? String(e.totalGross) : s.totalGross }));
   };
   const fillTemplate = () => {
     if (f.body.trim() && !confirm("Dabartinis sutarties tekstas bus pakeistas šablonu. Tęsti?")) return;
-    const est = estimates.find((x) => x.id === f.estimateId);
+    const est = estimates.find((x) => x.id === f.estimateId) ?? (() => { const m = mainEstimates.find((x) => `est:${x.id}` === f.estimateId); return m ? { number: m.number } : undefined; })();
     const g = parseNum(f.totalGross);
     set("body", buildContractText({
       seller, clientName: f.clientName || "[UŽSAKOVAS]", clientAddress: f.clientAddress, workAddress: f.workAddress,
@@ -77,6 +84,7 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
       const saved = await saveDocument(payload());
       if (!saved.ok) return setMsg({ ok: false, text: saved.error });
       const id = saved.id!;
+      if (saved.estimateId) setF((p) => ({ ...p, estimateId: saved.estimateId! })); // pagrindinė sąmata jau nukopijuota: kitą kartą nekuriame dar vienos
       setF((p) => ({ ...p, id })); // kad kitas išsaugojimas atnaujintų tą patį juodraštį, o ne kurtų naują
       if (isEstimate) {
         // Tos pačios pozicijos kitoje sąmatoje siūlomos iškart, be puslapio perkrovimo.
@@ -166,6 +174,11 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
               <option value="">Be sąmatos</option>
               {estimates.filter((e) => e.status !== "cancelled" && e.status !== "declined" && (!f.projectId || e.projectId === f.projectId || e.id === f.estimateId))
                 .map((e) => <option key={e.id} value={e.id}>{e.number} · {e.clientName} · {eur(e.totalGross)}</option>)}
+              {mainEstimates.length > 0 && (
+                <optgroup label="Sąmatos iš skilties „Sąmata“">
+                  {mainEstimates.map((m) => <option key={m.id} value={`est:${m.id}`}>{m.number} · {m.title || "Be pavadinimo"}{m.clientName ? ` · ${m.clientName}` : ""} · {eur(m.totalCents / 100)}</option>)}
+                </optgroup>
+              )}
             </select>
           </Field>
           <Field label="Sutarties kaina su PVM, €"><input value={f.totalGross} onChange={(e) => set("totalGross", e.target.value)} inputMode="decimal" className={inputCls} /></Field>

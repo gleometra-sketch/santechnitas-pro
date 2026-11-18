@@ -11,8 +11,8 @@ import { isValidDayKey } from "@/lib/dates";
 import { parseNum } from "./logic";
 import { learnFromItems } from "@/lib/estimates/learn";
 
-export type DocResult = { ok: true; message?: string; id?: string; url?: string } | { ok: false; error: string };
-const ok = (extra: { message?: string; id?: string; url?: string } = {}): DocResult => ({ ok: true, ...extra });
+export type DocResult = { ok: true; message?: string; id?: string; url?: string; estimateId?: string } | { ok: false; error: string };
+const ok = (extra: { message?: string; id?: string; url?: string; estimateId?: string } = {}): DocResult => ({ ok: true, ...extra });
 const fail = (error: string): DocResult => ({ ok: false, error });
 const refresh = () => revalidatePath("/valdymas/dokumentai", "layout");
 
@@ -54,7 +54,8 @@ const docSchema = z.object({
   kind: z.enum(["estimate", "contract"]),
   title: z.string().trim().min(1, "Įrašykite pavadinimą.").max(200, "Pavadinimas per ilgas."),
   projectId: z.union([z.literal(""), uuid]).optional(),
-  estimateId: z.union([z.literal(""), uuid]).optional(),
+  // Dokumento id arba „est:<id>“ – pagrindinės sąmatos (skiltis Sąmata), kuri paruošiant sutartį nukopijuojama į dokumentą.
+  estimateId: z.union([z.literal(""), uuid, z.string().regex(/^est:[0-9a-f-]{36}$/i)]).optional(),
   clientName: z.string().trim().min(1, "Įrašykite kliento vardą ar pavadinimą.").max(160, "Kliento pavadinimas per ilgas."),
   clientEmail: z.string().trim().max(200).optional(),
   clientPhone: z.string().trim().max(40).optional(),
@@ -95,6 +96,38 @@ async function learnCatalog(db: Awaited<ReturnType<typeof createClient>>, compan
   }
 }
 
+/**
+ * Sutartį galima susieti su pagrindine sąmata (skiltis Sąmata): viešam sutarties puslapiui reikia dokumento,
+ * todėl sąmata nukopijuojama į dokumentų sąmatą (nuolaida įskaičiuojama į vienetų kainas).
+ * Grąžina naujo dokumento id arba klaidą.
+ */
+async function importEstimate(db: Awaited<ReturnType<typeof createClient>>, companyId: string, estimateId: string, projectId: string, fallbackClient: string): Promise<{ id: string } | { error: string }> {
+  const { data: e } = await db.from("estimates").select("number, title, project_id, client_name, client_phone, client_email, address, vat_percent, discount_percent, valid_until, notes").eq("id", estimateId).eq("company_id", companyId).maybeSingle();
+  if (!e) return { error: "Pasirinkta sąmata nerasta." };
+  const { data: lines } = await db.from("estimate_lines").select("name, unit, quantity, unit_price_cents").eq("estimate_id", estimateId).order("position", { ascending: true }).limit(200);
+  if (!lines || lines.length === 0) return { error: "Pasirinkta sąmata neturi eilučių." };
+  const factor = 1 - Number(e.discount_percent ?? 0) / 100;
+  const discountNote = Number(e.discount_percent ?? 0) > 0 ? `Kainos nurodytos įskaičiavus ${Number(e.discount_percent)} % nuolaidą.` : "";
+  const { data, error } = await db.rpc("save_document", {
+    p_id: null,
+    p_doc: {
+      company_id: companyId, kind: "estimate", title: `Sąmata ${e.number}${e.title ? `: ${e.title}` : ""}`.slice(0, 200),
+      project_id: projectId || e.project_id || "", estimate_id: "", client_name: e.client_name || fallbackClient || "Klientas",
+      client_email: e.client_email ?? "", client_phone: e.client_phone ?? "", client_address: "", work_address: e.address ?? "",
+      vat_rate: Number(e.vat_percent ?? 21), valid_until: e.valid_until ?? "", notes: [e.notes ?? "", discountNote].filter(Boolean).join("\n"), body: "", total_gross: 0,
+    },
+    p_items: lines.map((l) => ({
+      description: l.name, quantity: Number(l.quantity), unit: l.unit || "vnt.",
+      unit_price: Math.round((Number(l.unit_price_cents) / 100) * factor * 100) / 100,
+    })),
+  });
+  if (error) {
+    const m = mapError(error, "Nepavyko paruošti sąmatos sutarčiai.");
+    return { error: m.ok ? "Nepavyko paruošti sąmatos sutarčiai." : m.error };
+  }
+  return { id: data as string };
+}
+
 export async function saveDocument(input: unknown): Promise<DocResult> {
   const p = docSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0].message);
@@ -102,10 +135,16 @@ export async function saveDocument(input: unknown): Promise<DocResult> {
   if (d.kind === "estimate" && d.items.length === 0) return fail("Pridėkite bent vieną sąmatos eilutę.");
   const g = await adminGuard();
   if (bad(g)) return g;
+  let estimateId = d.estimateId ?? "";
+  if (d.kind === "contract" && estimateId.startsWith("est:")) {
+    const imp = await importEstimate(g.db, g.companyId, estimateId.slice(4), d.projectId ?? "", d.clientName);
+    if ("error" in imp) return fail(imp.error);
+    estimateId = imp.id;
+  }
   const { data, error } = await g.db.rpc("save_document", {
     p_id: d.id ?? null,
     p_doc: {
-      company_id: g.companyId, kind: d.kind, title: d.title, project_id: d.projectId ?? "", estimate_id: d.estimateId ?? "",
+      company_id: g.companyId, kind: d.kind, title: d.title, project_id: d.projectId ?? "", estimate_id: estimateId,
       client_name: d.clientName, client_email: d.clientEmail ?? "", client_phone: d.clientPhone ?? "", client_address: d.clientAddress ?? "",
       work_address: d.workAddress ?? "", vat_rate: d.vatRate, valid_until: d.validUntil ?? "", notes: d.notes ?? "", body: d.body ?? "",
       total_gross: d.totalGross ?? 0,
@@ -115,7 +154,7 @@ export async function saveDocument(input: unknown): Promise<DocResult> {
   if (error) return mapError(error, "Nepavyko išsaugoti dokumento.");
   if (d.kind === "estimate") await learnCatalog(g.db, g.companyId, d.items);
   refresh();
-  return ok({ id: data as string, message: "Juodraštis išsaugotas." });
+  return ok({ id: data as string, message: "Juodraštis išsaugotas.", ...(estimateId !== (d.estimateId ?? "") ? { estimateId } : {}) });
 }
 
 async function origin() {
