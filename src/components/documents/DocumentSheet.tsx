@@ -1,3 +1,4 @@
+import ContractSheet from "@/components/documents/ContractSheet";
 import { KIND_LABEL, eur, lineTotal, type DocItem } from "@/lib/documents/logic";
 import type { PublicDocument } from "@/lib/documents/types";
 
@@ -29,7 +30,32 @@ function Totals({ net, vat, gross, rate }: { net: number; vat: number; gross: nu
   );
 }
 
+function Approved({ doc }: { doc: PublicDocument }) {
+  if (doc.status !== "approved") return null;
+  return (
+    <p className="rounded-xl bg-go-soft p-3 font-medium text-go-dark">
+      Patvirtino {doc.respondedName ?? doc.clientName}{doc.respondedAt ? `, ${new Date(doc.respondedAt).toLocaleString("lt-LT", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Vilnius" })}` : ""}.
+    </p>
+  );
+}
+
 export default function DocumentSheet({ doc }: { doc: PublicDocument }) {
+  if (doc.kind === "contract") {
+    // Sutartis rodoma kaip įprastas dokumentas (pavadinimas, antraštės, punktai, adresai ir parašai); sąmata – priedas.
+    return (
+      <article className="space-y-6 rounded-2xl bg-white p-5 shadow-card sm:p-8 print:rounded-none print:p-0 print:shadow-none">
+        <ContractSheet doc={doc} />
+        {doc.estimate && (
+          <section className="space-y-3 break-before-page">
+            <h2 className="text-xl font-bold">Priedas: sąmata Nr. {doc.estimate.number}</h2>
+            <Items items={doc.estimate.items} />
+            <Totals net={doc.estimate.totalNet} vat={doc.estimate.totalVat} gross={doc.estimate.totalGross} rate={doc.estimate.vatRate} />
+          </section>
+        )}
+        <Approved doc={doc} />
+      </article>
+    );
+  }
   const s = doc.seller;
   const sellerLines = [s.code && `Kodas ${s.code}`, s.vat_code && `PVM kodas ${s.vat_code}`, s.address, s.phone, s.email, s.iban && `IBAN ${s.iban}`].filter(Boolean);
   return (

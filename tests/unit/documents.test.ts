@@ -116,3 +116,32 @@ test("summarizeWork: be pasikartojimų, sutrumpina ilgą sąrašą", () => {
   assert.equal(summarizeWork(["a", "b", "c"], 2), "a; b ir kiti darbai pagal sąmatą");
   assert.ok(DEFAULT_TERMS.advancePercent > 0);
 });
+
+import { cityFromAddress, nextRoman, parseContractBody, toRoman } from "../../src/lib/documents/layout";
+
+test("toRoman ir nextRoman", () => {
+  assert.deepEqual([1, 2, 4, 5, 8, 9, 10].map(toRoman), ["I", "II", "IV", "V", "VIII", "IX", "X"]);
+});
+
+test("parseContractBody: data, romėniškos antraštės, punktai; tekstas nekeičiamas", () => {
+  const text = buildContractText({ ...base, terms });
+  const { date, blocks } = parseContractBody(text);
+  assert.equal(date, "2026-11-18");
+  const heads = blocks.filter((b) => b.type === "heading");
+  assert.deepEqual(heads.map((h) => (h.type === "heading" ? `${h.roman}. ${h.text}` : "")), [
+    "I. SUTARTIES ŠALYS", "II. SUTARTIES DALYKAS", "III. KAINA IR ATSISKAITYMAS", "IV. TERMINAI", "V. DARBŲ PRIĖMIMAS", "VI. GARANTIJA", "VII. ŠALIŲ ATSAKOMYBĖ", "VIII. BAIGIAMOSIOS NUOSTATOS",
+  ]);
+  assert.equal(nextRoman(blocks), "IX");
+  // Visos tekstinės eilutės (be datos ir antraščių) išlieka kaip buvo.
+  const kept = blocks.filter((b) => b.type !== "heading").map((b) => b.text);
+  const expected = text.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("Sutarties data:") && !/^\d\. [A-ZĄČĘĖĮŠŲŪŽ ]+$/.test(l));
+  assert.deepEqual(kept, expected);
+  assert.ok(blocks.some((b) => b.type === "clause" && b.text.startsWith("2.1. ")));
+});
+
+test("cityFromAddress", () => {
+  assert.equal(cityFromAddress("Panevėžio g. 17, Panevėžys"), "Panevėžys");
+  assert.equal(cityFromAddress("Panevėžio g. 17"), "");
+  assert.equal(cityFromAddress("Gedimino 1, Vilnius, 12345"), "");
+  assert.equal(cityFromAddress(null), "");
+});
