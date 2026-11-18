@@ -35,9 +35,9 @@ export default async function DokumentoPuslapis({ params, searchParams }: {
   const ctx = await requireContext();
   const [projects, seller, docs, catalog] = await Promise.all([getProjects(ctx), getCompanyProfile(ctx), getDocuments(ctx), getCatalog(ctx)]);
   const main = await getEstimateList(ctx);
-  const workSummaries = await getWorkSummaries(ctx, estimates.map((e) => e.id), main.rows.map((r) => r.id));
   const mainEstimates = main.rows.map((r) => ({ id: r.id, number: r.number, title: r.title, clientName: r.clientName ?? "", totalCents: r.totalCents }));
   const estimates = docs.filter((d) => d.kind === "estimate");
+  const workSummaries = await getWorkSummaries(ctx, estimates.map((e) => e.id), main.rows.map((r) => r.id));
   const today = todayKey();
   const back = <Link href="/valdymas/dokumentai" className="text-sm font-semibold underline">← Visi dokumentai</Link>;
 
