@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SessionContext } from "@/lib/auth/context";
 import { todayKey } from "@/lib/dates";
-import type { DocItem, Seller } from "./logic";
+import { summarizeWork, type DocItem, type Seller } from "./logic";
 import type { DocumentDetail, DocumentSummary, PublicDocument } from "./types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -70,4 +70,31 @@ export async function getPublicDocument(token: string): Promise<PublicDocument |
     sentAt: d.sent_at, respondedAt: d.responded_at, respondedName: d.responded_name,
     expired: d.status === "sent" && !!d.valid_until && d.valid_until < todayKey(),
   };
+}
+
+/**
+ * Trumpas darbų aprašymas sutarčiai iš sąmatų eilučių. Raktas: dokumento sąmatos id arba „est:<id>“ pagrindinei sąmatai.
+ * Pagrindinėje sąmatoje pirmenybė darbams (ne medžiagoms).
+ */
+export async function getWorkSummaries(ctx: SessionContext, docIds: string[], mainIds: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (!ctx.company) return out;
+  const db = await createClient();
+  if (docIds.length) {
+    const { data } = await db.from("document_items").select("document_id, description, position").eq("company_id", ctx.company.id).in("document_id", docIds.slice(0, 100)).order("position", { ascending: true }).limit(2000);
+    const by = new Map<string, string[]>();
+    for (const r of (data ?? []) as any[]) by.set(r.document_id, [...(by.get(r.document_id) ?? []), r.description]);
+    for (const [id, names] of by) out[id] = summarizeWork(names);
+  }
+  if (mainIds.length) {
+    const { data } = await db.from("estimate_lines").select("estimate_id, kind, name, position").eq("company_id", ctx.company.id).in("estimate_id", mainIds.slice(0, 100)).order("position", { ascending: true }).limit(3000);
+    const work = new Map<string, string[]>();
+    const all = new Map<string, string[]>();
+    for (const r of (data ?? []) as any[]) {
+      all.set(r.estimate_id, [...(all.get(r.estimate_id) ?? []), r.name]);
+      if (r.kind === "work") work.set(r.estimate_id, [...(work.get(r.estimate_id) ?? []), r.name]);
+    }
+    for (const id of mainIds) out[`est:${id}`] = summarizeWork(work.get(id) ?? all.get(id) ?? []);
+  }
+  return out;
 }

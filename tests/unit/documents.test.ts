@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EMPTY_ITEM } from "../../src/lib/documents/draft";
-import { buildContractText, computeTotals, countPlaceholders, lineCents, parseNum, shareLinks, splitGross } from "../../src/lib/documents/logic";
+import { DEFAULT_TERMS, buildContractText, computeTotals, countPlaceholders, lineCents, parseNum, shareLinks, splitGross, summarizeWork } from "../../src/lib/documents/logic";
 
 test("parseNum: kablelis, tarpai, netinkama reikšmė", () => {
   assert.equal(parseNum("12,5"), 12.5);
@@ -15,7 +15,7 @@ test("parseNum: kablelis, tarpai, netinkama reikšmė", () => {
 });
 
 test("EMPTY_ITEM: visi laukai yra tekstai (serverio puslapis jį kopijuoja kaip naujos sąmatos pirmą eilutę)", () => {
-  assert.deepEqual(Object.keys(EMPTY_ITEM).sort(), ["description", "quantity", "unit", "unit_price"]);
+  assert.deepEqual(Object.keys(EMPTY_ITEM).sort(), ["description", "kind", "quantity", "unit", "unit_price"]);
   for (const v of Object.values(EMPTY_ITEM)) assert.equal(typeof v, "string");
   assert.ok(!Number.isNaN(parseNum({ ...EMPTY_ITEM }.quantity)));
 });
@@ -78,6 +78,41 @@ test("shareLinks: tekstas ir nuorodos teisingai užkoduoti", () => {
 });
 
 test("EMPTY_ITEM: naujos eilutės šablonas turi visus laukus (serverio puslapis jį kopijuoja)", () => {
-  assert.deepEqual(Object.keys(EMPTY_ITEM).sort(), ["description", "quantity", "unit", "unit_price"]);
-  assert.deepEqual({ ...EMPTY_ITEM }, { description: "", quantity: "1", unit: "vnt.", unit_price: "" });
+  assert.deepEqual(Object.keys(EMPTY_ITEM).sort(), ["description", "kind", "quantity", "unit", "unit_price"]);
+  assert.deepEqual({ ...EMPTY_ITEM }, { kind: "material", description: "", quantity: "1", unit: "vnt.", unit_price: "" });
+});
+
+const terms = { workDescription: "Čiaupo keitimas; vamzdžių montavimas", advancePercent: 30, advanceDate: "2026-11-25", paymentDays: 7, startDate: "2026-11-25", endDate: "2026-12-09", acceptanceDays: 5, warrantyMonths: 24, penaltyPercent: 0.02 };
+const base = { seller: { legal_name: "Santechnitas", code: "1", iban: "LT00" }, clientName: "Virgis", workAddress: "Kaunas", totalGross: 3375.9, vatRate: 21, estimateNumber: "2026-007", today: "2026-11-18" };
+
+test("buildContractText su sąlygomis: nelieka ranka pildomų laukų, skaičiai įrašyti", () => {
+  const t = buildContractText({ ...base, terms });
+  assert.equal(countPlaceholders(t), 0);
+  assert.match(t, /šiuos darbus: Čiaupo keitimas; vamzdžių montavimas objekte/);
+  assert.match(t, /3\.2\. Avansas: 30 % \(.*1\s?012,77.*\), mokamas iki 2026-11-25\./);
+  assert.match(t, /3\.3\. Likusią sumą Užsakovas sumoka per 7 dienų/);
+  assert.match(t, /Darbų pradžia: 2026-11-25\. Darbų pabaiga: 2026-12-09\./);
+  assert.match(t, /per 5 darbo dienas/);
+  assert.match(t, /24 mėn\. garantiją/);
+  assert.match(t, /0,02 % dydžio delspinigiai/);
+});
+
+test("buildContractText: be avanso", () => {
+  const t = buildContractText({ ...base, terms: { ...terms, advancePercent: 0 } });
+  assert.match(t, /3\.2\. Avansas netaikomas\./);
+  assert.match(t, /3\.3\. Visą sumą Užsakovas sumoka/);
+  assert.equal(countPlaceholders(t), 0);
+});
+
+test("buildContractText: tuščias darbų aprašymas ar data palieka žymeklį, be sąlygų – kaip anksčiau", () => {
+  assert.match(buildContractText({ ...base, terms: { ...terms, workDescription: "", startDate: "" } }), /\[DARBŲ APRAŠYMAS\]/);
+  const old = buildContractText(base);
+  assert.match(old, /3\.3\. Likusią sumą Užsakovas sumoka per \[DIENŲ SKAIČIUS\]/);
+});
+
+test("summarizeWork: be pasikartojimų, sutrumpina ilgą sąrašą", () => {
+  assert.equal(summarizeWork([" Čiaupas ", "čiaupas", "Vamzdis"]), "Čiaupas; Vamzdis");
+  assert.equal(summarizeWork([]), "");
+  assert.equal(summarizeWork(["a", "b", "c"], 2), "a; b ir kiti darbai pagal sąmatą");
+  assert.ok(DEFAULT_TERMS.advancePercent > 0);
 });

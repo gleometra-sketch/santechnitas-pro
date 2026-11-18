@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveDocument, sendDocument } from "@/lib/documents/actions";
-import { KIND_LABEL, buildContractText, computeTotals, countPlaceholders, eur, lineTotal, parseNum, splitGross, type DocKind, type Seller } from "@/lib/documents/logic";
+import { DEFAULT_TERMS, KIND_LABEL, buildContractText, computeTotals, countPlaceholders, eur, lineTotal, parseNum, splitGross, type DocKind, type Seller } from "@/lib/documents/logic";
+import { addDays } from "@/lib/dates";
 import { EMPTY_ITEM, type Draft, type DraftItem } from "@/lib/documents/draft";
 import type { DocumentSummary } from "@/lib/documents/types";
 import type { ProjectRow } from "@/lib/admin/types";
@@ -16,8 +17,8 @@ import type { CatalogRow } from "@/lib/estimates/types";
 
 export type MainEstimate = { id: string; number: string; title: string; clientName: string; totalCents: number };
 
-export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [], mainEstimates = [] }: {
-  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[]; mainEstimates?: MainEstimate[];
+export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [], mainEstimates = [], workSummaries = {} }: {
+  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[]; mainEstimates?: MainEstimate[]; workSummaries?: Record<string, string>;
 }) {
   const router = useRouter();
   const [f, setF] = useState<Draft>(initial);
@@ -64,20 +65,43 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
     const e = estimates.find((x) => x.id === id);
     setF((s) => ({ ...s, estimateId: id, totalGross: e ? String(e.totalGross) : s.totalGross }));
   };
-  const fillTemplate = () => {
-    if (f.body.trim() && !confirm("Dabartinis sutarties tekstas bus pakeistas šablonu. Tęsti?")) return;
-    const est = estimates.find((x) => x.id === f.estimateId) ?? (() => { const m = mainEstimates.find((x) => `est:${x.id}` === f.estimateId); return m ? { number: m.number } : undefined; })();
+  // Sutarties tekstas sudaromas automatiškai iš kliento, objekto, kainos, sąmatos ir žemiau esančių sąlygų.
+  // Ranka pakeitus tekstą, jis nebeperrašomas (mygtukas „Atkurti automatinį tekstą“); seni juodraščiai lieka kaip buvę.
+  const [manual, setManual] = useState(() => initial.kind === "contract" && initial.body.trim() !== "");
+  const [terms, setTerms] = useState({
+    workDescription: "", advancePercent: String(DEFAULT_TERMS.advancePercent), advanceDate: "", paymentDays: String(DEFAULT_TERMS.paymentDays),
+    startDate: addDays(today, DEFAULT_TERMS.startInDays), endDate: addDays(today, DEFAULT_TERMS.startInDays + DEFAULT_TERMS.durationDays),
+    acceptanceDays: String(DEFAULT_TERMS.acceptanceDays), warrantyMonths: String(DEFAULT_TERMS.warrantyMonths), penaltyPercent: String(DEFAULT_TERMS.penaltyPercent).replace(".", ","),
+  });
+  const setTerm = (k: keyof typeof terms, v: string) => setTerms((t) => ({ ...t, [k]: v }));
+  const nonNeg = (v: string, dflt: number) => { const n = parseNum(v); return Number.isFinite(n) && n >= 0 ? n : dflt; };
+  const linkedEstimate = estimates.find((x) => x.id === f.estimateId) ?? (() => { const m = mainEstimates.find((x) => `est:${x.id}` === f.estimateId); return m ? { number: m.number } : undefined; })();
+  const autoWork = workSummaries[f.estimateId] || f.title.replace(/^(Sutartis|Sąmata):\s*/i, "").trim();
+  const generated = useMemo(() => {
+    if (isEstimate) return "";
     const g = parseNum(f.totalGross);
-    set("body", buildContractText({
+    return buildContractText({
       seller, clientName: f.clientName || "[UŽSAKOVAS]", clientAddress: f.clientAddress, workAddress: f.workAddress,
-      totalGross: Number.isFinite(g) ? g : 0, vatRate: Number.isFinite(vat) ? vat : 21, estimateNumber: est?.number ?? null, today,
-    }));
+      totalGross: Number.isFinite(g) ? g : 0, vatRate: Number.isFinite(vat) ? vat : 21, estimateNumber: linkedEstimate?.number ?? null, today,
+      terms: {
+        workDescription: terms.workDescription.trim() || autoWork,
+        advancePercent: Math.min(100, nonNeg(terms.advancePercent, DEFAULT_TERMS.advancePercent)), advanceDate: terms.advanceDate || terms.startDate,
+        paymentDays: Math.round(nonNeg(terms.paymentDays, DEFAULT_TERMS.paymentDays)), startDate: terms.startDate, endDate: terms.endDate,
+        acceptanceDays: Math.round(nonNeg(terms.acceptanceDays, DEFAULT_TERMS.acceptanceDays)), warrantyMonths: Math.round(nonNeg(terms.warrantyMonths, DEFAULT_TERMS.warrantyMonths)),
+        penaltyPercent: nonNeg(terms.penaltyPercent, DEFAULT_TERMS.penaltyPercent),
+      },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEstimate, seller, f.clientName, f.clientAddress, f.workAddress, f.totalGross, vat, linkedEstimate?.number, today, terms, autoWork]);
+  const bodyText = manual ? f.body : generated;
+  const restoreAuto = () => {
+    if (confirm("Rankiniai sutarties teksto pakeitimai bus prarasti, o tekstas vėl sudaromas automatiškai. Tęsti?")) setManual(false);
   };
 
-  const payload = () => ({ ...f, id: f.id });
+  const payload = () => ({ ...f, id: f.id, body: isEstimate ? f.body : bodyText });
   const run = (send: boolean) => {
     if (send && !isEstimate) {
-      const n = countPlaceholders(f.body);
+      const n = countPlaceholders(bodyText);
       if (n > 0 && !confirm(`Sutartyje liko neužpildytų laukų [ ... ]: ${n}. Siųsti vis tiek?`)) return;
     }
     start(async () => {
@@ -200,11 +224,32 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
 
       {!isEstimate && (
         <section className="space-y-3 rounded-2xl bg-white p-4 shadow-card">
-          <h3 className="text-lg font-bold">Sutarties tekstas</h3>
-          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Tai šablono juodraštis, o ne teisinė konsultacija. Užpildykite laukus [SKLIAUSTUOSE] ir prieš naudojimą parodykite sutartį teisininkui.</p>
-          <button onClick={fillTemplate} className={ghostBtn}>Sukurti tekstą iš šablono</button>
-          <textarea value={f.body} onChange={(e) => set("body", e.target.value)} rows={22} className={`${inputCls} min-h-0 py-2 font-mono text-sm`} aria-label="Sutarties tekstas" />
-          <p className="text-sm text-muted">Neužpildytų laukų: {countPlaceholders(f.body)}</p>
+          <h3 className="text-lg font-bold">Sutarties sąlygos</h3>
+          <p className="text-sm text-muted">Sutarties tekstas sudaromas pats iš kliento, objekto, kainos ir sąmatos duomenų. Čia galite pakeisti tik įprastas sąlygas.</p>
+          <Field label="Darbų aprašymas (automatiškai iš sąmatos)"><input value={terms.workDescription} onChange={(e) => setTerm("workDescription", e.target.value)} className={inputCls} placeholder={autoWork || "pvz. vonios kambario santechnikos darbai"} /></Field>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Field label="Darbų pradžia"><input type="date" value={terms.startDate} onChange={(e) => setTerm("startDate", e.target.value)} className={inputCls} /></Field>
+            <Field label="Darbų pabaiga"><input type="date" value={terms.endDate} onChange={(e) => setTerm("endDate", e.target.value)} className={inputCls} /></Field>
+            <Field label="Avansas, % (0 – be avanso)"><input value={terms.advancePercent} onChange={(e) => setTerm("advancePercent", e.target.value)} inputMode="decimal" className={inputCls} /></Field>
+            <Field label="Avansas mokamas iki"><input type="date" value={terms.advanceDate || terms.startDate} onChange={(e) => setTerm("advanceDate", e.target.value)} className={inputCls} /></Field>
+            <Field label="Likusi suma per, d."><input value={terms.paymentDays} onChange={(e) => setTerm("paymentDays", e.target.value)} inputMode="numeric" className={inputCls} /></Field>
+            <Field label="Darbų priėmimas per, d.d."><input value={terms.acceptanceDays} onChange={(e) => setTerm("acceptanceDays", e.target.value)} inputMode="numeric" className={inputCls} /></Field>
+            <Field label="Garantija, mėn."><input value={terms.warrantyMonths} onChange={(e) => setTerm("warrantyMonths", e.target.value)} inputMode="numeric" className={inputCls} /></Field>
+            <Field label="Delspinigiai, % per dieną"><input value={terms.penaltyPercent} onChange={(e) => setTerm("penaltyPercent", e.target.value)} inputMode="decimal" className={inputCls} /></Field>
+          </div>
+
+          <h3 className="pt-2 text-lg font-bold">Sutarties tekstas</h3>
+          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Tai šablono juodraštis, o ne teisinė konsultacija. Prieš naudojimą parodykite sutartį teisininkui.</p>
+          {manual ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface p-3 text-sm">
+              <span>Tekstas redaguotas ranka, todėl sąlygos jo nebekeičia.</span>
+              <button onClick={restoreAuto} className="font-semibold underline">Atkurti automatinį tekstą</button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Tekstas atsinaujina pats pakeitus duomenis. Jei jį pataisysite ranka, automatinis atnaujinimas sustos.</p>
+          )}
+          <textarea value={bodyText} onChange={(e) => { setF((p) => ({ ...p, body: e.target.value })); setManual(true); }} rows={22} className={`${inputCls} min-h-0 py-2 font-mono text-sm`} aria-label="Sutarties tekstas" />
+          {countPlaceholders(bodyText) > 0 && <p className="text-sm text-muted">Neužpildytų laukų: {countPlaceholders(bodyText)}</p>}
         </section>
       )}
 
