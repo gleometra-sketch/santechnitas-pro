@@ -98,7 +98,7 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
     if (confirm("Rankiniai sutarties teksto pakeitimai bus prarasti, o tekstas vėl sudaromas automatiškai. Tęsti?")) setManual(false);
   };
 
-  const payload = () => ({ ...f, id: f.id, body: isEstimate ? f.body : bodyText });
+  const payload = () => ({ ...f, id: f.id, items: isEstimate ? f.items : [], body: isEstimate ? f.body : bodyText });
   const run = (send: boolean) => {
     if (send && !isEstimate) {
       const n = countPlaceholders(bodyText);

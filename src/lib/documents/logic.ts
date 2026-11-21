@@ -157,3 +157,12 @@ export function shareLinks(p: { url: string; kind: DocKind; number: string; clie
     whatsapp: `https://wa.me/?text=${encodeURIComponent(text)}`,
   };
 }
+
+/**
+ * Sutartis eilučių neturi (kaina ir darbai imami iš susietos sąmatos), o tuščias juodraštis turi vieną tuščią sąmatos eilutę.
+ * Todėl sutarties eilutės prieš tikrinimą išmetamos: kitaip serveris atmestų tuščią eilutės aprašymą.
+ */
+export function dropContractItems(input: unknown): unknown {
+  if (input && typeof input === "object" && (input as { kind?: unknown }).kind === "contract") return { ...(input as object), items: [] };
+  return input;
+}

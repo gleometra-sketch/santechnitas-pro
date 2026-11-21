@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActionContext, isAdmin } from "@/lib/auth/context";
 import { isValidDayKey } from "@/lib/dates";
-import { parseNum } from "./logic";
+import { parseNum, dropContractItems } from "./logic";
 import { learnFromItems } from "@/lib/estimates/learn";
 
 export type DocResult = { ok: true; message?: string; id?: string; url?: string; estimateId?: string } | { ok: false; error: string };
@@ -129,7 +129,7 @@ async function importEstimate(db: Awaited<ReturnType<typeof createClient>>, comp
 }
 
 export async function saveDocument(input: unknown): Promise<DocResult> {
-  const p = docSchema.safeParse(input);
+  const p = docSchema.safeParse(dropContractItems(input));
   if (!p.success) return fail(p.error.issues[0].message);
   const d = p.data;
   if (d.kind === "estimate" && d.items.length === 0) return fail("Pridėkite bent vieną sąmatos eilutę.");
