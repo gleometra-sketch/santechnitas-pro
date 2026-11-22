@@ -35,5 +35,9 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261113.1": true
   }
 }
