@@ -1,5 +1,6 @@
 import Link from "next/link";
 import CompanyProfileForm from "@/components/documents/CompanyProfileForm";
+import DocumentsUsage from "@/components/plans/DocumentsUsage";
 import { getProjects } from "@/lib/admin/queries";
 import { requireContext } from "@/lib/auth/context";
 import { getCompanyProfile, getDocuments } from "@/lib/documents/queries";
@@ -17,6 +18,7 @@ export default async function DokumentaiPage({ searchParams }: { searchParams: P
 
   return (
     <div className="space-y-4">
+      <DocumentsUsage ctx={ctx} />
       {/* Sąmatas kuriame objekto kortelėje (apačioje, „Sąmatos ir sutartys“); čia – tik sutartys. */}
       <div className="flex flex-wrap gap-3">
         <Link href={`/valdymas/dokumentai/naujas?kind=contract${q}`} className="flex min-h-12 items-center rounded-2xl bg-accent px-5 font-semibold text-white">Nauja sutartis</Link>

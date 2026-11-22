@@ -12,13 +12,13 @@ Data: 2026-11-09. Atnaujinta: RLS testai (0001–0008) praėjo pas naudotoją; A
 | Pilnas `typecheck` | NEATLIKTAS: aplinkoje nėra `next`, `react`, `@types/react`. Likę 3 pranešimai buvo dirbtiniai (dėl trūkstamų tipų). Paleiskite `npm run typecheck` pas save. |
 | `next build`, naršyklė, mobilusis | BLOCKED. |
 | SQL / RLS testai | BLOCKED (nėra PostgreSQL). Testai yra `supabase/tests/rls_test.sql`, paleidžiami `./supabase/tests/run.sh`. |
-| Slaptieji raktai | Kode raktų nėra. `.env.local` yra `.gitignore`. Į kodą nepatenka `SERVICE_ROLE` ir `STRIPE` raktai (jie tik `.env.example`). |
+| Slaptieji raktai | Kode raktų nėra. `.env.local` yra `.gitignore`. Į kodą nepatenka `SERVICE_ROLE` ir `PADDLE` raktai (jie tik `.env.example`). |
 
 ## 2. Inventorius
 
 - **Puslapiai (17):** `/`, `/prisijungimas`, `/registracija`, `/pamirsau-slaptazodi`, `/naujas-slaptazodis`, `/auth/callback`, `/kurti-imone`, `/privatumas`, `/nesukonfiguruota`, `/darbai`, `/kalendorius`, `/valandos`, `/medziagos`, `/valdymas` (+ `darbai`, `objektai`, `darbuotojai`, `laikas`).
 - **Serverio veiksmai:** 38 (darbuotojo 16, administratoriaus 16, prisijungimo 6).
-- **Lentelės (17):** profiles, companies, company_members, trial_claims, subscriptions, payments, stripe_events, projects, tasks, task_checklist_items, time_entries, breaks, days_off, notes, attachments, material_requests, material_request_items.
+- **Lentelės (17):** profiles, companies, company_members, trial_claims, subscriptions, payments, billing_events (buvęs stripe_events), projects, tasks, task_checklist_items, time_entries, breaks, days_off, notes, attachments, material_requests, material_request_items.
 - **Migracijos:** 0001–0013. **Testai:** SQL/RLS, vienetiniai, naršyklės „dūmų“ testai ir CI (`docs/TESTAVIMAS.md`).
 
 ## 3. Funkcijų matrica
@@ -50,7 +50,7 @@ Statusai: **PASS** (kode atrodo teisingai, vykdymas nepatikrintas) · **PARTIAL*
 | Pastabos | Pastaba biurui (tekstas, diktavimas) | PASS | Garso įrašo saugojimo nėra. |
 | Dokumentai | Sąmatos, sąskaitos (atidėta), PDF | MISSING | |
 | Pranešimai | Push / el. paštas | MISSING | |
-| Prenumeratos | Stripe/Paddle, planų ribojimas | MISSING | Lentelės yra, kodo nėra. |
+| Prenumeratos | Paddle apmokėjimas, planai, limitai | PARTIAL | Kodas parašytas (0021, 0022), bet dar neišbandytas su tikru Paddle ir tikra PostgreSQL; žr. `PADDLE.md`, `SAMATOS-IR-PLANAI.md`. |
 | Pardavimo puslapis | `/` ir CTA į registraciją | PASS | Kainos „netrukus“. |
 | Archyvas / „soft delete“ | | PARTIAL | Objektai ir darbuotojai archyvuojami, darbai ištrinami visam laikui. |
 

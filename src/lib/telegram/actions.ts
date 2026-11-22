@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getActionContext, isAdmin } from "@/lib/auth/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { companyHasFeature } from "@/lib/plans-server";
 import type { ActionResult } from "@/lib/work/types";
 import { newToken } from "./core";
 
@@ -15,6 +16,7 @@ export async function createTelegramLink(): Promise<LinkResult> {
   const ctx = await getActionContext();
   if (!ctx) return { ok: false, error: "Sesija baigėsi. Prisijunkite iš naujo." };
   if (!ctx.companyId || !isAdmin(ctx.role)) return { ok: false, error: "Telegram gali prijungti tik administratorius." };
+  if (!(await companyHasFeature(ctx.companyId, "telegram"))) return { ok: false, error: "Telegram prieinamas Pro ir Verslui planuose (Valdymas → Abonementas)." };
   const bot = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "");
   if (!bot || !process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_WEBHOOK_SECRET) {
     return { ok: false, error: "Telegram botas dar nesukonfigūruotas (žr. docs/TELEGRAM.md)." };

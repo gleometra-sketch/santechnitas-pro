@@ -10,12 +10,13 @@ test("parseCommand supranta komandas su botu ir argumentu", () => {
   assert.equal(parseCommand(undefined), null);
 });
 
-test("kategorijos: yra automobiliai, nežinomos atmetamos", () => {
+test("kategorijos: yra automobiliai ir dokumentai, nežinomos atmetamos", () => {
   assert.ok(isCategory("automobiliai"));
+  assert.ok(isCategory("dokumentai"));
   assert.ok(isCategory("darbas"));
   assert.ok(!isCategory("toString"));
   assert.ok(!isCategory("xyz"));
-  assert.deepEqual(Object.keys(CATEGORIES).sort(), ["automobiliai", "darbas", "medziagos", "pastabos"]);
+  assert.deepEqual(Object.keys(CATEGORIES).sort(), ["automobiliai", "darbas", "dokumentai", "medziagos", "pastabos"]);
 });
 
 test("esc apsaugo nuo HTML, clip trumpina", () => {

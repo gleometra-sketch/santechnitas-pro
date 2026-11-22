@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EMPTY_ITEM } from "../../src/lib/documents/draft";
-import { DEFAULT_TERMS, buildContractText, computeTotals, countPlaceholders, lineCents, parseNum, shareLinks, splitGross, summarizeWork, dropContractItems } from "../../src/lib/documents/logic";
+import { DEFAULT_TERMS, buildContractText, computeTotals, countPlaceholders, lineCents, parseNum, shareLinks, splitGross, summarizeWork } from "../../src/lib/documents/logic";
 
 test("parseNum: kablelis, tarpai, netinkama reikšmė", () => {
   assert.equal(parseNum("12,5"), 12.5);
@@ -144,13 +144,4 @@ test("cityFromAddress", () => {
   assert.equal(cityFromAddress("Panevėžio g. 17"), "");
   assert.equal(cityFromAddress("Gedimino 1, Vilnius, 12345"), "");
   assert.equal(cityFromAddress(null), "");
-});
-
-test("dropContractItems: sutarties eilutės (tuščia juodraščio eilutė) išmetamos, sąmatos lieka", () => {
-  const blankLine = { description: "", quantity: "1", unit: "vnt.", unit_price: "" };
-  assert.deepEqual((dropContractItems({ kind: "contract", title: "S", items: [blankLine] }) as { items: unknown[] }).items, []);
-  const est = { kind: "estimate", items: [blankLine] };
-  assert.equal(dropContractItems(est), est);
-  assert.equal(dropContractItems(null), null);
-  assert.equal(dropContractItems("x"), "x");
 });

@@ -14,3 +14,4 @@ sed '/^create role/d' "$DIR/tests/supabase_stub.sql" | psql -q -v ON_ERROR_STOP=
 for f in "$DIR"/migrations/*.sql; do echo "migracija: $(basename "$f")"; psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"; done
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/tests/rls_test.sql" 2>&1 | grep -E "PASS|FAIL|VISI|ERROR"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/tests/documents_test.sql" 2>&1 | grep -E "FAIL|PRAĖJO|ERROR"
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/tests/plans_test.sql" 2>&1 | grep -E "FAIL|PRAĖJO|ERROR"

@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       <h2 className="text-xl font-bold">Kam jų reikia</h2>
       <p>Paslaugai teikti: darbo laiko apskaitai, darbų planavimui, medžiagų užsakymams ir prenumeratos valdymui.</p>
       <h2 className="text-xl font-bold">Kas apdoroja duomenis</h2>
-      <p>Duomenys saugomi Supabase (duomenų bazė ir failai), mokėjimus apdoroja Stripe. Banko kortelės duomenų mes nematome ir nesaugome.</p>
+      <p>Duomenys saugomi Supabase (duomenų bazė ir failai), mokėjimus apdoroja Paddle (jis veikia kaip pardavėjas ir atsako už mokesčius bei sąskaitas). Banko kortelės duomenų mes nematome ir nesaugome.</p>
       <h2 className="text-xl font-bold">Jūsų teisės</h2>
       <p>Galite prašyti peržiūrėti, ištaisyti, eksportuoti ar ištrinti savo duomenis. Duomenų valdytojo kontaktai: [įrašykite].</p>
       <p><Link href="/registracija" className="font-semibold text-accent-dark underline">Grįžti</Link></p>

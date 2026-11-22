@@ -25,6 +25,8 @@ export type EventDef = {
   adminOnly?: boolean;
   /** Telegram kategorija, kurią administratorius gali išjungti botui parašęs /isjungti. */
   telegramCategory?: Category;
+  /** false = įvykis aprašytas, bet kodo, kuris jį sukuria, dar nėra; nustatymuose nerodomas, kad nebūtų „negyvų“ jungiklių. */
+  available?: boolean;
 };
 
 export const EVENTS = {
@@ -39,24 +41,28 @@ export const EVENTS = {
     description: "Šiandienos objektai ir užduotys",
     defaults: ["inapp"],
     urgent: false,
+    available: false,
   },
   work_reminder: {
     label: "Priminimas apie darbą",
     description: "Prieš darbo pradžią",
     defaults: ["inapp"],
     urgent: false,
+    available: false,
   },
   hours_missing: {
     label: "Neužregistruotos valandos",
     description: "Pamiršta baigti ar įrašyti darbo dieną",
     defaults: ["inapp"],
     urgent: false,
+    available: false,
   },
   weekly_hours: {
     label: "Savaitės valandų suvestinė",
     description: "Praėjusios savaitės valandos",
     defaults: ["inapp"],
     urgent: false,
+    available: false,
   },
   // Medžiagų poreikio Telegram žinutę administratoriams siunčia src/lib/telegram/notify.ts tiesiogiai (su sąrašu),
   // todėl čia tik programos varpelis: kitaip administratorius gautų dvi žinutes.
@@ -78,6 +84,24 @@ export const EVENTS = {
     description: "Išsiųsta, patvirtinta, atmesta ar atšaukta",
     defaults: ["inapp", "telegram"],
     urgent: true,
+    adminOnly: true,
+    telegramCategory: "dokumentai",
+  },
+  // Pastabos biurui Telegram žinutę siunčia src/lib/telegram/notify.ts tiesiogiai; čia tik programos varpelis
+  // (kad pasiekus Telegram limitą pastaba nepasimestų). Įvykį sukuria triggeris notes_notify (0022_plans.sql).
+  office_note: {
+    label: "Pastaba biurui",
+    description: "Darbuotojas parašė pastabą biurui",
+    defaults: ["inapp"],
+    urgent: false,
+    adminOnly: true,
+  },
+  // Įspėjimai apie plano limitus (dokumentai, Telegram). Siunčiami tik programoje, kad neeikvotų Telegram limito.
+  plan_usage: {
+    label: "Plano limitai",
+    description: "Artėjate prie dokumentų ar Telegram limito arba jį pasiekėte",
+    defaults: ["inapp"],
+    urgent: false,
     adminOnly: true,
   },
   car_deadline: {

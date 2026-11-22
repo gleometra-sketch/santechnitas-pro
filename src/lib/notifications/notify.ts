@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { eventDef, type Channel, type EventType } from "./events";
 import { inappAdapter } from "./adapters/inapp";
 import { telegramAdapter } from "./adapters/telegram";
+import { QUOTA_REASON_LT, takeTelegramQuota } from "@/lib/telegram/quota";
 
 export type Payload = { title: string; body: string; data?: Record<string, unknown> };
 
@@ -121,6 +122,15 @@ export async function notify(
       // TODO (cron žingsnis): perskaityti 'deferred' įrašus ir išsiųsti pasibaigus tylos valandoms
       log.push({ ...base, channel: ch, status: "deferred", detail: "tylos valandos" });
       continue;
+    }
+    if (ch === "telegram") {
+      // Plano Telegram limitas (tikrinama paskutinė, kad atidėtos tylos valandų žinutės nesunaudotų limito).
+      // Neleidus žinutė nesiunčiama, bet programos pranešimas (inapp) veikia nepriklausomai.
+      const q = await takeTelegramQuota(supabase, companyId, def.telegramCategory ?? "kita");
+      if (!q.allowed) {
+        log.push({ ...base, channel: ch, status: "skipped", detail: `Telegram limitas: ${QUOTA_REASON_LT[q.reason ?? ""] ?? q.reason ?? "atsisakyta"}` });
+        continue;
+      }
     }
     const ok = await send(ch, connected.get(ch) ?? {});
     if (!ok && ch !== "inapp") externalFailed = true;

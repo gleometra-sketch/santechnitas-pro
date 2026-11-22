@@ -117,3 +117,30 @@ test("užblokavus botą prijungimas pašalinamas, o nesėkmė užfiksuojama", as
   assert.equal(status(log, "telegram"), "failed");
   assert.ok(db.deleted.includes("telegram_links"));
 });
+
+test("Telegram limitas pasiektas: Telegram praleidžiamas, programos pranešimas vis tiek išsiunčiamas", async () => {
+  const db = fakeDb(admin());
+  (db as unknown as { rpc: unknown }).rpc = async () => ({ data: { allowed: false, reason: "limit", used: 300, limit: 300 }, error: null });
+  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "car_deadline", payload: { title: "TA baigiasi", body: "ABC123" } });
+  assert.equal(status(log, "inapp"), "sent");
+  assert.equal(status(log, "telegram"), "skipped");
+  assert.equal(sent.length, 0);
+  assert.equal(db.inserted["notifications"].length, 1);
+});
+
+test("Telegram limitas leidžia: žinutė išsiunčiama ir kvota prašoma su kategorija", async () => {
+  const db = fakeDb(admin());
+  const calls: unknown[] = [];
+  (db as unknown as { rpc: unknown }).rpc = async (name: string, args: unknown) => { calls.push({ name, args }); return { data: { allowed: true, used: 1, limit: 300 }, error: null }; };
+  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "car_oil", payload: { title: "Tepalai", body: "" } });
+  assert.equal(status(log, "telegram"), "sent");
+  assert.deepEqual(calls, [{ name: "take_telegram_quota", args: { p_company: CO, p_category: "automobiliai", p_priority: "high" } }]);
+});
+
+test("dokumentų pranešimus Telegram galima išjungti kategorija „dokumentai“", async () => {
+  const db = fakeDb(admin(["dokumentai"]));
+  const log = await notify(db as never, { companyId: CO, userId: "adm", event: "document_status", payload: { title: "Sąmata patvirtinta", body: "" } });
+  assert.equal(status(log, "inapp"), "sent");
+  assert.equal(status(log, "telegram"), "skipped");
+  assert.equal(sent.length, 0);
+});

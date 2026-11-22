@@ -1,6 +1,6 @@
 # Sąmatos ir sutartys su klientais
 
-Migracija: `supabase/migrations/0020_documents.sql`. Paleisti Supabase SQL Editor po `0015_cars.sql` (migracijų 0016–0019 šiame projekte nėra, jų nereikia: migracija pati sukuria pagalbinę funkciją `notify_admins`, jei jos nėra). Jai reikia anksčiau paleistų `0001`–`0003` ir `0014_notifications`.
+Migracija: `supabase/migrations/0020_documents.sql`. Paleisti Supabase SQL Editor po `0016_estimates.sql` (numeriai 0017–0019 sąmoningai praleisti, žr. `supabase/migrations/README.md`; migracija pati sukuria pagalbinę funkciją `notify_admins`, jei jos nėra). Jai reikia anksčiau paleistų `0001`–`0003` ir `0014_notifications`.
 
 **Aplinkos kintamieji** (Cloudflare → Variables and Secrets): `SUPABASE_SERVICE_ROLE_KEY` (viešas kliento puslapis skaito ir įrašo atsakymą per serverį) ir `NEXT_PUBLIC_APP_URL` (iš jo sudaroma nuoroda klientui; jei nenurodytas, imamas svetainės adresas iš užklausos). Skiltis: Valdymas → Dokumentai ir objekto kortelėje „Sąmatos ir sutartys“.
 
@@ -29,4 +29,4 @@ Juodraštis → Išsiųsta → Patvirtinta / Atmesta / Atšaukta. Redaguoti gali
 ## Kol kas nepadaryta
 - Tikras PDF failas serveryje (naudojamas naršyklės „Spausdinti / PDF“).
 - Priminimas klientui, kai artėja galiojimo pabaiga, ir sąskaitos faktūros.
-- Plano (pakopos) apribojimai: modulis prieinamas visiems, kol nenustatyti planai.
+- Plano apribojimai: nuo `0022_plans.sql` sąmatų ir sutarčių skaičių per mėnesį riboja planas (Bazinis 10, Pro 40, Verslui sąžiningo naudojimo riba 300), žr. `SAMATOS-IR-PLANAI.md`.

@@ -11,11 +11,14 @@ Darbuotojai botui neprijungiami.
 | `pastabos` | Darbuotojas parašo pastabą biurui |
 | `darbas` | Darbuotojas pradeda, baigia darbą arba pakeičia objektą |
 | `automobiliai` | Automobilio terminai (TA, kelių mokestis, draudimas) ir tepalų keitimas |
+| `dokumentai` | Sąmata ar sutartis išsiųsta (kitam administratoriui), klientas patvirtino, atmetė arba dokumentas atšauktas |
 
 Paties veiksmo autorius pranešimo negauna (jei administratorius pats pradeda darbą, jam nerašoma).
 Kiekvienas administratorius gali išjungti kategorijas botui parašęs `/isjungti darbas`.
 
-**Dar neįgyvendinta:** darbo sutarčių ir sąmatų siuntimas bei patvirtinimas (įvykis `document_status` paruoštas, programoje tokios funkcijos dar nėra).
+Dokumentų pranešimai (`dokumentai`) siunčiami per pranešimų eilę (`document_status`, žr. `DOKUMENTAI.md`); jų reikia nustatyti Supabase webhook (`PRANESIMAI.md`). Rankinio `daily_digest`, `work_reminder`, `hours_missing`, `weekly_hours` siuntimo kodo dar nėra, todėl nustatymuose jie nerodomi.
+
+**Planai ir limitai:** Telegram prieinamas Pro ir Verslui planuose. Pro turi 300 žinučių per mėnesį (viena žinutė vienam administratoriui); pasiekus 80 % sustoja darbo pradžios / pabaigos žinutės, pasiekus 100 % visos. Programos varpelis veikia visada. Žr. `SAMATOS-IR-PLANAI.md`.
 Naują kategoriją pridėkite į `src/lib/telegram/core.ts`, o žinutę siųskite per `notifyAdmins(...)` arba per pranešimų eilę (`docs/PRANESIMAI.md`).
 
 ## Diegimas (vieną kartą)

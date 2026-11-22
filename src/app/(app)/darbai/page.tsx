@@ -1,6 +1,7 @@
 import { NotebookPen } from "lucide-react";
 import WorkClock from "@/components/WorkClock";
 import OfficeReport from "@/components/OfficeReport";
+import { canUse } from "@/lib/plans";
 import TaskCard from "@/components/TaskCard";
 import { requireContext } from "@/lib/auth/context";
 import { addDays, longDayLabel, todayKey, weekStart } from "@/lib/dates";
@@ -86,7 +87,7 @@ export default async function DarbaiPage() {
         )}
       </section>
 
-      <OfficeReport notes={notes} requests={requests} />
+      <OfficeReport notes={notes} requests={requests} materialsEnabled={canUse(ctx.plan, "materials")} />
     </div>
   );
 }

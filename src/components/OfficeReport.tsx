@@ -9,16 +9,16 @@ import type { MaterialRequestView, NoteView } from "@/lib/work/types";
 type Tab = "note" | "materials";
 
 /** „Pranešti biurui“: vienas blokas su dviem skirtukais (laisva pastaba arba medžiagų prašymas su kiekiais). */
-export default function OfficeReport({ notes, requests }: { notes: NoteView[]; requests: MaterialRequestView[] }) {
+export default function OfficeReport({ notes, requests, materialsEnabled = true }: { notes: NoteView[]; requests: MaterialRequestView[]; materialsEnabled?: boolean }) {
   const [tab, setTab] = useState<Tab>("note");
   const tabs: { id: Tab; label: string; Icon: typeof NotebookPen }[] = [
     { id: "note", label: "Pastaba", Icon: NotebookPen },
-    { id: "materials", label: "Medžiagos", Icon: PackagePlus },
+    ...(materialsEnabled ? [{ id: "materials" as Tab, label: "Medžiagos", Icon: PackagePlus }] : []), // medžiagų prašymai prieinami Pro ir Verslui planuose
   ];
   return (
     <section id="pranesti" aria-label="Pranešti biurui" className="scroll-mt-20 rounded-card bg-white p-4 shadow-card sm:p-5">
       <h2 className="mb-3 text-lg font-bold">Pranešti biurui</h2>
-      <div role="tablist" aria-label="Pranešimo tipas" className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-black/5 p-1">
+      <div role="tablist" aria-label="Pranešimo tipas" hidden={!materialsEnabled} className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-black/5 p-1">
         {tabs.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -37,9 +37,11 @@ export default function OfficeReport({ notes, requests }: { notes: NoteView[]; r
       <div role="tabpanel" id="panel-note" aria-labelledby="tab-note" hidden={tab !== "note"}>
         <OfficeNote notes={notes} />
       </div>
-      <div role="tabpanel" id="panel-materials" aria-labelledby="tab-materials" hidden={tab !== "materials"}>
-        <MaterialRequest requests={requests} />
-      </div>
+      {materialsEnabled && (
+        <div role="tabpanel" id="panel-materials" aria-labelledby="tab-materials" hidden={tab !== "materials"}>
+          <MaterialRequest requests={requests} />
+        </div>
+      )}
     </section>
   );
 }

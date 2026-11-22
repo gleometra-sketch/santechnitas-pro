@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isPlanId, type PlanId } from "@/lib/plans";
 import type { TimeMode } from "@/lib/work/types";
 
 export type Role = "owner" | "admin" | "worker";
@@ -17,6 +18,8 @@ export type SessionContext = {
   hasAccess: boolean;
   /** Aktyvi/bandomoji prenumerata (matoma tik administratoriams). */
   subscribed: boolean;
+  /** Įmonės planas (bazinis / pro / verslui); bandymas = pro; null = prieigos nėra. Matomas visiems nariams. */
+  plan: PlanId | null;
 };
 
 async function loadMembership(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
@@ -67,12 +70,16 @@ export const getContext = cache(async (): Promise<SessionContext | null> => {
 
   let hasAccess = false;
   let subscribed = false;
+  let plan: PlanId | null = null;
   if (c) {
-    const [access, sub] = await Promise.all([
+    const [access, sub, planRes] = await Promise.all([
       supabase.rpc("company_has_access", { cid: c.id }),
       supabase.from("subscriptions").select("status").eq("company_id", c.id).maybeSingle(),
+      supabase.rpc("company_plan", { cid: c.id }),
     ]);
     hasAccess = access.data === true;
+    // 0022 migracija dar nepaleista: nekeičiame veikimo (visi turi Pro funkcijas).
+    plan = planRes.error ? (hasAccess ? "pro" : null) : isPlanId(planRes.data) ? planRes.data : null;
     const st = sub.data?.status;
     subscribed = st === "active" || st === "trialing" || st === "past_due";
   }
@@ -86,6 +93,7 @@ export const getContext = cache(async (): Promise<SessionContext | null> => {
     timeMode: modeOf(membership),
     hasAccess,
     subscribed,
+    plan,
   };
 });
 

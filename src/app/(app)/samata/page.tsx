@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import EstimateNav from "@/components/estimates/EstimateNav";
+import DocumentsUsage from "@/components/plans/DocumentsUsage";
 import NewEstimateButton from "@/components/estimates/NewEstimateButton";
 import { isAdmin, requireContext } from "@/lib/auth/context";
 import { formatEuro } from "@/lib/estimates/calc";
@@ -32,6 +33,7 @@ export default async function SamataPage({ searchParams }: { searchParams: Promi
     <div className="space-y-5">
       <h1 className="text-3xl font-extrabold">Sąmata</h1>
       <EstimateNav active="list" />
+      <DocumentsUsage ctx={ctx} />
       <NewEstimateButton />
 
       <nav aria-label="Būsena" className="flex flex-wrap gap-2">

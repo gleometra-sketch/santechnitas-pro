@@ -186,11 +186,11 @@ select t.err($$select public.create_material_request(t.id('CX'), null, null, '[{
 
 -- 7. Prenumeratos ir prieigos baigtis
 reset role;
-insert into public.subscriptions (company_id, stripe_customer_id, status, plan_interval, seats) values (t.id('CX'), 'cus_test', 'active', 'month', 2);
+insert into public.subscriptions (company_id, provider_customer_id, status, plan_interval, seats) values (t.id('CX'), 'cus_test', 'active', 'month', 2);
 select t.as_user('A');
 select t.ok(t.n($$select count(*) from public.subscriptions$$) = 1, 'administratorius mato savo prenumeratą');
 select t.err($$update public.subscriptions set status = 'active'$$, '42501');
-select t.err($$insert into public.payments (company_id, stripe_invoice_id, amount_cents, status) values (t.id('CX'), 'in_1', 300, 'paid')$$, '42501');
+select t.err($$insert into public.payments (company_id, provider_transaction_id, amount_cents, status) values (t.id('CX'), 'in_1', 300, 'paid')$$, '42501');
 select t.as_user('W');
 select t.ok(t.n($$select count(*) from public.subscriptions$$) = 0, 'darbuotojas prenumeratos nemato');
 reset role;
@@ -201,7 +201,7 @@ select t.ok(not public.company_has_access(t.id('CX')), 'pasibaigus bandymui prie
 select t.err($$insert into public.notes (company_id, author_id, body) values (t.id('CX'), t.id('W'), 'po bandymo')$$, '42501');
 select t.ok(t.n($$select count(*) from public.notes$$) = 1, 'pasibaigus bandymui duomenys lieka matomi (skaitymas leidžiamas)');
 reset role;
-insert into public.subscriptions (company_id, stripe_customer_id, status) values (t.id('CX'), 'cus_test', 'active');
+insert into public.subscriptions (company_id, provider_customer_id, status) values (t.id('CX'), 'cus_test', 'active');
 select t.as_user('W');
 select t.ok(public.company_has_access(t.id('CX')), 'aktyvi prenumerata atstato prieigą');
 insert into public.notes (company_id, author_id, body) values (t.id('CX'), t.id('W'), 'po apmokėjimo');

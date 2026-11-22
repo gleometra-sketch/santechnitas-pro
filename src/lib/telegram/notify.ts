@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMessage } from "./api";
+import { takeTelegramQuota } from "./quota";
 import { clip, esc, formatMinutes, type Category } from "./core";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -32,6 +33,8 @@ export async function notifyAdmins(companyId: string, category: Category, html: 
       (links ?? [])
         .filter((l) => !(l.muted ?? []).includes(category))
         .map(async (l) => {
+          // Plano mėnesio limitas (viena žinutė = vienas gavėjas). Sustabdžius programos varpelis veikia toliau.
+          if (!(await takeTelegramQuota(db, companyId, category)).allowed) return;
           const r = await sendMessage(Number(l.chat_id), html);
           if (!r.ok) {
             console.error("Telegram pranešimas nepavyko:", r.error);

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
 import MaterialsList from "@/components/MaterialsList";
+import UpgradeNotice from "@/components/plans/UpgradeNotice";
 import { isAdmin, requireContext } from "@/lib/auth/context";
+import { canUse } from "@/lib/plans";
 import { isValidDayKey } from "@/lib/dates";
 import { getAdminMaterials, getMaterialOptions, getMaterialSummary, getOfficeNotes } from "@/lib/work/materials";
 import type { MaterialFilters, MaterialStatusFilter } from "@/lib/work/types";
@@ -37,6 +39,7 @@ const TABS: { status: MaterialStatusFilter; label: string }[] = [
 
 export default async function MedziagosPage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireContext();
+  if (!canUse(ctx.plan, "materials")) return <UpgradeNotice feature="materials" admin={isAdmin(ctx.role)} />;
   if (!ctx.company) redirect("/kurti-imone");
   if (!isAdmin(ctx.role)) redirect("/darbai");
 

@@ -230,6 +230,14 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
   );
   const subtotalOf: Record<LineKind, number> = { material: totals.materials, work: totals.works, other: totals.other };
 
+  // Išsiųsta / patvirtinta / atmesta sąmata užrakinama (serveris taip pat neleidžia keisti turinio): kad limito nebūtų galima apeiti
+  // perrašinėjant vieną sąmatą, pataisymams daroma kopija.
+  const [locked, setLocked] = useState(estimate.status !== "draft");
+  const onStatus = (v: EstimateStatus) => {
+    if (!locked && v !== "draft" && !confirm("Pažymėjus šią būseną sąmatos turinio keisti nebegalėsite. Pataisymams reikės kopijos, kuri sunaudos naują dokumentą šio mėnesio limite. Tęsti?")) return;
+    setHead("status", v);
+  };
+
   const setHead = <K extends keyof Head>(k: K, v: Head[K]) => setH((prev) => ({ ...prev, [k]: v }));
   const updateLine = (key: string, patch: Partial<Line>) => setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
@@ -265,6 +273,7 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
     }
     const sentSnap = current;
     const sentLines = lines;
+    const sentStatus = h.status;
     inFlight.current = true;
     setSaving(true);
     try {
@@ -279,6 +288,7 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
         return false;
       }
       setSaved(sentSnap);
+      if (sentStatus !== "draft") setLocked(true);
       setSavedAt(new Date().toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" }));
       if (learn) setEntries((prev) => mergeCatalog(prev, learnable(sentLines)));
       setMsg(silent ? null : { ok: true, text: r.message ?? "Išsaugota." });
@@ -347,11 +357,25 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
         <h1 className="font-display text-2xl font-extrabold">Sąmata {estimate.number}</h1>
       </div>
 
+      {locked && (
+        <p role="status" className="rounded-2xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
+          Sąmata užrakinta: turinio keisti nebegalima, galima tik pakeisti būseną (patvirtinta, atmesta). Pataisymams spauskite „Kopijuoti sąmatą“; kopija sunaudos naują dokumentą šio mėnesio limite.
+        </p>
+      )}
+
       <details open={infoOpen} className="rounded-card bg-white p-5 shadow-card">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-bold">
           <span className="truncate">{h.title || "Pagrindinė informacija"}</span>
           <span className="shrink-0 rounded-full bg-surface px-3 py-1 text-sm text-muted">{STATUS_LABEL[h.status]}</span>
         </summary>
+        <div className="mt-3">
+          <Field label="Būsena">
+            <select value={h.status} onChange={(e) => onStatus(e.target.value as EstimateStatus)} className={inputCls}>
+              {STATUSES.filter((s) => !locked || s !== "draft").map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            </select>
+          </Field>
+        </div>
+        <fieldset disabled={locked} className="contents">
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Field label="Pavadinimas">
@@ -362,11 +386,6 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
             <select value={h.projectId} onChange={(e) => onProject(e.target.value)} className={inputCls}>
               <option value="">Be objekto</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Būsena">
-            <select value={h.status} onChange={(e) => setHead("status", e.target.value as EstimateStatus)} className={inputCls}>
-              {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
           </Field>
           <Field label="Klientas"><input value={h.clientName} maxLength={160} onChange={(e) => setHead("clientName", e.target.value)} className={inputCls} /></Field>
@@ -380,8 +399,10 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
             </Field>
           </div>
         </div>
+        </fieldset>
       </details>
 
+      <fieldset disabled={locked} className="contents">
       {catalogTruncated && (
         <p role="status" className="rounded-2xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
           Katalogas didelis: siūlomi tik 5000 naujausių įrašų. Senesnius galite rasti puslapyje „Katalogas“.
@@ -464,6 +485,7 @@ export default function EstimateEditor({ estimate, catalog, projects, catalogTru
         {(vatH === null || discountH === null) && <p role="alert" className="text-sm font-medium text-danger">Procentas turi būti nuo 0 iki 100 (pvz. 21 arba 10,5).</p>}
         {warnCount > 0 && <p className="text-sm text-amber-800">Eilučių be kiekio ar kainos: {warnCount}. Jos skaičiuojamos kaip 0 €.</p>}
       </section>
+      </fieldset>
 
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={duplicate} className={ghostBtn}>Kopijuoti sąmatą</button>

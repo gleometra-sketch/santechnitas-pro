@@ -22,7 +22,7 @@ export default function NotificationSettings({ isAdmin }: { isAdmin: boolean }) 
   const [loading, setLoading] = useState(true);
 
   const channels = CHANNELS.filter((c) => c.available && (!c.adminOnly || isAdmin));
-  const events = (Object.keys(EVENTS) as EventType[]).filter((e) => isAdmin || !eventDef(e).adminOnly);
+  const events = (Object.keys(EVENTS) as EventType[]).filter((e) => eventDef(e).available !== false && (isAdmin || !eventDef(e).adminOnly));
 
   useEffect(() => {
     (async () => {

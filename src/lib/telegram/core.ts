@@ -8,8 +8,15 @@ export const CATEGORIES = {
   pastabos: "Pastabos biurui",
   darbas: "Darbo pradžia ir pabaiga",
   automobiliai: "Automobilių terminai ir tepalai",
+  dokumentai: "Sąmatos ir sutartys",
 } as const;
 export type Category = keyof typeof CATEGORIES;
+/**
+ * Kai planas turi Telegram limitą, mažiausiai svarbios („low“) žinutės sustabdomos pasiekus 80 % limito,
+ * o svarbios („high“) siunčiamos iki 100 %. Darbo pradžia / pabaiga yra didžiausias srautas, todėl ji pirmoji.
+ */
+export const telegramPriority = (c: string): "high" | "low" => (c === "darbas" ? "low" : "high");
+
 export const isCategory = (v: string): v is Category => Object.prototype.hasOwnProperty.call(CATEGORIES, v);
 
 /** Telegram HTML režimui: išvengiame vartotojo įvesto teksto interpretavimo kaip žymų. */

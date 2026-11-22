@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { CreditCard, Sparkles } from "lucide-react";
+import BillingPanel from "@/components/billing/BillingPanel";
+import { paddleClientConfig } from "@/lib/billing/paddle";
 import { isAdmin, type SessionContext } from "@/lib/auth/context";
 
 const TRIAL_DAYS = 14;
@@ -25,7 +28,7 @@ export function TrialBanner({ ctx }: { ctx: SessionContext }) {
           <p className="font-semibold leading-tight">Nemokamas bandymas</p>
           <p className="mt-1 flex items-center gap-1.5 text-sm text-white/70">
             <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
-            Pilna prieiga be banko kortelės
+            Pro plano funkcijos be banko kortelės
           </p>
         </div>
         <div className="shrink-0 rounded-2xl bg-white/10 px-3 py-1.5 text-center leading-none ring-1 ring-white/15">
@@ -37,26 +40,26 @@ export function TrialBanner({ ctx }: { ctx: SessionContext }) {
         <div className="h-full rounded-full bg-gradient-to-r from-accent-light to-brand-red-light" style={{ width: `${pct}%` }} />
       </div>
       <span className="sr-only">Liko {days} {word}</span>
+      <Link href="/valdymas/abonementas" className="relative mt-3 flex min-h-11 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold ring-1 ring-white/20">
+        Pasirinkti planą
+      </Link>
     </div>
   );
 }
 
-/** Rodoma vietoje turinio, kai įmonė neturi prieigos. Apmokėjimas (Stripe Checkout) bus pridėtas 7 etape. */
+/** Rodoma vietoje turinio, kai įmonė neturi prieigos. Administratorius čia gali iškart pasirinkti planą ir apmokėti (Paddle). */
 export function AccessExpired({ ctx }: { ctx: SessionContext }) {
   const admin = isAdmin(ctx.role);
+  const { token, env } = paddleClientConfig();
   return (
     <section className="rounded-card bg-white p-6 shadow-card">
       <h1 className="text-2xl font-extrabold">{admin ? "Nemokamas bandymas baigėsi" : "Įmonės prieiga sustabdyta"}</h1>
       {admin ? (
         <>
           <p className="mt-2 text-muted">Jūsų duomenys išsaugoti. Pasirinkite planą ir darbuotojų skaičių, kad tęstumėte darbą.</p>
-          <ul className="mt-4 space-y-2">
-            <li className="rounded-2xl border border-black/10 p-4"><strong>Mėnesinis:</strong> 3 € už darbuotoją per mėnesį</li>
-            <li className="rounded-2xl border border-black/10 p-4"><strong>Metinis:</strong> 29 € už darbuotoją per metus</li>
-          </ul>
-          <button disabled className="mt-4 min-h-14 w-full rounded-2xl bg-accent text-lg font-semibold text-white opacity-60">
-            Apmokėjimas bus pridėtas 7 etape
-          </button>
+          <div className="mt-4">
+            <BillingPanel token={token} env={env} current={null} />
+          </div>
         </>
       ) : (
         <p className="mt-2 text-muted">Susisiekite su savo įmonės administratoriumi. Jūsų duomenys išsaugoti.</p>

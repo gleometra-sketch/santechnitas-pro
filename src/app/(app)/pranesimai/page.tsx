@@ -12,7 +12,7 @@ export default async function PranesimaiPage() {
       <h1 className="text-2xl font-extrabold sm:text-3xl">Pranešimai</h1>
       {admin && (
         <p className="rounded-2xl bg-white p-4 text-sm shadow-card">
-          Telegram pranešimus (medžiagos, pastabos, darbo pradžia, automobiliai) prijungiate skiltyje{" "}
+          Telegram pranešimus (medžiagos, pastabos, darbo pradžia, automobiliai, sąmatos ir sutartys) prijungiate skiltyje{" "}
           <Link href="/valdymas/telegram" className="font-semibold text-accent underline">Valdymas → Telegram</Link>.
         </p>
       )}

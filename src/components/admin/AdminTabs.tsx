@@ -13,6 +13,7 @@ const TABS = [
   { href: "/valdymas/dokumentai", label: "Dokumentai" },
   { href: "/valdymas/automobiliai", label: "Automobiliai" },
   { href: "/valdymas/telegram", label: "Telegram" },
+  { href: "/valdymas/abonementas", label: "Abonementas" },
 ];
 
 export default function AdminTabs() {

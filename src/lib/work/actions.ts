@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { companyHasFeature } from "@/lib/plans-server";
 import { getActionContext, isAdmin } from "@/lib/auth/context";
 import { isValidDayKey, todayKey } from "@/lib/dates";
 import { notifyLater, notifyMaterialRequest, notifyNote, notifyWorkFinished, notifyWorkStarted } from "@/lib/telegram/notify";
@@ -214,6 +215,7 @@ export async function createMaterialRequest(input: unknown): Promise<ActionResul
   if (!parsed.success) return fail(parsed.error.issues[0].message);
   const g = await guard();
   if (bad(g)) return g;
+  if (!(await companyHasFeature(g.companyId, "materials", g.db))) return fail("Medžiagų prašymai prieinami Pro ir Verslui planuose.");
   const { error } = await g.db.rpc("create_material_request", {
     p_company_id: g.companyId,
     p_project_id: parsed.data.projectId,

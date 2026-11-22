@@ -1,13 +1,16 @@
 import CarsOverview from "@/components/CarsOverview";
+import UpgradeNotice from "@/components/plans/UpgradeNotice";
 import { isAdmin, requireContext } from "@/lib/auth/context";
 import { getCarsResult } from "@/lib/cars/queries";
 import { todayKey } from "@/lib/dates";
+import { canUse } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
 export default async function AutomobiliaiPage() {
   const ctx = await requireContext();
   const admin = isAdmin(ctx.role);
+  if (!canUse(ctx.plan, "cars")) return <UpgradeNotice feature="cars" admin={admin} />;
   const { cars, error } = await getCarsResult(ctx);
   return (
     <div className="space-y-4">
