@@ -158,3 +158,14 @@ export function shareLinks(p: { url: string; kind: DocKind; number: string; clie
     whatsapp: `https://wa.me/?text=${encodeURIComponent(text)}`,
   };
 }
+
+/** Ar nuoroda rodo į vietinį adresą (localhost, 127.x, 10.x, 192.168.x, *.local) – tokios klientas neatsidarys. */
+export function isLocalUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h === "localhost" || h === "::1" || h.endsWith(".local") ||
+      /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+  } catch {
+    return false;
+  }
+}
