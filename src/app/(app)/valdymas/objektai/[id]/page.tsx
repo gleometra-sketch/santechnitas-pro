@@ -78,7 +78,7 @@ export default async function ObjektoKortele({ params }: { params: Promise<{ id:
 
       <section className={card} aria-label="Darbai">
         <h3 className={h2}><CalendarDays size={20} aria-hidden /> Darbai ({tasks.length})</h3>
-        {tasks.length === 0 && <p className="text-sm text-muted">Šiame objekte darbų nėra. Juos kuriama skiltyje Valdymas → Darbai.</p>}
+        {tasks.length === 0 && <p className="text-sm text-muted">Šiame objekte darbų nėra. Juos galite sukurti skiltyje Valdymas → Darbai.</p>}
         <ul className="divide-y divide-black/5">
           {tasks.map((t) => (
             <li key={t.id} className="flex items-start justify-between gap-3 py-2.5">

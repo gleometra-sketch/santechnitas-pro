@@ -1,9 +1,11 @@
 import Link from "next/link";
 import CompanyProfileForm from "@/components/documents/CompanyProfileForm";
 import DocumentsUsage from "@/components/plans/DocumentsUsage";
+import ContractTemplateForm from "@/components/documents/ContractTemplateForm";
+import { todayKey } from "@/lib/dates";
 import { getProjects } from "@/lib/admin/queries";
 import { requireContext } from "@/lib/auth/context";
-import { getCompanyProfile, getDocuments } from "@/lib/documents/queries";
+import { getCompanyProfile, getContractTemplate, getDocuments } from "@/lib/documents/queries";
 import { KIND_LABEL, STATUS_LABEL, STATUS_STYLE, eur } from "@/lib/documents/logic";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function DokumentaiPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;
   const ctx = await requireContext();
-  const [docs, projects, profile] = await Promise.all([getDocuments(ctx), getProjects(ctx), getCompanyProfile(ctx)]);
+  const [docs, projects, profile, template] = await Promise.all([getDocuments(ctx), getProjects(ctx), getCompanyProfile(ctx), getContractTemplate(ctx)]);
   const names = new Map(projects.map((p) => [p.id, p.name]));
   const shown = project ? docs.filter((d) => d.projectId === project) : docs;
   const q = project ? `&project=${project}` : "";
@@ -46,6 +48,11 @@ export default async function DokumentaiPage({ searchParams }: { searchParams: P
       <details className="rounded-2xl bg-white p-4 shadow-card">
         <summary className="cursor-pointer text-lg font-bold">Įmonės rekvizitai</summary>
         <CompanyProfileForm initial={profile} />
+      </details>
+
+      <details className="rounded-2xl bg-white p-4 shadow-card">
+        <summary className="cursor-pointer text-lg font-bold">Mano sutarties šablonas{template.trim() ? " ✓" : ""}</summary>
+        <ContractTemplateForm seller={profile} initial={template} today={todayKey()} />
       </details>
     </div>
   );

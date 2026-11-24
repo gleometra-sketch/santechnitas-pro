@@ -133,7 +133,7 @@ test("parseContractBody: data, romėniškos antraštės, punktai; tekstas nekei�
   ]);
   assert.equal(nextRoman(blocks), "IX");
   // Visos tekstinės eilutės (be datos ir antraščių) išlieka kaip buvo.
-  const kept = blocks.filter((b) => b.type !== "heading").map((b) => b.text);
+  const kept = blocks.flatMap((b) => (b.type === "clause" || b.type === "text" ? [b.text] : []));
   const expected = text.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("Sutarties data:") && !/^\d\. [A-ZĄČĘĖĮŠŲŪŽ ]+$/.test(l));
   assert.deepEqual(kept, expected);
   assert.ok(blocks.some((b) => b.type === "clause" && b.text.startsWith("2.1. ")));
@@ -144,4 +144,21 @@ test("cityFromAddress", () => {
   assert.equal(cityFromAddress("Panevėžio g. 17"), "");
   assert.equal(cityFromAddress("Gedimino 1, Vilnius, 12345"), "");
   assert.equal(cityFromAddress(null), "");
+});
+
+test("parseContractBody: įmonės šablonas – pavadinimas, romėniškos antraštės, {{numeris}}, {{parasu_blokas}}", () => {
+  const body = ["DARBŲ ATLIKIMO SUTARTIS", "Nr. {{numeris}}", "I. SUTARTIES DALYKAS", "1.1. Rangovas atlieka darbus.", "{{parasu_blokas}}"].join("\n");
+  const r = parseContractBody(body, "0007");
+  assert.equal(r.title, "DARBŲ ATLIKIMO SUTARTIS");
+  assert.equal(r.date, null);
+  assert.equal(r.hasSignatures, true);
+  assert.deepEqual(r.blocks.map((b) => b.type), ["text", "heading", "clause", "signatures"]);
+  assert.ok(r.blocks.some((b) => b.type === "text" && b.text === "Nr. 0007"));
+  const h = r.blocks.find((b) => b.type === "heading");
+  assert.ok(h && h.type === "heading" && h.roman === "I");
+  assert.equal(nextRoman(r.blocks), "II");
+});
+
+test("parseContractBody: be parašų bloko hasSignatures=false", () => {
+  assert.equal(parseContractBody("I. DALYKAS\n1.1. Tekstas.").hasSignatures, false);
 });

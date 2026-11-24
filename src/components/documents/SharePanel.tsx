@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { shareLinks, type DocKind } from "@/lib/documents/logic";
+import { isLocalUrl, shareLinks, type DocKind } from "@/lib/documents/logic";
 import { ghostBtn } from "@/components/admin/ui";
 
 export default function SharePanel({ url, kind, number, clientName, email, phone }: {
@@ -16,6 +16,11 @@ export default function SharePanel({ url, kind, number, clientName, email, phone
     <div className="space-y-3 rounded-2xl bg-accent-soft p-4">
       <p className="font-semibold">Nuoroda klientui</p>
       <p className="break-all rounded-xl bg-white p-3 text-sm">{url}</p>
+      {isLocalUrl(url) && (
+        <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
+          Ši nuoroda veda į jūsų kompiuterį (localhost), todėl klientas jos neatidarys. Atidarykite šį dokumentą tikroje svetainėje ir nuorodą nukopijuokite iš ten, o Cloudflare nustatykite NEXT_PUBLIC_APP_URL.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <button onClick={copy} className={`${ghostBtn} col-span-2 bg-white`}>{copied ? "Nukopijuota" : "Kopijuoti nuorodą"}</button>
         <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" className={`${ghostBtn} flex items-center justify-center bg-white`}>WhatsApp</a>

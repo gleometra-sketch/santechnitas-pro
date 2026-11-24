@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteCar, saveCar, setCarActive } from "@/lib/cars/actions";
+import CarKmForm from "@/components/CarKmForm";
 import CarStatusTiles from "@/components/CarStatusTiles";
 import { REMINDER_CHOICES, type CarRow } from "@/lib/cars/logic";
 import type { CarAssignmentRow } from "@/lib/cars/queries";
@@ -84,6 +85,16 @@ function CarCard({ car, drivers, history, today, onMsg }: { car: CarRow; drivers
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${car.active ? "bg-go-soft text-go-dark" : "bg-surface text-muted"}`}>{car.active ? "Aktyvus" : "Neaktyvus"}</span>
       </div>
       <CarStatusTiles car={car} today={today} />
+      {/* Administratorius gali įvesti kilometražą už vairuotoją (pamiršo ar neišsisaugojo). Rodmuo negali būti mažesnis už esamą. */}
+      {car.active && (
+        <details className="mt-2 rounded-xl bg-surface px-3 py-1">
+          <summary className="flex min-h-10 cursor-pointer items-center justify-between gap-2 text-sm font-semibold">
+            <span>Atnaujinti kilometražą</span>
+            <span className="text-xs font-normal text-muted">{car.km.toLocaleString("lt-LT")} km{car.km_date ? ` · ${car.km_date}` : ""}</span>
+          </summary>
+          <CarKmForm carId={car.id} km={car.km} reminderDays={car.reminder_days} />
+        </details>
+      )}
       <div className="mt-2 flex flex-wrap gap-1.5">
         <button disabled={pending} onClick={() => run(() => setCarActive(car.id, !car.active))} className={smallBtn}>{car.active ? "Pažymėti neaktyviu" : "Pažymėti aktyviu"}</button>
         <button onClick={() => setOpen(!open)} className={smallBtn}>{open ? "Uždaryti" : "Redaguoti"}</button>

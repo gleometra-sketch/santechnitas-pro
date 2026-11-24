@@ -1,5 +1,7 @@
 # Užduočių sąrašų šablonai
 
+> **Būsena:** duomenų bazės dalis (`0014_checklist_templates.sql`) yra, bet šablonų puslapio ir komponentų kodo projekte šiuo metu nėra (laikinai išimta). Žemiau aprašyta, kaip funkcija veikė; sugrąžinus kodą dokumentas vėl galios.
+
 **Valdymas → Šablonai.** Šablonas yra paruoštas darbo užduočių sąrašas. Kuriant darbą (Valdymas → Darbai → Naujas darbas) pasirenkamas šablonas, jo punktai įrašomi į darbą, o prieš kuriant juos galima keisti.
 
 ## Paruošti šablonai

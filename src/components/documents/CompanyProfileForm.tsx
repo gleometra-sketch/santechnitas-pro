@@ -8,6 +8,7 @@ import { Field, Msg, inputCls, primaryBtn } from "@/components/admin/ui";
 const FIELDS: [keyof Seller, string][] = [
   ["legal_name", "Įmonės pavadinimas"], ["code", "Įmonės / veiklos kodas"], ["vat_code", "PVM kodas (jei esate PVM mokėtojas)"],
   ["address", "Adresas"], ["phone", "Telefonas"], ["email", "El. paštas"], ["iban", "Banko sąskaita (IBAN)"],
+  ["director", "Direktoriaus vardas ir pavardė (parašui sutartyje)"], ["director_title", "Pareigos (pvz. Direktorius, Direktorė)"],
 ];
 
 export default function CompanyProfileForm({ initial }: { initial: Seller }) {

@@ -5,5 +5,18 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
     "observability": { "enabled": true },
-  "vars": { "TELEGRAM_BOT_USERNAME": "DarboRitmasBot" }
+	"keep_vars": true,
+  "vars": 
+{   
+    "TELEGRAM_BOT_USERNAME": "DarboRitmasBot",
+    "PADDLE_ENV": "sandbox",
+    "PADDLE_CLIENT_TOKEN": "test_a9d5a23c61a3b3c100fc59a5782",
+    "PADDLE_PRICE_BAZINIS_MONTHLY": "pri_01m81pnhnh5jweb0ebhx1ye38g",
+    "PADDLE_PRICE_BAZINIS_YEARLY": "pri_01m81pn2pkej2evd4mm6yp6tqg",
+    "PADDLE_PRICE_PRO_MONTHLY": "pri_01m81ppsb95t5p9r17nqsq3s51",
+    "PADDLE_PRICE_PRO_YEARLY": "pri_01m81ppbjjqmt38761a270c1fj",
+    "PADDLE_PRICE_VERSLUI_MONTHLY": "pri_01m81pqafzr3zaf9dg4ge5b78j",
+    "PADDLE_PRICE_VERSLUI_YEARLY": "pri_01m81pqw9v00zfv2nzb1apxr3b",
+    "TELEGRAM_BOT_USERNAME": "DarboRitmasBot"
+    }
 }

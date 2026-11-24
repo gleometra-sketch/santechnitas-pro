@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { CreditCard, Sparkles } from "lucide-react";
-import BillingPanel from "@/components/billing/BillingPanel";
-import { paddleClientConfig } from "@/lib/billing/paddle";
 import { isAdmin, type SessionContext } from "@/lib/auth/context";
+import { ltPlural } from "@/lib/plural";
 
 const TRIAL_DAYS = 14;
 
@@ -12,7 +10,7 @@ export function TrialBanner({ ctx }: { ctx: SessionContext }) {
   const msLeft = new Date(ctx.company.trialEndsAt).getTime() - Date.now();
   if (msLeft <= 0) return null;
   const days = Math.ceil(msLeft / 86_400_000);
-  const word = days === 1 ? "diena" : days % 10 === 0 || (days >= 11 && days <= 19) ? "dienų" : "dienos";
+  const word = ltPlural(days, "diena", "dienos", "dienų");
   const pct = Math.max(4, Math.min(100, (days / TRIAL_DAYS) * 100));
   return (
     <div
@@ -28,7 +26,7 @@ export function TrialBanner({ ctx }: { ctx: SessionContext }) {
           <p className="font-semibold leading-tight">Nemokamas bandymas</p>
           <p className="mt-1 flex items-center gap-1.5 text-sm text-white/70">
             <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
-            Pro plano funkcijos be banko kortelės
+            Pilna prieiga be banko kortelės
           </p>
         </div>
         <div className="shrink-0 rounded-2xl bg-white/10 px-3 py-1.5 text-center leading-none ring-1 ring-white/15">
@@ -40,26 +38,26 @@ export function TrialBanner({ ctx }: { ctx: SessionContext }) {
         <div className="h-full rounded-full bg-gradient-to-r from-accent-light to-brand-red-light" style={{ width: `${pct}%` }} />
       </div>
       <span className="sr-only">Liko {days} {word}</span>
-      <Link href="/valdymas/abonementas" className="relative mt-3 flex min-h-11 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold ring-1 ring-white/20">
-        Pasirinkti planą
-      </Link>
     </div>
   );
 }
 
-/** Rodoma vietoje turinio, kai įmonė neturi prieigos. Administratorius čia gali iškart pasirinkti planą ir apmokėti (Paddle). */
+/** Rodoma vietoje turinio, kai įmonė neturi prieigos. Apmokėjimas internetu (Stripe) dar nepadarytas. */
 export function AccessExpired({ ctx }: { ctx: SessionContext }) {
   const admin = isAdmin(ctx.role);
-  const { token, env } = paddleClientConfig();
   return (
     <section className="rounded-card bg-white p-6 shadow-card">
       <h1 className="text-2xl font-extrabold">{admin ? "Nemokamas bandymas baigėsi" : "Įmonės prieiga sustabdyta"}</h1>
       {admin ? (
         <>
           <p className="mt-2 text-muted">Jūsų duomenys išsaugoti. Pasirinkite planą ir darbuotojų skaičių, kad tęstumėte darbą.</p>
-          <div className="mt-4">
-            <BillingPanel token={token} env={env} current={null} />
-          </div>
+          <ul className="mt-4 space-y-2">
+            <li className="rounded-2xl border border-black/10 p-4"><strong>Mėnesinis:</strong> 3 € už darbuotoją per mėnesį</li>
+            <li className="rounded-2xl border border-black/10 p-4"><strong>Metinis:</strong> 29 € už darbuotoją per metus</li>
+          </ul>
+          <p className="mt-4 rounded-2xl bg-accent-soft p-4 font-medium">
+            Apmokėjimas internetu dar ruošiamas. Kad tęstumėte darbą, susisiekite su DarboRitmas komanda, ir prieigą atkursime.
+          </p>
         </>
       ) : (
         <p className="mt-2 text-muted">Susisiekite su savo įmonės administratoriumi. Jūsų duomenys išsaugoti.</p>

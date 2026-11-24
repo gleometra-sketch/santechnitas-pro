@@ -7,7 +7,7 @@ import DocumentStatusPanel from "@/components/documents/DocumentStatusPanel";
 import { getProjects } from "@/lib/admin/queries";
 import { requireContext } from "@/lib/auth/context";
 import { todayKey } from "@/lib/dates";
-import { getCompanyProfile, getDocumentDetail, getDocuments, getWorkSummaries } from "@/lib/documents/queries";
+import { getCompanyProfile, getContractTemplate, getDocumentDetail, getDocuments, getWorkSummaries } from "@/lib/documents/queries";
 import { getCatalog, getEstimateList } from "@/lib/estimates/queries";
 import type { DocKind } from "@/lib/documents/logic";
 import type { DocumentDetail } from "@/lib/documents/types";
@@ -33,7 +33,7 @@ export default async function DokumentoPuslapis({ params, searchParams }: {
   const sp = await searchParams;
   if (id !== "naujas" && !UUID.test(id)) notFound();
   const ctx = await requireContext();
-  const [projects, seller, docs, catalog] = await Promise.all([getProjects(ctx), getCompanyProfile(ctx), getDocuments(ctx), getCatalog(ctx)]);
+  const [projects, seller, docs, catalog, template] = await Promise.all([getProjects(ctx), getCompanyProfile(ctx), getDocuments(ctx), getCatalog(ctx), getContractTemplate(ctx)]);
   const main = await getEstimateList(ctx);
   const mainEstimates = main.rows.map((r) => ({ id: r.id, number: r.number, title: r.title, clientName: r.clientName ?? "", totalCents: r.totalCents }));
   const estimates = docs.filter((d) => d.kind === "estimate");
@@ -51,13 +51,13 @@ export default async function DokumentoPuslapis({ params, searchParams }: {
       Object.assign(initial, { estimateId: base.id, projectId: base.projectId ?? initial.projectId, clientName: base.clientName, clientEmail: base.clientEmail ?? "", clientPhone: base.clientPhone ?? "",
         clientAddress: base.clientAddress ?? "", workAddress: base.workAddress ?? "", vatRate: String(base.vatRate), totalGross: String(base.totalGross), title: `Sutartis: ${base.title}` });
     }
-    return <div className="space-y-4">{back}<DocumentEditor initial={initial} projects={projects} estimates={estimates} seller={seller} today={today} catalog={catalog.rows} mainEstimates={mainEstimates} workSummaries={workSummaries} /></div>;
+    return <div className="space-y-4">{back}<DocumentEditor initial={initial} projects={projects} estimates={estimates} seller={seller} today={today} catalog={catalog.rows} mainEstimates={mainEstimates} workSummaries={workSummaries} template={template} /></div>;
   }
 
   const doc = await getDocumentDetail(ctx, id);
   if (!doc) notFound();
   if (doc.status === "draft") {
-    return <div className="space-y-4">{back}<DocumentEditor initial={fromDoc(doc)} projects={projects} estimates={estimates} seller={seller} today={today} catalog={catalog.rows} mainEstimates={mainEstimates} workSummaries={workSummaries} /></div>;
+    return <div className="space-y-4">{back}<DocumentEditor initial={fromDoc(doc)} projects={projects} estimates={estimates} seller={seller} today={today} catalog={catalog.rows} mainEstimates={mainEstimates} workSummaries={workSummaries} template={template} /></div>;
   }
   const origin = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "") || `https://${(await headers()).get("host") ?? "localhost:3000"}`;
   const url = doc.publicToken ? `${origin}/d/${doc.publicToken}` : null;

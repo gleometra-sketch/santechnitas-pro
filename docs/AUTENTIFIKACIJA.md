@@ -4,7 +4,7 @@
 Supabase skydelyje:
 
 1. **Authentication → URL Configuration**
-   - **Site URL:** `http://localhost:3000` (vėliau – jūsų Vercel adresas).
+   - **Site URL:** `http://localhost:3000` (taip pat tikras svetainės adresas, pvz. `https://darboritmas.gleometra.workers.dev`, jį pridėkite ir prie Redirect URLs).
    - **Redirect URLs:** pridėkite `http://localhost:3000/auth/callback` (vėliau ir `https://JŪSŲ-ADRESAS/auth/callback`).
 2. **Authentication → Providers → Email:** palikite įjungtą **Confirm email**; slaptažodžio ilgį nustatykite bent **8**.
 3. **Project Settings → API:** nukopijuokite `Project URL` ir `anon` (arba `publishable`) raktą į `.env.local`:

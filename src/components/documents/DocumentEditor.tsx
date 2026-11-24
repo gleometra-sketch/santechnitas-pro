@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveDocument, sendDocument } from "@/lib/documents/actions";
+import { buildTemplateVars, renderTemplate } from "@/lib/documents/template";
 import { DEFAULT_TERMS, KIND_LABEL, buildContractText, computeTotals, countPlaceholders, eur, lineTotal, parseNum, splitGross, type DocKind, type Seller } from "@/lib/documents/logic";
 import { addDays } from "@/lib/dates";
 import { EMPTY_ITEM, type Draft, type DraftItem } from "@/lib/documents/draft";
@@ -17,8 +18,8 @@ import type { CatalogRow } from "@/lib/estimates/types";
 
 export type MainEstimate = { id: string; number: string; title: string; clientName: string; totalCents: number };
 
-export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [], mainEstimates = [], workSummaries = {} }: {
-  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[]; mainEstimates?: MainEstimate[]; workSummaries?: Record<string, string>;
+export default function DocumentEditor({ initial, projects, estimates, seller, today, catalog = [], mainEstimates = [], workSummaries = {}, template = "" }: {
+  initial: Draft; projects: ProjectRow[]; estimates: DocumentSummary[]; seller: Seller; today: string; catalog?: CatalogRow[]; mainEstimates?: MainEstimate[]; workSummaries?: Record<string, string>; template?: string;
 }) {
   const router = useRouter();
   const [f, setF] = useState<Draft>(initial);
@@ -80,7 +81,7 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
   const generated = useMemo(() => {
     if (isEstimate) return "";
     const g = parseNum(f.totalGross);
-    return buildContractText({
+    const data = {
       seller, clientName: f.clientName || "[UŽSAKOVAS]", clientAddress: f.clientAddress, workAddress: f.workAddress,
       totalGross: Number.isFinite(g) ? g : 0, vatRate: Number.isFinite(vat) ? vat : 21, estimateNumber: linkedEstimate?.number ?? null, today,
       terms: {
@@ -90,9 +91,11 @@ export default function DocumentEditor({ initial, projects, estimates, seller, t
         acceptanceDays: Math.round(nonNeg(terms.acceptanceDays, DEFAULT_TERMS.acceptanceDays)), warrantyMonths: Math.round(nonNeg(terms.warrantyMonths, DEFAULT_TERMS.warrantyMonths)),
         penaltyPercent: nonNeg(terms.penaltyPercent, DEFAULT_TERMS.penaltyPercent),
       },
-    });
+    };
+    if (template.trim()) return renderTemplate(template, buildTemplateVars({ ...data, clientPhone: f.clientPhone, clientEmail: f.clientEmail }));
+    return buildContractText(data);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEstimate, seller, f.clientName, f.clientAddress, f.workAddress, f.totalGross, vat, linkedEstimate?.number, today, terms, autoWork]);
+  }, [isEstimate, template, f.clientPhone, f.clientEmail, seller, f.clientName, f.clientAddress, f.workAddress, f.totalGross, vat, linkedEstimate?.number, today, terms, autoWork]);
   const bodyText = manual ? f.body : generated;
   const restoreAuto = () => {
     if (confirm("Rankiniai sutarties teksto pakeitimai bus prarasti, o tekstas vėl sudaromas automatiškai. Tęsti?")) setManual(false);

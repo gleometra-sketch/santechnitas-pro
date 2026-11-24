@@ -4,7 +4,7 @@ export default function Features() {
   return (
     <section id="funkcijos" className="mx-auto max-w-[1200px] scroll-mt-4 px-5 py-14 sm:px-8 sm:py-24">
       <h2 className="font-display text-3xl font-bold tracking-tight sm:text-[44px]">Viskas, ko reikia objektų darbams</h2>
-      <p className="mb-8 mt-3 sm:mb-12 max-w-2xl text-lg text-muted">Funkcijos, kurios pakeičia popierius, Excel lenteles ir skambučius tarp biuro ir objekto.</p>
+      <p className="mb-8 mt-3 sm:mb-12 max-w-2xl text-lg text-muted">Funkcijos, kurios pakeičia popierių, Excel lenteles ir skambučius tarp biuro ir objekto.</p>
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-6">
         {FEATURES.map((f) => (
           <li key={f.title} className="rounded-2xl border-2 border-navy p-5 sm:p-7">

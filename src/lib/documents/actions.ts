@@ -203,6 +203,7 @@ export async function duplicateDocument(id: string): Promise<DocResult> {
 const profileSchema = z.object({
   legal_name: z.string().trim().max(200), code: z.string().trim().max(30), vat_code: z.string().trim().max(30),
   address: z.string().trim().max(300), phone: z.string().trim().max(40), email: z.string().trim().max(200), iban: z.string().trim().max(40),
+  director: z.string().trim().max(120).optional().default(""), director_title: z.string().trim().max(60).optional().default(""),
 });
 export async function saveCompanyProfile(input: unknown): Promise<DocResult> {
   const p = profileSchema.safeParse(input);
@@ -233,4 +234,15 @@ export async function respondToDocument(input: unknown): Promise<DocResult> {
   });
   if (error) return mapError(error, "Nepavyko išsaugoti atsakymo. Bandykite dar kartą.");
   return ok({ message: p.data.decision === "approved" ? "Ačiū! Patvirtinimas išsaugotas." : "Atsakymas išsaugotas." });
+}
+
+/** Įmonės sutarties šablonas (su {{laukais}}). Tuščias tekstas grąžina standartinį šabloną. */
+export async function saveContractTemplate(body: unknown): Promise<DocResult> {
+  const t = z.string().max(30000).safeParse(body);
+  if (!t.success) return fail("Šablonas per ilgas (daugiausia 30 000 simbolių).");
+  const g = await adminGuard();
+  if (bad(g)) return g;
+  const { error } = await g.db.rpc("save_contract_template", { p_company: g.companyId, p_body: t.data });
+  refresh();
+  return error ? mapError(error, "Nepavyko išsaugoti šablono.") : ok({ message: t.data.trim() ? "Sutarties šablonas išsaugotas." : "Naudojamas standartinis šablonas." });
 }

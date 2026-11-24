@@ -1,127 +1,79 @@
-# DarboRitmas: kaip įdiegti atnaujinimą (instrukcija žingsnis po žingsnio)
+# DarboRitmas: diegimas ir atnaujinimai
 
-Laikas: apie 45 minutes. Reikia: Windows kompiuterio, kuriame jau yra Node.js, Git ir Docker Desktop, ir prisijungimo prie Supabase bei GitHub.
-Jūsų projekto aplankas: `C:\Users\Ryzen Gaming\Documents\GitHub\santechnitas-pro`
+Programa kompiliuojama ir skelbiama automatiškai: po kiekvieno `git push` į `main` Cloudflare pats sukompiliuoja kodą ir paskelbia naują versiją. Šis dokumentas aprašo, kaip tai nustatyta, kaip saugiai atnaujinti kodą ir ką daryti, kai kas nors nepavyksta.
 
-Visas komandas rašykite **PowerShell** lange. Jį atidarote taip: atidarykite projekto aplanką, viršuje paspauskite adreso juostą, ištrinkite tekstą, įrašykite `powershell` ir spauskite Enter. Komandas kopijuokite po vieną ir po kiekvienos spauskite Enter.
+Visas komandas rašykite **PowerShell** lange projekto aplanke (Windows: atidarykite aplanką, adreso juostoje įrašykite `powershell` ir spauskite Enter).
 
-## 1 žingsnis. Atsisiųskite naują failą
-Iš pokalbio atsisiųskite **darboritmas-sablonai.zip** ir padėkite į aplanką Downloads (Atsisiuntimai).
+## 1. Pirmas paleidimas (daroma vieną kartą)
 
-## 2 žingsnis. Padarykite atsarginę kopiją
-Jei kas nors nepavyks, iš čia galėsite grįžti atgal.
-```
-cd "C:\Users\Ryzen Gaming\Documents\GitHub\santechnitas-pro"
-git add -A
-git commit -m "Atsargine kopija pries atnaujinima"
-```
-Jei parašo „nothing to commit“, viskas gerai, tęskite.
+### Supabase
+1. Sukurkite projektą ir **SQL Editor** paleiskite `supabase/migrations` failus iš eilės (sąrašas ir paaiškinimas: `README.md`). Jei failas rašo „already exists“, jis jau įvykdytas.
+2. **Authentication → Email**: „Confirm email“ įjungta. **URL Configuration**: Site URL ir Redirect URLs nurodykite tikrą svetainės adresą.
+3. **Storage**: turi būti saugykla `attachments`.
+4. **Database → Webhooks**: žr. `docs/PRANESIMAI.md`.
 
-## 3 žingsnis. Pakeiskite failus naujais
-Ši komanda ištrina **senus** projekto failus ir paliekate tik `.git` (istorija), `.env.local` (jūsų raktai) ir `node_modules`:
-```
-Get-ChildItem -Force | Where-Object { $_.Name -notin @(".git", ".env.local", "node_modules") } | Remove-Item -Recurse -Force
-```
-Dabar nukopijuokite naujus failus:
-```
-Expand-Archive "$env:USERPROFILE\Downloads\darboritmas-sablonai.zip" -DestinationPath "$env:TEMP\dr-new" -Force
-Get-ChildItem -Force "$env:TEMP\dr-new\santechnitas-pro" | Copy-Item -Destination . -Recurse -Force
-```
-Patikrinkite, kad egzistuoja `src`, `supabase`, `docs` aplankai ir `package.json` failas, o `.env.local` liko vietoje:
-```
-dir
-```
+### Cloudflare
+1. **Workers & Pages → Create → Import a repository**, pasirinkite `santechnitas-pro`.
+2. **Build command:** `npx opennextjs-cloudflare build`. **Deploy command:** `npx wrangler deploy`.
+3. **Settings → Variables and Secrets** įrašykite kintamuosius (lentelė `README.md`). `NEXT_PUBLIC_*` kintamuosius įrašykite ir **Build** skiltyje, nes jie įrašomi kompiliuojant.
+4. Telegram ir kasdienį priminimą nustatykite pagal `docs/TELEGRAM.md` ir `docs/PRANESIMAI.md`.
 
-## 4 žingsnis. Įdiekite ir patikrinkite kodą
-```
-npm install
-npx playwright install chromium
-npm run check
-```
-Ką turėtumėte pamatyti: tipų patikra be klaidų ir `# tests 37`, `# pass 37`, `# fail 0`.
-Jei pasirodo raudonos klaidos, nukopijuokite visą tekstą ir atsiųskite man.
+### GitHub
+**Settings → Secrets and variables → Actions**: `APP_URL` (svetainės adresas be `/` gale) ir `CRON_SECRET`.
 
-## 5 žingsnis. Duomenų bazės testai (Docker)
-Įjunkite Docker Desktop ir palaukite, kol rodo „Engine running“. Tada:
-```
-docker rm -f dr-test
-docker run --name dr-test -e POSTGRES_PASSWORD=test -v "${PWD}:/work" -d postgres:16
-```
-Palaukite 10 sekundžių ir paleiskite:
-```
-docker exec -u postgres dr-test bash -c "cd /work/supabase/tests && tr -d '\r' < run.sh > run_unix.sh && bash run_unix.sh"
-```
-Ką turėtumėte pamatyti: daug eilučių su `PASS`, o pabaigoje **VISI TESTAI PRAĖJO**. Jei yra `FAIL` ar `ERROR`, atsiųskite man visą tekstą ir **nevykdykite 6 žingsnio**.
-Pabaigoje: `docker rm -f dr-test`
+## 2. Kaip saugiai atnaujinti kodą
 
-## 6 žingsnis. Atnaujinkite tikrą Supabase duomenų bazę
-Tik jei 5 žingsnyje buvo „VISI TESTAI PRAĖJO“.
-1. Atidarykite supabase.com, savo projektą, kairėje **SQL Editor**, spauskite **New query**.
-2. Atidarykite pirmąjį failą iš žemiau esančios lentelės (aplankas `supabase\migrations` jūsų projekte) per Notepad, nuspauskite Ctrl+A, Ctrl+C, grįžkite į Supabase, įklijuokite (Ctrl+V) ir spauskite **Run**.
-3. Turi parašyti „Success“. Tada **naujam užklausos lange** tą patį su kitu failu.
-4. Eikite **iš eilės** ir po vieną:
+Gavę naujus failus (ZIP iš pokalbio ar kito kompiuterio), niekada netrinkite viso projekto aplanko ir nekopijuokite ant viršaus nepatikrinę. Taip galima ištrinti kitų funkcijų eilutes.
 
-| Failas | Ką prideda |
-|---|---|
-| 0007_material_admin.sql | daugiau matavimo vienetų medžiagoms |
-| 0008_time_mode.sql | laiko apskaita „tik valandos“ arba „pagal objektą“ |
-| 0009_time_integrity.sql | valandų apsauga nuo klastojimo |
-| 0010_stale_time_entries.sql | neuždaryto laikmačio riba |
-| 0011_member_rates.sql | valandiniai įkainiai |
-| 0012_time_approvals.sql | mėnesio valandų patvirtinimas |
-| 0013_project_card.sql | objekto kortelė (klientas, failai) |
-| 0014_checklist_templates.sql | užduočių sąrašų šablonai |
-
-Jei kuri nors migracija parašo „already exists“ (jau yra), vadinasi, ji jau buvo įvykdyta anksčiau, tęskite su kita. Jei yra kita raudona klaida, **sustokite** ir atsiųskite man klaidos tekstą ir failo numerį.
-
-Dar du patikrinimai Supabase:
-- **Authentication → Sign In / Providers → Email**: **Confirm email** turi būti **įjungtas** (saugumas kvietimams).
-- **Storage**: turi būti saugykla (bucket) pavadinimu **attachments**.
-
-## 7 žingsnis. Naršyklės testai ir pirmas paleidimas
+```powershell
+git status
 ```
-npm run build
-npm run e2e
-```
-Turi parašyti, kad testai praėjo (apie 40 testų). Tada paleiskite programą:
-```
-npm run dev
-```
-Atidarykite http://localhost:3000.
+Prieš pradėdami darbo medis turi būti švarus (`nothing to commit`). Jei ne, pirma išsaugokite savo darbą: `git add -A` ir `git commit -m "Prieš atnaujinimą"`.
 
-## 8 žingsnis. Trumpas patikrinimas (apie 15 minučių)
-Reikia dviejų paskyrų: administratoriaus ir darbuotojo (antrą galite pakviesti per Valdymas → Darbuotojai ir užsiregistruoti kitu el. paštu, kitoje naršyklėje ar anoniminiame lange).
-1. **Administratorius:** Valdymas → Šablonai → paimkite „Santechnikas“ ir paspauskite „Kopijuoti ir pritaikyti“.
-2. Valdymas → Objektai → sukurkite objektą su kliento vardu ir telefonu → „Atidaryti kortelę“ → įkelkite nuotrauką.
-3. Valdymas → Darbai → Naujas darbas → pasirinkite objektą, darbuotoją ir **šabloną** → sukurkite.
-4. **Darbuotojas:** atidarykite darbą. Turite matyti punktus pagal etapus, ženklą „Privaloma“ ir kliento telefoną.
-5. Darbuotojas bando užbaigti darbą nepažymėjęs privalomų punktų: programa turi neleisti ir paaiškinti kodėl.
-6. Darbuotojas pažymi privalomus punktus, prideda nuotrauką ir užbaigia darbą.
-7. Darbuotojas pradeda ir baigia darbo laiką (Darbai skiltis, viršuje laikrodis).
-8. **Administratorius:** Valdymas → Darbuotojai → nustatykite darbuotojui valandinį įkainį → Valdymas → Ataskaita.
+1. Išarchyvuokite ZIP į aplanką **už projekto ribų** (pvz. `Downloads`), ne į pačią projekto vidų.
+2. Nukopijuokite tik jame esančius failus į projektą (kelią pakeiskite į savo):
+   ```powershell
+   Copy-Item -Path "$HOME\Downloads\<ZIP-aplankas>\files\*" -Destination . -Recurse -Force
+   ```
+3. Patikrinkite, kas pasikeitė:
+   ```powershell
+   git status --short
+   git --no-pager diff --stat
+   ```
+   Turi būti tik tie failai, kuriuos žadėjo atnaujinimo aprašas. Jei kokio nors seno failo pakeitimų skaičius gerokai didesnis nei tikėtasi, **nespauskite toliau**: tada jūsų failas buvo kitoks ir jį perrašė.
+4. Tikrinkite kodą (tipai ir vienetiniai testai):
+   ```powershell
+   npm install
+   npm run check
+   ```
+   Turi baigtis be klaidų. Jei jos yra, atsiųskite visą tekstą.
+5. Jei yra naujų migracijų (`supabase/migrations`), paleiskite jas Supabase **SQL Editor** (po vieną, iš eilės), prieš išsiųsdami kodą.
+6. Išsiųskite:
+   ```powershell
+   git add -A
+   git commit -m "Trumpas pakeitimo aprašymas"
+   git push
+   ```
+7. **Cloudflare → Workers & Pages → darboritmas → Deployments**: palaukite, kol naujas diegimas bus **Ready** (apie 2 minutes), tada naršyklėje paspauskite Ctrl+F5.
 
-Jei bet kuris veiksmas nepavyksta ar rodo klaidą, padarykite ekrano nuotrauką ir atsiųskite man.
+Jei `git push` atmeta dėl didelio failo (daugiau nei 100 MB), projekte yra archyvas (`.zip`, `.7z`): išneškite jį iš aplanko ir išvalykite commit'ą (`git reset --soft origin/main`, `git rm --cached <failas>`, `git add -A`, `git commit`).
 
-## 9 žingsnis. Įkelkite į GitHub
-```
-git add -A
-git commit -m "Sablonai, ataskaita, patvirtinimas, objekto kortele, testai"
-git push
-```
-Tada GitHub puslapyje atidarykite savo repozitoriją, viršuje skiltį **Actions**. Po kelių minučių turi būti žalia varnelė. Jei raudonas kryželis: paspauskite ant jo, atidarykite nepavykusį žingsnį ir atsiųskite man tekstą.
+## 3. Jei kažkas sugedo
 
-Dar vienas dalykas: po 4 žingsnio atsinaujino `package-lock.json`, jis įkeliamas kartu (9 žingsnis). Tada galima prašyti manęs `.github/workflows/ci.yml` pakeisti iš `npm install` į `npm ci`.
+* **Svetainė rodo senesnę versiją ar klaidą po diegimo.** Cloudflare → Deployments → paskutinė veikusi versija → **Rollback**. Tai nekeičia Git'o, todėl kitas `git push` vėl paskelbs naują versiją.
+* **Diegimas „Failed“.** Atidarykite jį ir **View build log**: paskutinės eilutės parodo klaidą. Dažniausios priežastys: tipų klaida (paleiskite `npm run check`), trūkstamas `NEXT_PUBLIC_*` kintamasis Build skiltyje, `package-lock.json` neatitinka `package.json` (paleiskite `npm install` ir išsiųskite atnaujintą `package-lock.json`).
+* **Vietinio darbo grąžinimas į paskutinį išsaugotą variantą** (atsargiai, ištrina neišsaugotus pakeitimus): `git restore .` ir `git clean -fd`.
+* **Įkelti tiesiai iš kompiuterio (apeinant GitHub):** `npx wrangler login`, tada `npm run deploy`. Įkeliama tai, kas yra jūsų aplanke, todėl prieš tai pasitikrinkite `git status`.
 
-## Jei kažkas sugedo, kaip grįžti atgal
-Programos failus grąžina:
-```
-git reset --hard HEAD
-git clean -fd
-```
-Tai grąžina būseną iš 2 žingsnio kopijos. `.env.local` neliečiamas. Supabase duomenų bazės pakeitimų tai neatšaukia: jei jau įvykdėte migracijas, nieko nedarykite ir parašykite man.
+## 4. Patikra po didesnio atnaujinimo (apie 15 minučių)
 
-## Ką man atsakyti, kai baigsite
-Parašykite trimis eilutėmis:
-1. Ar `npm run check` ir duomenų bazės testai praėjo (taip ar ne, ir klaida, jei ne).
-2. Kurią migraciją (numerį) paskutinę įvykdėte Supabase.
-3. Ar GitHub Actions žalia, ir ką pastebėjote 8 žingsnyje.
+Reikia dviejų paskyrų: administratoriaus ir darbuotojo (antrą pakvieskite per Valdymas → Darbuotojai ir užregistruokite kitu el. paštu kitoje naršyklėje ar anoniminiame lange).
+
+1. **Administratorius:** Valdymas → Objektai → sukurkite objektą su kliento vardu ir telefonu → įkelkite nuotrauką į kortelę.
+2. Valdymas → Darbai → Naujas darbas → pasirinkite objektą ir darbuotoją.
+3. **Darbuotojas:** atidarykite darbą, pradėkite ir baikite darbo laiką, parašykite „Pastaba biurui“ su medžiaga.
+4. **Administratorius:** Medžiagos → pastaba turi matytis sąraše; Valdymas → Ataskaita rodo valandas.
+5. **Sąmata:** apatinis meniu → Sąmata → sukurkite sąmatą. Valdymas → Dokumentai → Nauja sutartis → susiekite su sąmata → „Ruošti siuntimui“ → atidarykite nuorodą privačiame lange ir paspauskite „Patvirtinti“. Administratorius turi gauti pranešimą.
+6. **Automobiliai:** Valdymas → Automobiliai → pridėkite automobilį ir priskirkite vairuotoją; vairuotojas apatiniame meniu mato „Automobiliai“.
+
+Jei bet kuris veiksmas nepavyksta, padarykite ekrano nuotrauką ir (jei galite) paspauskite F12 → Console, nukopijuokite raudoną eilutę.

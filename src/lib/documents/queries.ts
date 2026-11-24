@@ -42,9 +42,9 @@ export async function getDocumentDetail(ctx: SessionContext, id: string): Promis
 }
 
 export async function getCompanyProfile(ctx: SessionContext): Promise<Seller & { legal_name: string | null }> {
-  const fallback = { legal_name: ctx.company?.name ?? null, code: null, vat_code: null, address: null, phone: null, email: null, iban: null };
+  const fallback = { legal_name: ctx.company?.name ?? null, code: null, vat_code: null, address: null, phone: null, email: null, iban: null, director: null, director_title: null };
   if (!ctx.company) return fallback;
-  const { data } = await (await createClient()).from("company_profiles").select("legal_name, code, vat_code, address, phone, email, iban").eq("company_id", ctx.company.id).maybeSingle();
+  const { data } = await (await createClient()).from("company_profiles").select("legal_name, code, vat_code, address, phone, email, iban, director, director_title").eq("company_id", ctx.company.id).maybeSingle();
   return data ? { ...data, legal_name: data.legal_name ?? ctx.company.name } : fallback;
 }
 
@@ -97,4 +97,11 @@ export async function getWorkSummaries(ctx: SessionContext, docIds: string[], ma
     for (const id of mainIds) out[`est:${id}`] = summarizeWork(work.get(id) ?? all.get(id) ?? []);
   }
   return out;
+}
+
+/** Įmonės pačios įkeltas sutarties šablonas (tuščias = naudojamas standartinis). Tik administratoriui (RLS). */
+export async function getContractTemplate(ctx: SessionContext): Promise<string> {
+  if (!ctx.company) return "";
+  const { data } = await (await createClient()).from("company_profiles").select("contract_template").eq("company_id", ctx.company.id).maybeSingle();
+  return (data?.contract_template as string | null) ?? "";
 }

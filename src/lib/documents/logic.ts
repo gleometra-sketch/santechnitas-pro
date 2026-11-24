@@ -22,6 +22,7 @@ export type DocItem = { description: string; quantity: number; unit: string; uni
 export type Seller = {
   legal_name?: string | null; code?: string | null; vat_code?: string | null;
   address?: string | null; phone?: string | null; email?: string | null; iban?: string | null;
+  director?: string | null; director_title?: string | null;
 };
 
 const eurFmt = new Intl.NumberFormat("lt-LT", { style: "currency", currency: "EUR" });

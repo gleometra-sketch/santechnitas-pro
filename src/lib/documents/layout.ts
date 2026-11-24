@@ -4,6 +4,7 @@
 
 export type ContractBlock =
   | { type: "heading"; roman: string; text: string }
+  | { type: "signatures" }
   | { type: "clause"; text: string }
   | { type: "text"; text: string };
 
@@ -16,23 +17,46 @@ export function toRoman(n: number): string {
 }
 
 const HEADING = /^(\d{1,2})\.\s+(\S.*)$/u;
+const ROMAN_HEADING = /^([IVXL]{1,6})\.\s+(\S.*)$/u;
 const isUpper = (s: string) => /\p{L}/u.test(s) && s === s.toUpperCase() && !/\d/.test(s) && s.length <= 80;
 const CLAUSE = /^\d{1,2}(?:\.\d{1,2})+\.?\s+\S/;
 const DATE_LINE = /^Sutarties data:\s*(\d{4}-\d{2}-\d{2})\s*$/;
 
-export function parseContractBody(body: string): { date: string | null; blocks: ContractBlock[] } {
+export type ParsedContract = {
+  date: string | null;
+  /** Pavadinimas, jei šablono pirma eilutė yra didžiosiomis raidėmis (pvz. „DARBŲ ATLIKIMO SUTARTIS“). */
+  title: string | null;
+  blocks: ContractBlock[];
+  /** Ar tekste jau yra skyrius „... ADRESAI IR PARAŠAI“ arba vieta {{parasu_blokas}}. */
+  hasSignatures: boolean;
+};
+
+/**
+ * Išskaido sutarties tekstą į dalis. Veikia ir su standartiniu šablonu (arabiški skyrių numeriai, „Sutarties data:“),
+ * ir su įmonės pačios šablonu (romėniški numeriai, savo pavadinimas). `{{numeris}}` pakeičiamas dokumento numeriu.
+ */
+export function parseContractBody(body: string, number?: string): ParsedContract {
+  const text = number !== undefined ? body.replace(/\{\{\s*numeris\s*\}\}/gi, number) : body;
   let date: string | null = null;
+  let title: string | null = null;
+  let seen = 0;
   const blocks: ContractBlock[] = [];
-  for (const raw of body.split("\n")) {
+  for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
+    seen++;
+    if (/^\{\{\s*parasu_blokas\s*\}\}$/i.test(line)) { blocks.push({ type: "signatures" }); continue; }
     const d = DATE_LINE.exec(line);
     if (d && date === null) { date = d[1]; continue; }
+    if (seen === 1 && isUpper(line) && !/[:.]$/.test(line) && /SUTART/.test(line)) { title = line; continue; }
     const h = HEADING.exec(line);
     if (h && isUpper(h[2])) { blocks.push({ type: "heading", roman: toRoman(Number(h[1])), text: h[2] }); continue; }
+    const r = ROMAN_HEADING.exec(line);
+    if (r && isUpper(r[2])) { blocks.push({ type: "heading", roman: r[1], text: r[2] }); continue; }
     blocks.push(CLAUSE.test(line) ? { type: "clause", text: line } : { type: "text", text: line });
   }
-  return { date, blocks };
+  const hasSignatures = blocks.some((b) => b.type === "signatures" || (b.type === "heading" && /PARAŠ/.test(b.text)));
+  return { date, title, blocks, hasSignatures };
 }
 
 /** Sutarties pasirašymo vieta: paskutinė rangovo adreso dalis po kablelio (pvz. „Panevėžio g. 17, Panevėžys“ -> „Panevėžys“). */
@@ -49,7 +73,7 @@ export const nextRoman = (blocks: ContractBlock[]) => {
   return toRoman(maxN + 1);
 };
 function fromRoman(r: string): number {
-  const v: Record<string, number> = { I: 1, V: 5, X: 10 };
+  const v: Record<string, number> = { I: 1, V: 5, X: 10, L: 50 };
   let t = 0;
   for (let i = 0; i < r.length; i++) {
     const a = v[r[i]] ?? 0, b = v[r[i + 1]] ?? 0;
