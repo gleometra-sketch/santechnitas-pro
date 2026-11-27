@@ -129,6 +129,12 @@ async function importEstimate(db: Awaited<ReturnType<typeof createClient>>, comp
 }
 
 export async function saveDocument(input: unknown): Promise<DocResult> {
+  // Sutartis savų sąmatos eilučių neturi (jos nerodomos), o naujo juodraščio formoje yra viena tuščia eilutė: ją išmetame,
+  // kad nekiltų klaida „Užpildykite visų eilučių aprašymus“. Sąmatoms tuščios eilutės lieka klaida.
+  if (input && typeof input === "object" && (input as { kind?: unknown }).kind === "contract" && Array.isArray((input as { items?: unknown }).items)) {
+    const raw = input as { items: unknown[] };
+    input = { ...raw, items: raw.items.filter((i) => i && typeof i === "object" && typeof (i as { description?: unknown }).description === "string" && (i as { description: string }).description.trim() !== "") };
+  }
   const p = docSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0].message);
   const d = p.data;
@@ -204,6 +210,7 @@ const profileSchema = z.object({
   legal_name: z.string().trim().max(200), code: z.string().trim().max(30), vat_code: z.string().trim().max(30),
   address: z.string().trim().max(300), phone: z.string().trim().max(40), email: z.string().trim().max(200), iban: z.string().trim().max(40),
   director: z.string().trim().max(120).optional().default(""), director_title: z.string().trim().max(60).optional().default(""),
+  signature: z.union([z.literal(""), z.string().max(250000).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/)]).optional(),
 });
 export async function saveCompanyProfile(input: unknown): Promise<DocResult> {
   const p = profileSchema.safeParse(input);
@@ -221,6 +228,7 @@ const respondSchema = z.object({
   decision: z.enum(["approved", "declined"]),
   name: z.string().trim().max(160, "Vardas per ilgas."),
   note: z.string().trim().max(1000, "Pastaba per ilga (daugiausia 1000 simbolių)."),
+  signature: z.string().max(250000, "Parašas per didelis.").regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Neteisingas parašo vaizdas.").optional(),
 });
 
 /** Klientas patvirtina arba atmeta. Saugo nuorodos kodas; sprendimą, vardą ir IP įrašo serveris. */
@@ -231,6 +239,7 @@ export async function respondToDocument(input: unknown): Promise<DocResult> {
   const ip = h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   const { error } = await createAdminClient().rpc("document_respond", {
     p_token: p.data.token, p_decision: p.data.decision, p_name: p.data.name, p_note: p.data.note, p_ip: ip,
+    p_signature: p.data.decision === "approved" ? p.data.signature ?? null : null,
   });
   if (error) return mapError(error, "Nepavyko išsaugoti atsakymo. Bandykite dar kartą.");
   return ok({ message: p.data.decision === "approved" ? "Ačiū! Patvirtinimas išsaugotas." : "Atsakymas išsaugotas." });
