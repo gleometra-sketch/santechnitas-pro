@@ -1,3 +1,4 @@
+import { EndMarker } from "@/components/documents/SignContext";
 import ContractSheet from "@/components/documents/ContractSheet";
 import { KIND_LABEL, eur, lineTotal, type DocItem } from "@/lib/documents/logic";
 import type { PublicDocument } from "@/lib/documents/types";
@@ -53,6 +54,7 @@ export default function DocumentSheet({ doc }: { doc: PublicDocument }) {
           </section>
         )}
         <Approved doc={doc} />
+        <EndMarker />
       </article>
     );
   }

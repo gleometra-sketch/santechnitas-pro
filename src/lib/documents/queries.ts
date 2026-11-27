@@ -68,6 +68,7 @@ export async function getPublicDocument(token: string): Promise<PublicDocument |
     clientAddress: d.client_address, workAddress: d.work_address, vatRate: num(d.vat_rate), validUntil: d.valid_until, notes: d.notes, body: d.body,
     totalNet: num(d.total_net), totalVat: num(d.total_vat), totalGross: num(d.total_gross), items: items(it), estimate,
     sentAt: d.sent_at, respondedAt: d.responded_at, respondedName: d.responded_name,
+    signature: d.status === "approved" ? (d.responded_signature ?? null) : null,
     expired: d.status === "sent" && !!d.valid_until && d.valid_until < todayKey(),
   };
 }

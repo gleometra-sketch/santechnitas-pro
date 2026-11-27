@@ -221,6 +221,7 @@ const respondSchema = z.object({
   decision: z.enum(["approved", "declined"]),
   name: z.string().trim().max(160, "Vardas per ilgas."),
   note: z.string().trim().max(1000, "Pastaba per ilga (daugiausia 1000 simbolių)."),
+  signature: z.string().max(250000, "Parašas per didelis.").regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Neteisingas parašo vaizdas.").optional(),
 });
 
 /** Klientas patvirtina arba atmeta. Saugo nuorodos kodas; sprendimą, vardą ir IP įrašo serveris. */
@@ -231,6 +232,7 @@ export async function respondToDocument(input: unknown): Promise<DocResult> {
   const ip = h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   const { error } = await createAdminClient().rpc("document_respond", {
     p_token: p.data.token, p_decision: p.data.decision, p_name: p.data.name, p_note: p.data.note, p_ip: ip,
+    p_signature: p.data.decision === "approved" ? p.data.signature ?? null : null,
   });
   if (error) return mapError(error, "Nepavyko išsaugoti atsakymo. Bandykite dar kartą.");
   return ok({ message: p.data.decision === "approved" ? "Ačiū! Patvirtinimas išsaugotas." : "Atsakymas išsaugotas." });

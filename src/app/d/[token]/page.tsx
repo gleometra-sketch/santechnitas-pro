@@ -1,4 +1,5 @@
 import DocumentSheet from "@/components/documents/DocumentSheet";
+import { SignProvider } from "@/components/documents/SignContext";
 import PublicActions from "@/components/documents/PublicActions";
 import { getPublicDocument } from "@/lib/documents/queries";
 
@@ -29,8 +30,10 @@ export default async function ViesasDokumentas({ params }: { params: Promise<{ t
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 print:max-w-none print:p-0">
       {closed && <p className="rounded-2xl bg-amber-50 p-4 font-medium text-amber-800 print:hidden">{closed}</p>}
-      <DocumentSheet doc={doc} />
-      <PublicActions token={token} kind={doc.kind} canRespond={doc.status === "sent" && !doc.expired} />
+      <SignProvider>
+        <DocumentSheet doc={doc} />
+        <PublicActions token={token} kind={doc.kind} canRespond={doc.status === "sent" && !doc.expired} />
+      </SignProvider>
     </main>
   );
 }

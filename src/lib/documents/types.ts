@@ -19,5 +19,5 @@ export type PublicDocument = {
   workAddress: string | null; vatRate: number; validUntil: string | null; notes: string | null; body: string | null;
   totalNet: number; totalVat: number; totalGross: number; items: DocItem[];
   estimate: { number: string; vatRate: number; totalNet: number; totalVat: number; totalGross: number; items: DocItem[] } | null;
-  sentAt: string | null; respondedAt: string | null; respondedName: string | null; expired: boolean;
+  sentAt: string | null; respondedAt: string | null; respondedName: string | null; signature: string | null; expired: boolean;
 };
