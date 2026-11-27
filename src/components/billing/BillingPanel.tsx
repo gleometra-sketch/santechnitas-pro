@@ -44,12 +44,14 @@ export type CurrentSub = { plan: PlanId | null; interval: Interval | null; seats
  * Planas, darbuotojų skaičius ir apmokėjimas (Paddle). Su aktyvia prenumerata: plano / vietų keitimas ir Paddle portalas.
  * Apmokamų darbuotojų skaičius yra mažiausiai MIN_SEATS.
  */
-export default function BillingPanel({ token, env, current, defaultSeats = MIN_SEATS }: { token: string; env: "sandbox" | "production"; current: CurrentSub; defaultSeats?: number }) {
+export default function BillingPanel({ token, env, current, defaultSeats = MIN_SEATS, minSeats = MIN_SEATS }: { token: string; env: "sandbox" | "production"; current: CurrentSub; defaultSeats?: number; minSeats?: number }) {
+  // Negalima pasirinkti mažiau vietų, nei dabar užimta (aktyvūs nariai ir laukiantys pakvietimai).
+  const floor = Math.max(MIN_SEATS, minSeats);
   const router = useRouter();
   const live = !!current;
   const [plan, setPlan] = useState<PlanId>(current?.plan ?? "pro");
   const [interval, setInterval_] = useState<Interval>(current?.interval ?? "month");
-  const clamp = (n: number) => Math.min(MAX_SEATS, Math.max(MIN_SEATS, n));
+  const clamp = (n: number) => Math.min(MAX_SEATS, Math.max(floor, n));
   const [seatsText, setSeatsText] = useState(String(clamp(current?.seats ?? defaultSeats)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -58,7 +60,7 @@ export default function BillingPanel({ token, env, current, defaultSeats = MIN_S
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const seats = Math.floor(Number(seatsText.replace(",", ".")));
-  const seatsOk = Number.isInteger(seats) && seats >= MIN_SEATS && seats <= MAX_SEATS;
+  const seatsOk = Number.isInteger(seats) && seats >= floor && seats <= MAX_SEATS;
   const chosen = planById(plan)!;
   const unit = interval === "month" ? chosen.priceMonth : chosen.priceYear;
   const total = seatsOk ? seats * unit : 0;
@@ -82,7 +84,7 @@ export default function BillingPanel({ token, env, current, defaultSeats = MIN_S
     setError("");
     setInfo("");
     if (!token) return setError("Apmokėjimas dar nesukonfigūruotas (trūksta PADDLE_CLIENT_TOKEN).");
-    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${MIN_SEATS} iki ${MAX_SEATS}.`);
+    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${floor} iki ${MAX_SEATS}.`);
     setBusy(true);
     const r = await startCheckout(plan, interval, seats);
     if (!r.ok) { setBusy(false); return setError(r.error); }
@@ -98,7 +100,7 @@ export default function BillingPanel({ token, env, current, defaultSeats = MIN_S
   const change = async () => {
     setError("");
     setInfo("");
-    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${MIN_SEATS} iki ${MAX_SEATS}.`);
+    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${floor} iki ${MAX_SEATS}.`);
     setBusy(true);
     const r = await changePlan(plan, seats);
     setBusy(false);
@@ -143,8 +145,8 @@ export default function BillingPanel({ token, env, current, defaultSeats = MIN_S
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="font-medium">Darbuotojų skaičius <span className="text-xs font-normal text-muted">(nuo {MIN_SEATS})</span></span>
-        <QtyStepper label="Darbuotojų skaičius" value={seatsText} onChange={setSeatsText} onStep={(t) => setSeatsText(String(clamp(Number(t) || MIN_SEATS)))} />
+        <span className="font-medium">Darbuotojų skaičius <span className="text-xs font-normal text-muted">(nuo {floor})</span></span>
+        <QtyStepper label="Darbuotojų skaičius" value={seatsText} onChange={setSeatsText} onStep={(t) => setSeatsText(String(clamp(Number(t) || floor)))} />
       </div>
       <p className="mt-3 text-lg font-extrabold">
         Iš viso: {seatsOk ? `${total} €` : "–"} <span className="text-sm font-normal text-muted">{interval === "month" ? "per mėnesį" : "per metus"} be PVM; galutinę sumą su PVM parodys apmokėjimo langas</span>
@@ -167,7 +169,7 @@ export default function BillingPanel({ token, env, current, defaultSeats = MIN_S
           <button disabled={busy} onClick={pay} className="mt-3 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent text-lg font-semibold text-white disabled:opacity-60">
             <CreditCard size={20} aria-hidden /> {busy ? "Kuriama..." : "Apmokėti"}
           </button>
-          <p className="mt-2 text-xs text-muted">Mokėjimus apdoroja Paddle (pardavėjas teisiškai yra Paddle). Prenumeratą galėsite atšaukti bet kada.</p>
+          <p className="mt-2 text-xs text-muted">Mokėjimus apdoroja Paddle (pardavėjas teisiškai yra Paddle). Prenumeratą galėsite atšaukti bet kada (galioja iki apmokėto laikotarpio pabaigos). <a href="/grazinimai" className="font-semibold underline">Atšaukimas ir grąžinimai</a>, <a href="/salygos" className="font-semibold underline">sąlygos</a>.</p>
         </>
       )}
     </div>

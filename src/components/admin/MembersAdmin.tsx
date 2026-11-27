@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Euro, Mail, Timer, UserMinus, UserPlus, Undo2 } from "lucide-react";
 import { TIME_MODE_LABEL, type TimeMode } from "@/lib/work/types";
+import Link from "next/link";
+import UsageMeter from "@/components/plans/UsageMeter";
 import { inviteMember, removeMember, restoreMember, setCompanyTimeMode, setMemberRate, setMemberRole, setMemberTimeMode } from "@/lib/admin/actions";
 import { formatMoney } from "@/lib/money";
 import { ROLE_LABEL, type MemberRow } from "@/lib/admin/types";
@@ -103,7 +105,7 @@ function Row({ m, selfId, companyMode, today, onMsg }: { m: MemberRow; selfId: s
   );
 }
 
-export default function MembersAdmin({ members, selfId, companyMode, today }: { members: MemberRow[]; selfId: string; companyMode: TimeMode; today: string }) {
+export default function MembersAdmin({ members, selfId, companyMode, today, seats }: { members: MemberRow[]; selfId: string; companyMode: TimeMode; today: string; seats: { used: number; limit: number } | null }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"worker" | "admin">("worker");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -127,6 +129,8 @@ export default function MembersAdmin({ members, selfId, companyMode, today }: { 
     });
   };
 
+  // Vietos = aktyvūs nariai ir laukiantys pakvietimai. Skaičių ir ribą tikrina duomenų bazė; čia tik parodoma.
+  const seatsFull = !!seats && seats.used >= seats.limit;
   const current = members.filter((m) => m.status !== "removed");
   const removed = members.filter((m) => m.status === "removed");
 
@@ -153,9 +157,18 @@ export default function MembersAdmin({ members, selfId, companyMode, today }: { 
       </section>
 
       <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
+        {seats && (
+          <div className="mb-3">
+            <UsageMeter label="Darbuotojų vietos" used={seats.used} limit={seats.limit} hard />
+            <p className="mt-1 text-xs text-muted">Vieta = aktyvus narys arba laukiantis pakvietimas (įskaitant administratorius).{" "}
+              <Link href="/valdymas/abonementas" className="font-semibold text-accent-dark underline">{seatsFull ? "Padidinti vietų skaičių" : "Abonementas"}</Link>
+            </p>
+          </div>
+        )}
         <details>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold"><UserPlus size={22} aria-hidden /> Pridėti darbuotoją</summary>
           <div className="mt-3 space-y-3">
+            {seatsFull && <p role="status" className="rounded-2xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Visos apmokėtos vietos užimtos. Norėdami pakviesti daugiau, padidinkite vietų skaičių skiltyje Abonementas arba pašalinkite nenaudojamą narį.</p>}
             <Field label="El. paštas"><input type="email" inputMode="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} /></Field>
             <Field label="Vaidmuo">
               <select value={role} onChange={(e) => setRole(e.target.value as "worker" | "admin")} className={inputCls}>
@@ -164,7 +177,7 @@ export default function MembersAdmin({ members, selfId, companyMode, today }: { 
               </select>
             </Field>
             <p className="text-sm text-muted">Laiškas nesiunčiamas. Pasakykite darbuotojui užsiregistruoti tuo pačiu el. paštu, ir jis automatiškai prisijungs prie jūsų įmonės.</p>
-            <button disabled={pending || !email.trim()} onClick={invite} className={`${primaryBtn} w-full`}>{pending ? "Kviečiama..." : "Pakviesti"}</button>
+            <button disabled={pending || !email.trim() || seatsFull} onClick={invite} className={`${primaryBtn} w-full`}>{pending ? "Kviečiama..." : "Pakviesti"}</button>
           </div>
         </details>
       </section>

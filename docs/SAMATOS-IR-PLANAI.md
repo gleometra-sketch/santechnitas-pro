@@ -15,6 +15,17 @@ Trys planai. Kainos eurais **be PVM**, už vieną darbuotoją (mažiausiai 3 dar
 
 Bandymo laikotarpis (14 d.) = **Pro** funkcijos ir limitai. Nemokama prieiga (`complimentary`) = Verslui.
 
+## Darbuotojų vietos
+
+Apmokamas darbuotojų skaičius (nuo 3) yra **vietų limitas**: klientas negali pakviesti daugiau narių, nei apmokėjo.
+
+- **Vieta** = aktyvus narys arba laukiantis pakvietimas, **įskaitant administratorius ir direktorių**. Pašalintas narys vietos neužima.
+- Limitas: apmokėta prenumerata = `subscriptions.seats`; nemokamas bandymas = **10** vietų; nemokama prieiga (`complimentary`) = 1000.
+- Pasiekus limitą naujo nario pakviesti ar pašalinto atkurti negalima; pranešime nurodoma, kad reikia padidinti vietas (Valdymas → Abonementas). Valdymas → Darbuotojai rodo „X / Y“ vietų.
+- Taisyklė vykdoma duomenų bazės triggeriu (`company_members_seat_limit`, `0023_seats.sql`), todėl jos neapeina tiesioginės užklausos.
+- **Esami nariai niekada nepašalinami automatiškai.** Jei vietų sumažinama (pvz. Paddle portale), tiesiog nebegalima pridėti naujų, kol vietų nepakanka. Apmokėtų vietų negalima pasirinkti mažiau nei dabar užimta (tikrinama keičiant planą).
+- Paddle webhook atnaujina `subscriptions.seats`, todėl padidinus vietas jos iškart atsiranda.
+
 ## Dokumentų vienetas (sąmatos ir sutartys)
 
 Skaičiuojama **vieną kartą kiekvienam dokumentui**: kai naujas dokumentas (sąmata, sutartis ar jų **kopija**) pirmą kartą išsaugomas **su turiniu** (sąmatai bent viena eilutė su pavadinimu, sutarčiai netuščias tekstas). Tai apima ir skiltį **Sąmata** (skaičiuoklė), ir **Dokumentus** (siunčiamus klientui).

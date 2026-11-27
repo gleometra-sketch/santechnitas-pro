@@ -15,3 +15,4 @@ Paleiskite Supabase SQL Editor **pagal failo pavadinimą** (abėcėlės tvarka),
 | 0020_documents | sąmatos ir sutartys klientui (dokumentai) |
 | 0021_paddle | Paddle mokėjimų lentelės (vietoj nenaudoto Stripe) |
 | 0022_plans | planai, limitai, naudojimo skaitiklis, sąmatų užrakinimas |
+| 0023_seats | darbuotojų (vietų) ribojimas pagal apmokėtą vietų skaičių |

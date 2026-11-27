@@ -26,6 +26,9 @@ export type Plan = {
 
 /** Mažiausias apmokamų darbuotojų skaičius (Paddle kainos kiekio minimumas). */
 export const MIN_SEATS = 3;
+/** Vietų skaičius nemokamo bandymo metu ir nemokamos prieigos (complimentary) atveju. Turi sutapti su 0023_seats.sql. */
+export const TRIAL_SEATS = 10;
+export const COMPLIMENTARY_SEATS = 1000;
 
 const CORE = [
   "Objektai, darbai ir kalendorius",
@@ -102,3 +105,20 @@ export function usageLevel(used: number, limit: number): "ok" | "warn" | "full" 
 }
 
 export const priceLabel = (p: Plan, interval: "month" | "year") => `${interval === "month" ? p.priceMonth : p.priceYear} €`;
+
+/**
+ * Vietų limitas (tos pačios taisyklės kaip SQL funkcijoje _company_seat_limit, 0023_seats.sql):
+ * nemokama prieiga = 1000; aktyvi / vėluojanti / bandomoji prenumerata = apmokėtos vietos; galiojantis bandymas = 10; kitaip 0.
+ * Vieta = aktyvus narys arba laukiantis pakvietimas (įskaitant administratorius).
+ */
+export function seatLimit(input: {
+  complimentary: boolean;
+  trialEndsAt: string | Date;
+  subscription: { status: string; seats: number } | null;
+  now?: Date;
+}): number {
+  if (input.complimentary) return COMPLIMENTARY_SEATS;
+  const st = input.subscription?.status;
+  if (st === "trialing" || st === "active" || st === "past_due") return Math.max(1, input.subscription!.seats || 1);
+  return new Date(input.trialEndsAt).getTime() > (input.now ?? new Date()).getTime() ? TRIAL_SEATS : 0;
+}

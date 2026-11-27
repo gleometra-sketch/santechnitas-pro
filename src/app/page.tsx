@@ -75,6 +75,8 @@ export default function Landing() {
       <footer className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3 px-5 py-8 text-sm text-muted sm:px-8">
         <Logo size={28} />
         <span className="flex flex-wrap gap-x-5 gap-y-1">
+          <Link href="/salygos" className="hover:underline">Naudojimo sąlygos</Link>
+          <Link href="/grazinimai" className="hover:underline">Atšaukimas ir grąžinimai</Link>
           <Link href="/privatumas" className="hover:underline">Privatumo politika</Link>
           <Link href="/prisijungimas" className="hover:underline">Prisijungti</Link>
           <span>© DarboRitmas</span>
