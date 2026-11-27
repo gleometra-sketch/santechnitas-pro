@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ListPlus, NotebookPen, RotateCcw } from "lucide-react";
 import { patchMaterialItem, setMaterialPurchased, setOfficeNoteDone } from "@/lib/work/actions";
 import NoteToMaterials from "@/components/NoteToMaterials";
-import QtyStepper from "@/components/QtyStepper";
 import { UNITS, type AdminMaterialItem, type AdminNote, type MaterialStatusFilter } from "@/lib/work/types";
 
 const fmtDate = (iso: string) =>
@@ -18,7 +17,7 @@ const EMPTY: Record<MaterialStatusFilter, string> = {
   all: "Įrašų nėra.",
 };
 
-const field = "min-h-11 rounded-lg border border-transparent bg-surface px-2 hover:border-black/20 focus:border-accent focus:bg-white focus:outline-none";
+const cell = "h-10 shrink-0 rounded-lg border bg-surface text-center font-bold hover:border-black/20 focus:border-accent focus:bg-white focus:outline-none";
 
 type Props = {
   item: AdminMaterialItem;
@@ -27,6 +26,10 @@ type Props = {
   onError: (text: string | null) => void;
 };
 
+/**
+ * Viena medžiaga vienoje eilutėje: [varnelė „nupirkta“] pavadinimas · kiekis · vienetas · [rodyklė].
+ * Rodyklė (arba pavadinimo paspaudimas) išskleidžia: kas užsakė, objektą, kada pateikta, komentarą.
+ */
 function Row({ item, purchased, onToggled, onError }: Props) {
   const [name, setName] = useState(item.name);
   const [qty, setQty] = useState(qtyText(item.quantity));
@@ -36,7 +39,6 @@ function Row({ item, purchased, onToggled, onError }: Props) {
   const [flash, setFlash] = useState(false);
   const saved = useRef({ name: item.name, quantity: item.quantity, unit: item.unit });
   const rowRef = useRef<HTMLLIElement>(null);
-  const qtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Po serverio duomenų atnaujinimo sinchronizuojame laukus, bet nelaužome to, ką žmogus šiuo metu rašo.
   useEffect(() => {
@@ -73,8 +75,8 @@ function Row({ item, purchased, onToggled, onError }: Props) {
     if (n !== saved.current.name) void save({ name: n });
   };
 
-  const commitQty = (text: string = qty) => {
-    const q = Number(text.replace(",", "."));
+  const commitQty = () => {
+    const q = Number(qty.replace(",", "."));
     if (!Number.isFinite(q) || q <= 0) {
       setQty(qtyText(saved.current.quantity));
       return onError("Kiekis turi būti didesnis už 0.");
@@ -82,17 +84,6 @@ function Row({ item, purchased, onToggled, onError }: Props) {
     const rounded = Math.round(q * 100) / 100;
     setQty(qtyText(rounded));
     if (rounded !== saved.current.quantity) void save({ quantity: rounded });
-  };
-
-  // Rodyklės: reikšmę rodome iškart, o į serverį siunčiame po trumpos pauzės (keli paspaudimai = viena užklausa).
-  const stepTo = (next: string) => {
-    setQty(next);
-    if (qtyTimer.current) clearTimeout(qtyTimer.current);
-    qtyTimer.current = setTimeout(() => { qtyTimer.current = null; commitQty(next); }, 600);
-  };
-  const commitNow = () => {
-    if (qtyTimer.current) { clearTimeout(qtyTimer.current); qtyTimer.current = null; }
-    commitQty();
   };
 
   const changeUnit = (u: string) => {
@@ -113,62 +104,88 @@ function Row({ item, purchased, onToggled, onError }: Props) {
     if (e.key === "Enter") e.currentTarget.blur();
   };
 
+  const detailsId = `mat-details-${item.id}`;
+  const flashCls = flash ? "border-go-dark bg-go-soft" : "border-transparent";
+
   return (
-    <li ref={rowRef} className={`px-3 py-3 ${purchased ? "bg-go-soft/40" : ""}`}>
-      <div className="space-y-2">
+    <li ref={rowRef} className={`px-2 py-1 ${purchased ? "bg-go-soft/40" : ""}`}>
+      <div className="flex min-h-12 items-center gap-1.5">
+        <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center" title={purchased ? "Grąžinti į sąrašą" : "Pažymėti kaip nupirktą"}>
+          <input
+            type="checkbox"
+            checked={purchased}
+            disabled={busy}
+            onChange={toggle}
+            aria-label={`Nupirkta: ${item.name}`}
+            className="h-6 w-6 cursor-pointer accent-go-dark"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={detailsId}
+          className={`line-clamp-2 min-w-0 flex-1 break-words text-left text-[15px] font-semibold leading-tight ${purchased ? "text-muted line-through" : ""}`}
+        >
+          {name}
+        </button>
         <input
-          aria-label="Medžiagos pavadinimas"
-          value={name}
-          maxLength={200}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commitName}
+          aria-label={`Kiekis: ${item.name}`}
+          inputMode="decimal"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          onBlur={commitQty}
           onKeyDown={enterBlurs}
-          className={`${field} w-full min-w-0 font-semibold ${purchased ? "text-muted line-through" : ""}`}
+          onFocus={(e) => e.currentTarget.select()}
+          className={`${cell} w-12 px-0.5 tabular-nums ${flashCls}`}
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <QtyStepper label={`Kiekis: ${item.name}`} value={qty} onChange={setQty} onStep={stepTo} onCommit={commitNow} />
-          <select aria-label="Matavimo vienetas" value={unit} onChange={(e) => changeUnit(e.target.value)} className={`${field} h-11 w-[5.25rem] cursor-pointer`}>
-            {UNITS.map((u) => <option key={u}>{u}</option>)}
-          </select>
-          <span aria-live="polite" className={`w-5 text-go-dark transition-opacity ${flash ? "opacity-100" : "opacity-0"}`}>
-            <Check size={18} aria-label="Išsaugota" />
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {purchased ? (
-            <>
-              <span className="min-w-0 flex-1 truncate text-sm text-muted">{item.purchasedAt ? `Nupirkta ${fmtDate(item.purchasedAt)}` : "Nupirkta"}</span>
-              <button disabled={busy} onClick={toggle} aria-label={`Grąžinti į sąrašą: ${item.name}`} title="Grąžinti į sąrašą" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/15 text-muted hover:text-ink disabled:opacity-60">
-                <RotateCcw size={16} aria-hidden />
-              </button>
-              <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 text-muted">
-                <ChevronDown size={18} aria-hidden className={open ? "rotate-180" : ""} />
-              </button>
-            </>
-          ) : (
-            <>
-              <button disabled={busy} onClick={toggle} aria-label={`Nupirkta: ${item.name}`} className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-go-dark px-3 font-semibold text-white disabled:opacity-60">
-                <Check size={18} aria-hidden /> Nupirkta
-              </button>
-              <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Išsami informacija" className="flex min-h-12 w-12 items-center justify-center rounded-xl border border-black/10 text-muted">
-                <ChevronDown size={20} aria-hidden className={open ? "rotate-180" : ""} />
-              </button>
-            </>
-          )}
-        </div>
+        <select
+          aria-label={`Matavimo vienetas: ${item.name}`}
+          value={unit}
+          onChange={(e) => changeUnit(e.target.value)}
+          className={`${cell} w-[3.75rem] cursor-pointer px-0.5 text-sm font-semibold ${flashCls}`}
+        >
+          {UNITS.map((u) => <option key={u}>{u}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={detailsId}
+          aria-label={`Išsami informacija: ${item.name}`}
+          className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
+        >
+          <ChevronDown size={20} aria-hidden className={open ? "rotate-180" : ""} />
+        </button>
       </div>
 
       {open && (
-        <dl className="mt-2 space-y-1 rounded-lg bg-surface p-3 text-sm">
-          <div className="flex gap-2"><dt className="w-24 shrink-0 text-muted">Darbuotojas</dt><dd className="font-medium">{item.employeeName}</dd></div>
-          <div className="flex gap-2">
-            <dt className="w-24 shrink-0 text-muted">Objektas</dt>
-            <dd className="font-medium">{item.projectName ? <>{item.projectName}{item.projectAddress && <span className="block font-normal text-muted">{item.projectAddress}</span>}</> : <span className="font-normal text-muted">Nenurodytas</span>}</dd>
-          </div>
-          <div className="flex gap-2"><dt className="w-24 shrink-0 text-muted">Pateikta</dt><dd>{fmtDate(item.requestedAt)}</dd></div>
-          {item.comment && <div className="flex gap-2"><dt className="w-24 shrink-0 text-muted">Komentaras</dt><dd>{item.comment}</dd></div>}
-          {item.purchasedAt && purchased && <div className="flex gap-2"><dt className="w-24 shrink-0 text-muted">Nupirkta</dt><dd className="font-medium text-go-dark">{fmtDate(item.purchasedAt)}{item.purchasedByName ? ` · ${item.purchasedByName}` : ""}</dd></div>}
-        </dl>
+        <div id={detailsId} className="mb-1 mt-1 space-y-2 rounded-lg bg-surface p-3 text-sm">
+          <dl className="space-y-1">
+            <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted">Užsakė</dt><dd className="font-medium">{item.employeeName}</dd></div>
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0 text-muted">Objektas</dt>
+              <dd className="font-medium">{item.projectName ? <>{item.projectName}{item.projectAddress && <span className="block font-normal text-muted">{item.projectAddress}</span>}</> : <span className="font-normal text-muted">Be objekto</span>}</dd>
+            </div>
+            <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted">Pateikta</dt><dd>{fmtDate(item.requestedAt)}</dd></div>
+            <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted">Komentaras</dt><dd>{item.comment ? item.comment : <span className="text-muted">Nėra</span>}</dd></div>
+            {purchased && item.purchasedAt && (
+              <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted">Nupirkta</dt><dd className="font-medium text-go-dark">{fmtDate(item.purchasedAt)}{item.purchasedByName ? ` · ${item.purchasedByName}` : ""}</dd></div>
+            )}
+          </dl>
+          <label className="block">
+            <span className="text-muted">Pavadinimas (galite pataisyti)</span>
+            <input
+              aria-label={`Medžiagos pavadinimas: ${item.name}`}
+              value={name}
+              maxLength={200}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={enterBlurs}
+              className="mt-1 min-h-11 w-full rounded-lg border border-black/15 bg-white px-2 font-semibold focus:border-accent focus:outline-none"
+            />
+          </label>
+        </div>
       )}
     </li>
   );
@@ -263,7 +280,7 @@ export default function MaterialsList({ items, notes, view, truncated }: { items
 
   return (
     <section aria-label="Medžiagų sąrašas" className="space-y-3">
-      <p className="text-sm text-muted">Rodoma įrašų: {visible.length}. Medžiagų pavadinimą, kiekį ar vienetą galite keisti tiesiai eilutėje; pastabos žymimos „Atlikta“.</p>
+      <p className="text-sm text-muted">Rodoma įrašų: {visible.length}. Varnelė žymi nupirktą medžiagą; kiekį ir vienetą keiskite eilutėje. Paspaudę pavadinimą ar rodyklę pamatysite, kas užsakė, objektą, pateikimo laiką ir komentarą; pastabos žymimos „Atlikta“.</p>
       {error && <p role="alert" className="rounded-2xl bg-red-50 p-3 font-medium text-danger">{error}</p>}
       {visible.length === 0 && <p className="rounded-card bg-white p-5 text-muted shadow-card">{EMPTY[view]}</p>}
       {visible.length > 0 && (
