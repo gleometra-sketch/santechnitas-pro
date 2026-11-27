@@ -1,24 +1,45 @@
-import Link from "next/link";
+import LegalPage, { H2 } from "@/components/legal/LegalPage";
+import { getLegal } from "@/lib/legal";
 
 export const metadata = { title: "Privatumo politika · DarboRitmas" };
+export const dynamic = "force-dynamic";
 
-// ŠABLONAS: prieš viešą paleidimą papildykite įmonės duomenimis ir peržiūrėkite su teisininku.
 export default function PrivacyPage() {
+  const legal = getLegal();
+  const seller = legal.name || "[ĮMONĖS PAVADINIMAS]";
   return (
-    <main className="mx-auto max-w-2xl space-y-4 px-4 py-8">
-      <p className="rounded-2xl bg-accent-soft p-3 text-sm">
-        Šablonas. Prieš paleidžiant programą klientams įrašykite duomenų valdytojo rekvizitus ir peržiūrėkite tekstą su teisininku.
+    <LegalPage title="Privatumo politika" legal={legal}>
+      <H2>Kas mes</H2>
+      <p>
+        Duomenų valdytojas dėl paskyrų, atsiskaitymo ir svetainės naudojimo yra <strong>{seller}</strong>
+        {legal.code ? `, įmonės kodas ${legal.code}` : ""}
+        {legal.address ? `, ${legal.address}` : ""}. Privatumo klausimais: {legal.email || "[EL. PAŠTAS]"}.
+        Dėl duomenų, kuriuos į programą įveda jūsų įmonė apie savo darbuotojus ir klientus (darbo laikas, objektai, pastabos), valdytoja yra jūsų įmonė, o mes esame duomenų tvarkytojas.
       </p>
-      <h1 className="text-2xl font-extrabold sm:text-3xl">Privatumo politika</h1>
-      <h2 className="text-xl font-bold">Kokius duomenis saugome</h2>
-      <p>Vardą, el. paštą, įmonės pavadinimą, darbo laiko įrašus, pertraukas, objektų adresus, pastabas, jūsų įkeltus failus (nuotraukas, balso įrašus) ir mokėjimų istoriją.</p>
-      <h2 className="text-xl font-bold">Kam jų reikia</h2>
-      <p>Paslaugai teikti: darbo laiko apskaitai, darbų planavimui, medžiagų užsakymams ir prenumeratos valdymui.</p>
-      <h2 className="text-xl font-bold">Kas apdoroja duomenis</h2>
-      <p>Duomenys saugomi Supabase (duomenų bazė ir failai), mokėjimus apdoroja Paddle (jis veikia kaip pardavėjas ir atsako už mokesčius bei sąskaitas). Banko kortelės duomenų mes nematome ir nesaugome.</p>
-      <h2 className="text-xl font-bold">Jūsų teisės</h2>
-      <p>Galite prašyti peržiūrėti, ištaisyti, eksportuoti ar ištrinti savo duomenis. Duomenų valdytojo kontaktai: [įrašykite].</p>
-      <p><Link href="/registracija" className="font-semibold text-accent-dark underline">Grįžti</Link></p>
-    </main>
+
+      <H2>Kokius duomenis tvarkome</H2>
+      <p>Vardą, el. paštą, įmonės pavadinimą ir narių vaidmenis; darbo laiko įrašus, pertraukas, objektų adresus, užduotis, pastabas, medžiagų ir automobilių duomenis, sąmatas ir sutartis; jūsų įkeltus failus (nuotraukas, balso įrašus); prenumeratos ir mokėjimų istoriją (be kortelės duomenų); pagrindinius techninius žurnalus (klaidos, saugumas).</p>
+
+      <H2>Tikslai ir teisinis pagrindas</H2>
+      <p>Paslaugai teikti ir sutarčiai vykdyti (darbo laiko apskaita, planavimas, medžiagos, dokumentai); prenumeratai ir atsiskaitymui; saugumui ir klaidų taisymui (teisėtas interesas); teisinėms prievolėms vykdyti. Jei naudojame nebūtinus slapukus ar analitiką, tai darome tik gavę sutikimą.</p>
+
+      <H2>Kam duomenis perduodame</H2>
+      <p>
+        Paslaugų teikėjams, be kurių negalime veikti: <strong>Supabase</strong> (duomenų bazė, failai, prisijungimas), <strong>Cloudflare</strong> (talpinimas ir saugumas), <strong>Paddle</strong> (atsiskaitymas; Paddle yra pardavėjas, Merchant of Record, ir savarankiškas savo gautų asmens duomenų valdytojas, žr. Paddle privatumo politiką), <strong>Telegram</strong> (tik jei administratorius prijungia pranešimus). Taip pat profesionaliems patarėjams ir institucijoms, kai to reikalauja teisė. Duomenų neparduodame.
+      </p>
+      <p>Kai kurie teikėjai gali tvarkyti duomenis už Europos ekonominės erdvės ribų; tuomet taikomos BDAR numatytos apsaugos priemonės (pvz. standartinės sutarčių sąlygos).</p>
+
+      <H2>Kiek saugome</H2>
+      <p>Duomenis saugome, kol turite paskyrą ir naudojatės Paslauga. Paprašius ištriname, išskyrus tuos, kuriuos privalome saugoti pagal teisės aktus (pvz. apskaitos dokumentus, kuriuos saugo ir Paddle).</p>
+
+      <H2>Jūsų teisės</H2>
+      <p>Galite prašyti peržiūrėti, ištaisyti, ištrinti, apriboti tvarkymą, perkelti duomenis, nesutikti su tvarkymu ir atšaukti sutikimą. Į prašymą atsakome per vieną mėnesį. Skundą galite pateikti Valstybinei duomenų apsaugos inspekcijai. Darbuotojai savo teisėmis dėl darbo duomenų pirmiausia kreipiasi į savo darbdavį (valdytoją).</p>
+
+      <H2>Saugumas</H2>
+      <p>Naudojame prieigos kontrolę pagal įmones ir vaidmenis, šifruotą ryšį (HTTPS) ir atskirtus slaptus raktus. Jokia sistema nėra visiškai nepažeidžiama, todėl apie incidentus pranešime, kaip reikalauja teisė.</p>
+
+      <H2>Slapukai</H2>
+      <p>Naudojame būtinus slapukus ir naršyklės saugyklą prisijungimui ir programos veikimui. Nebūtinų (reklamos, analitikos) slapukų be sutikimo nenaudojame.</p>
+    </LegalPage>
   );
 }

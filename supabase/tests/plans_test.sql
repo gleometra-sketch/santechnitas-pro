@@ -153,4 +153,33 @@ insert into public.notes (company_id, author_id, kind, body) values (tp.id('CX')
 reset role;
 select tp.ok((select count(*) from public.notification_outbox where event_type = 'office_note' and user_id = tp.id('A1')) = 1, 'pastaba biurui sukuria pranešimą administratoriui');
 
+-- ================================================================ darbuotojų vietos (0023_seats.sql)
+reset role;
+update public.subscriptions set seats = 3, status = 'active' where company_id = tp.id('CX');
+select tp.as_user('A1');
+select tp.ok((public.plan_usage(tp.id('CX')) -> 'seats' ->> 'used')::int = 2, 'užimtos vietos: 2 aktyvūs nariai');
+select tp.ok((public.plan_usage(tp.id('CX')) -> 'seats' ->> 'limit')::int = 3, 'vietų limitas = apmokėtos vietos');
+insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n1@x.lt', 'worker', 'invited', tp.id('A1'));
+select tp.err($$insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n2@x.lt', 'worker', 'invited', tp.id('A1'))$$, 'P0001', 'vietos');
+-- laukiantis pakvietimas užima vietą, jo atšaukimas ją atlaisvina
+delete from public.company_members where email = 'n1@x.lt';
+insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n2@x.lt', 'worker', 'invited', tp.id('A1'));
+-- pašalinto nario vieta atlaisvinama, bet atkurti jį galima tik jei yra vietų
+update public.company_members set status = 'removed' where user_id = tp.id('W');
+insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n3@x.lt', 'worker', 'invited', tp.id('A1'));
+select tp.err($$update public.company_members set status = 'active' where user_id = tp.id('W')$$, 'P0001', 'vietos');
+-- didinant apmokėtas vietas (Paddle webhook) atkurti galima
+reset role;
+update public.subscriptions set seats = 4 where company_id = tp.id('CX');
+select tp.as_user('A1');
+update public.company_members set status = 'active' where user_id = tp.id('W');
+select tp.ok((public.plan_usage(tp.id('CX')) -> 'seats' ->> 'used')::int = 4, 'po atkūrimo užimtos 4 vietos');
+-- sumažinus vietas esami nariai nepašalinami, bet naujų pridėti nebegalima
+reset role;
+update public.subscriptions set seats = 1 where company_id = tp.id('CX');
+select tp.as_user('A1');
+select tp.ok((select count(*) from public.company_members where company_id = tp.id('CX') and status = 'active') = 2, 'sumažinus vietas esami nariai lieka');
+select tp.err($$insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n4@x.lt', 'worker', 'invited', tp.id('A1'))$$, 'P0001', 'vietos');
+reset role;
+
 select 'PLANŲ TESTAI PRAĖJO' as rezultatas;

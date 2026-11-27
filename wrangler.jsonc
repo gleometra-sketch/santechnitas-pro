@@ -17,6 +17,10 @@
     "PADDLE_PRICE_PRO_YEARLY": "pri_01m81ppbjjqmt38761a270c1fj",
     "PADDLE_PRICE_VERSLUI_MONTHLY": "pri_01m81pqafzr3zaf9dg4ge5b78j",
     "PADDLE_PRICE_VERSLUI_YEARLY": "pri_01m81pqw9v00zfv2nzb1apxr3b",
-    "TELEGRAM_BOT_USERNAME": "DarboRitmasBot"
+    "TELEGRAM_BOT_USERNAME": "DarboRitmasBot",
+    "LEGAL_NAME": "Arentas Mikalčius",
+    "LEGAL_CODE": "pazymos numeris kai bus",
+    "LEGAL_ADDRESS": "Klaipėdos g. 94-6, LT-37382 Panevėžys",
+    "LEGAL_EMAIL": "info@darboritmas.lt"
     }
 }

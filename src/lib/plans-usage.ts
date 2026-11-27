@@ -4,7 +4,7 @@ import type { PlanId } from "@/lib/plans";
 import { isPlanId } from "@/lib/plans";
 
 export type UsageLine = { used: number; limit: number; hard: boolean };
-export type PlanUsage = { plan: PlanId | null; documents: UsageLine; telegram: UsageLine; cars: UsageLine };
+export type PlanUsage = { plan: PlanId | null; documents: UsageLine; telegram: UsageLine; cars: UsageLine; seats: UsageLine };
 
 const line = (v: unknown): UsageLine => {
   const o = (v ?? {}) as { used?: unknown; limit?: unknown; hard?: unknown };
@@ -20,6 +20,6 @@ export async function getPlanUsage(ctx: SessionContext): Promise<PlanUsage | nul
     if (error) console.error("plan_usage:", error.message);
     return null;
   }
-  const d = data as { plan?: unknown; documents?: unknown; telegram?: unknown; cars?: unknown };
-  return { plan: isPlanId(d.plan) ? d.plan : null, documents: line(d.documents), telegram: line(d.telegram), cars: line(d.cars) };
+  const d = data as { plan?: unknown; documents?: unknown; telegram?: unknown; cars?: unknown; seats?: unknown };
+  return { plan: isPlanId(d.plan) ? d.plan : null, documents: line(d.documents), telegram: line(d.telegram), cars: line(d.cars), seats: line(d.seats) };
 }

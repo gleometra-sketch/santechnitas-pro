@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { REFUND_DAYS } from "@/lib/legal";
 import { MIN_SEATS, PLANS } from "@/lib/plans";
 
 export default function Pricing() {
@@ -35,7 +36,9 @@ export default function Pricing() {
             </div>
           ))}
         </div>
-        <p className="mt-6 text-sm text-muted">Apmokėjimus apdoroja Paddle. Telegram žinutės skaičiuojamos kiekvienam gavėjui; programos pranešimai neribojami visuose planuose.</p>
+        <p className="mt-6 text-sm text-muted">
+          Prenumeratą galite atšaukti bet kada (galioja iki apmokėto laikotarpio pabaigos), o planą keisti kada norite. Grąžinimas per {REFUND_DAYS} dienų, žr. <Link href="/grazinimai" className="font-semibold underline">atšaukimas ir grąžinimai</Link>. Apmokėjimus apdoroja Paddle (Merchant of Record). Telegram žinutės skaičiuojamos kiekvienam gavėjui; programos pranešimai neribojami visuose planuose.
+        </p>
       </div>
     </section>
   );

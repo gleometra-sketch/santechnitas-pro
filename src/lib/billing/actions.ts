@@ -18,6 +18,18 @@ async function adminGuard() {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/** Paddle klaida žmogaus kalba: administratorius mato, ką taisyti (Paddle klaidų tekste slaptų duomenų nėra). */
+function paddleErrorText(status: number, code: string, detail: string): string {
+  const tail = [code, detail].filter(Boolean).join(": ");
+  let hint = "Nepavyko susisiekti su apmokėjimo sistema. Bandykite dar kartą.";
+  if (status === 401 || code.startsWith("authentication")) hint = "Paddle atmetė API raktą. Patikrinkite PADDLE_API_KEY (ar jis iš tos pačios aplinkos kaip PADDLE_ENV, ar neatšauktas).";
+  else if (status === 403 || code === "forbidden") hint = "API raktas neturi teisių. Paddle → Developer tools → Authentication: raktui suteikite transakcijų (write), prenumeratų ir klientų portalo teises.";
+  else if (status === 404 || code === "entity_not_found") hint = "Paddle nerado objekto. Patikrinkite kainos ID (turi būti pri_..., ne pro_...) ir ar jis iš sandbox, kai PADDLE_ENV=sandbox.";
+  else if (code.includes("default_checkout_url")) hint = "Paddle → Checkout → Checkout settings: nustatykite Default payment link (pvz. https://jūsų-adresas/valdymas/abonementas).";
+  else if (status >= 400 && status < 500) hint = "Paddle atmetė užklausą. Patikrinkite kainos nustatymus (kiekis: mažiausiai 3, daugiausiai 500).";
+  return tail ? `${hint} (Paddle: ${tail})` : hint;
+}
+
 async function paddleFetch(method: "POST" | "PATCH", path: string, body: unknown): Promise<{ ok: true; data: any } | Fail> {
   const key = process.env.PADDLE_API_KEY;
   if (!key) return fail("Apmokėjimas dar nesukonfigūruotas (trūksta PADDLE_API_KEY).");
@@ -29,8 +41,10 @@ async function paddleFetch(method: "POST" | "PATCH", path: string, body: unknown
     });
     const json: any = await res.json().catch(() => null);
     if (!res.ok || !json?.data) {
+      const code = String(json?.error?.code ?? "");
+      const detail = String(json?.error?.detail ?? "").slice(0, 300);
       console.error("Paddle API klaida:", method, path, res.status, JSON.stringify(json?.error ?? json));
-      return fail("Nepavyko susisiekti su apmokėjimo sistema. Bandykite dar kartą.");
+      return fail(paddleErrorText(res.status, code, detail));
     }
     return { ok: true, data: json.data };
   } catch (e) {
@@ -46,6 +60,13 @@ function checkChoice(plan: unknown, interval: unknown, seats: unknown): { plan: 
   return { plan, interval, seats };
 }
 
+/** Užimtos vietos: aktyvūs nariai ir laukiantys pakvietimai (kaip 0023_seats.sql). */
+async function seatsInUse(db: Awaited<ReturnType<typeof createClient>>, companyId: string): Promise<number> {
+  const { count } = await db.from("company_members").select("id", { count: "exact", head: true }).eq("company_id", companyId).in("status", ["invited", "active"]);
+  return count ?? 0;
+}
+const seatsTooFew = (used: number) => fail(`Šiuo metu užimta ${used} vietų (aktyvūs nariai ir laukiantys pakvietimai). Pasirinkite bent ${used} arba pirmiausia pašalinkite narius skiltyje Darbuotojai.`);
+
 /**
  * Sukuria Paddle transakciją SERVERYJE (įmonės ID įrašomas čia, o ne naršyklėje, kad jo nebūtų galima pakeisti),
  * o naršyklė ją atidaro kaip apmokėjimo langą. Kiekis = darbuotojų (apmokamų vietų) skaičius.
@@ -60,6 +81,8 @@ export async function startCheckout(plan: string, interval: string, seats: numbe
   if (!priceId) return fail("Šio plano apmokėjimas dar nesukonfigūruotas (trūksta kainos ID).");
 
   const db = await createClient();
+  const used = await seatsInUse(db, g.companyId);
+  if (c.seats < used) return seatsTooFew(used);
   const { data: sub } = await db.from("subscriptions").select("status, provider_customer_id").eq("company_id", g.companyId).maybeSingle();
   if (sub && ["active", "trialing", "past_due"].includes(sub.status as string)) {
     return fail("Prenumerata jau aktyvi. Planą keiskite mygtuku „Pakeisti planą“.");
@@ -91,6 +114,8 @@ export async function changePlan(plan: string, seats: number): Promise<{ ok: tru
   if (interval !== "month" && interval !== "year") return fail("Nepavyko nustatyti dabartinio laikotarpio.");
   const c = checkChoice(plan, interval, seats);
   if ("ok" in c) return c;
+  const used = await seatsInUse(db, g.companyId);
+  if (c.seats < used) return seatsTooFew(used);
 
   const priceId = priceIdFor(c.plan, c.interval);
   if (!priceId) return fail("Šio plano apmokėjimas dar nesukonfigūruotas (trūksta kainos ID).");

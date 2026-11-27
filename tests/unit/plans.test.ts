@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { PLANS, canUse, limitOf, minPlanFor, planOf, usageLevel } from "../../src/lib/plans";
+import { COMPLIMENTARY_SEATS, PLANS, TRIAL_SEATS, canUse, limitOf, minPlanFor, planOf, seatLimit, usageLevel } from "../../src/lib/plans";
 import { planFromPriceId, priceEnvName } from "../../src/lib/billing/config";
 
 const NOW = new Date("2026-11-20T10:00:00Z");
@@ -65,4 +65,21 @@ test("Paddle kainos ID → planas", () => {
   assert.equal(planFromPriceId("pri_nezinomas", env), null);
   assert.equal(planFromPriceId(null, env), null);
   assert.equal(priceEnvName("bazinis", "year"), "PADDLE_PRICE_BAZINIS_YEARLY");
+});
+
+test("seatLimit: apmokėtos vietos, bandymas, nemokama prieiga, nieko", () => {
+  assert.equal(seatLimit({ complimentary: true, trialEndsAt: past, subscription: null, now: NOW }), COMPLIMENTARY_SEATS);
+  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "active", seats: 7 }, now: NOW }), 7);
+  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "past_due", seats: 3 }, now: NOW }), 3);
+  assert.equal(seatLimit({ complimentary: false, trialEndsAt: future, subscription: null, now: NOW }), TRIAL_SEATS);
+  assert.equal(seatLimit({ complimentary: false, trialEndsAt: future, subscription: { status: "canceled", seats: 9 }, now: NOW }), TRIAL_SEATS);
+  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "canceled", seats: 9 }, now: NOW }), 0);
+  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "active", seats: 0 }, now: NOW }), 1);
+});
+
+// Vietų konstantos turi sutapti su 0023_seats.sql.
+test("TRIAL_SEATS ir COMPLIMENTARY_SEATS sutampa su 0023_seats.sql", () => {
+  const sql = readFileSync(new URL("../../supabase/migrations/0023_seats.sql", import.meta.url), "utf8");
+  assert.equal(Number(/when c\.complimentary then (\d+)/.exec(sql)?.[1]), COMPLIMENTARY_SEATS);
+  assert.equal(Number(/c\.trial_ends_at > now\(\) then (\d+)/.exec(sql)?.[1]), TRIAL_SEATS);
 });

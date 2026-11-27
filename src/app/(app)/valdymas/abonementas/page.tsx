@@ -3,7 +3,7 @@ import UsageMeter from "@/components/plans/UsageMeter";
 import { requireContext } from "@/lib/auth/context";
 import { paddleClientConfig } from "@/lib/billing/paddle";
 import { getBilling } from "@/lib/billing/queries";
-import { planById } from "@/lib/plans";
+import { MIN_SEATS, planById } from "@/lib/plans";
 import { getPlanUsage } from "@/lib/plans-usage";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export default async function AbonementasPage() {
   const live = !!s && ["active", "trialing", "past_due"].includes(s.status);
   const trialLeft = Math.ceil((new Date(ctx.company!.trialEndsAt).getTime() - Date.now()) / 86_400_000);
   const plan = planById(ctx.plan);
+  const usedSeats = usage?.seats.used ?? b.activeMembers;
   const carsOver = usage && usage.cars.limit >= 0 && usage.cars.used > usage.cars.limit;
 
   return (
@@ -41,14 +42,13 @@ export default async function AbonementasPage() {
         )}
         {s?.cancelAtPeriodEnd && <p className="mt-2 text-sm font-medium text-amber-800">Prenumerata atšaukta ir nebus pratęsta.</p>}
         {s?.status === "past_due" && <p role="alert" className="mt-2 text-sm font-medium text-danger">Paskutinis apmokėjimas nepavyko. Atnaujinkite kortelę Paddle portale.</p>}
-        {live && b.activeMembers > s!.seats && (
-          <p className="mt-2 text-sm text-amber-800">Aktyvių darbuotojų ({b.activeMembers}) daugiau nei apmokėtų vietų ({s!.seats}). Padidinkite vietų skaičių žemiau.</p>
-        )}
       </section>
 
       {usage && usage.plan && (
         <section className="space-y-3 rounded-card bg-white p-4 shadow-card sm:p-5">
           <h2 className="text-lg font-bold">Šio mėnesio naudojimas</h2>
+          <UsageMeter label="Darbuotojų vietos" used={usage.seats.used} limit={usage.seats.limit} hard />
+          {usage.seats.used >= usage.seats.limit && <p className="text-sm text-amber-800">Visos vietos užimtos: naujų narių pakviesti negalima. Padidinkite vietų skaičių žemiau.</p>}
           {usage.documents.limit > 0 && <UsageMeter label="Naujos sąmatos ir sutartys" used={usage.documents.used} limit={usage.documents.limit} hard={usage.documents.hard} />}
           {usage.telegram.limit > 0 ? (
             <UsageMeter label="Telegram žinutės" used={usage.telegram.used} limit={usage.telegram.limit} hard={usage.telegram.hard} />
@@ -63,7 +63,7 @@ export default async function AbonementasPage() {
 
       <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
         <h2 className="mb-3 text-lg font-bold">{live ? "Keisti planą" : "Pasirinkti planą"}</h2>
-        <BillingPanel token={token} env={env} current={live ? { plan: s!.plan, interval: s!.interval, seats: s!.seats } : null} defaultSeats={b.activeMembers} />
+        <BillingPanel token={token} env={env} current={live ? { plan: s!.plan, interval: s!.interval, seats: s!.seats } : null} defaultSeats={Math.max(usedSeats, MIN_SEATS)} minSeats={usedSeats} />
       </section>
 
       {b.payments.length > 0 && (

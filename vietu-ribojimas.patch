@@ -1,0 +1,496 @@
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/docs/PADDLE.md new3/santechnitas-pro-main/docs/PADDLE.md
+--- base3/santechnitas-pro-main/docs/PADDLE.md	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/docs/PADDLE.md	2026-11-24 17:53:36.607695634 +0000
+@@ -13,7 +13,7 @@
+ ## Nustatymas (pirmiausia SANDBOX)
+ 
+ 1. Sukurkite Paddle **sandbox** paskyrą.
+-2. Supabase SQL Editor paleiskite `0021_paddle.sql` ir `0022_plans.sql` (šia tvarka, po 0020).
++2. Supabase SQL Editor paleiskite `0021_paddle.sql`, `0022_plans.sql` ir `0023_seats.sql` (šia tvarka, po 0020).
+ 3. Paddle → **Catalog → Products**: trys produktai (Bazinis, Pro, Verslui), kiekvienas su dviem kainomis: **1 mėn.** ir **1 m.** (3 / 30, 5 / 50, 8 / 80 €, **kaina už vieną darbuotoją**). Kiekvienai kainai leiskite **kiekį: mažiausiai 3, daugiausiai 500**.
+ 4. Paddle → **Developer tools → Authentication**: sukurkite **API raktą** (leidimai: transakcijos, prenumeratos, klientų portalo sesijos, klientai) ir **client-side token** (`test_...`).
+ 5. Paddle → **Developer tools → Notifications → New destination**: URL `https://JŪSŲ-ADRESAS/api/paddle/webhook`, įvykiai: `subscription.created`, `subscription.activated`, `subscription.updated`, `subscription.trialing`, `subscription.past_due`, `subscription.paused`, `subscription.resumed`, `subscription.canceled`, `transaction.completed`, `transaction.payment_failed`. Nukopijuokite **Secret key**.
+@@ -28,6 +28,6 @@
+ ## Žinomi apribojimai
+ 
+ - **`changePlan` (PATCH /subscriptions) neišbandytas su tikru Paddle.** Pasitikrinkite sandbox: ar Paddle priima kainų keitimą su `proration_billing_mode` ir ar webhook'as atnaujina `plan_id`. Laikotarpio (mėnesinis ↔ metinis) toje pačioje prenumeratoje keisti negalima.
+-- Apmokėtų vietų skaičius **darbuotojų dar neriboja**: saugomas `subscriptions.seats`, puslapyje rodomas įspėjimas, jei aktyvių darbuotojų daugiau. Pakviesti naujo darbuotojo programa neblokuoja.
++- **Vietų ribojimas** (`0023_seats.sql`): naujų narių pakviesti negalima, kai užimtos visos apmokėtos vietos; esami nariai nepašalinami. Žr. `SAMATOS-IR-PLANAI.md`.
+ - Pranešimo administratoriui apie nepavykusį apmokėjimą kol kas nėra (Paddle pats siunčia priminimus, puslapyje rodomas įspėjimas).
+ - Pasikeitus kainai Paddle, atnaujinkite ir `src/lib/plans.ts` (rodomos kainos).
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/docs/SAMATOS-IR-PLANAI.md new3/santechnitas-pro-main/docs/SAMATOS-IR-PLANAI.md
+--- base3/santechnitas-pro-main/docs/SAMATOS-IR-PLANAI.md	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/docs/SAMATOS-IR-PLANAI.md	2026-11-24 17:53:36.607116402 +0000
+@@ -15,6 +15,17 @@
+ 
+ Bandymo laikotarpis (14 d.) = **Pro** funkcijos ir limitai. Nemokama prieiga (`complimentary`) = Verslui.
+ 
++## Darbuotojų vietos
++
++Apmokamas darbuotojų skaičius (nuo 3) yra **vietų limitas**: klientas negali pakviesti daugiau narių, nei apmokėjo.
++
++- **Vieta** = aktyvus narys arba laukiantis pakvietimas, **įskaitant administratorius ir direktorių**. Pašalintas narys vietos neužima.
++- Limitas: apmokėta prenumerata = `subscriptions.seats`; nemokamas bandymas = **10** vietų; nemokama prieiga (`complimentary`) = 1000.
++- Pasiekus limitą naujo nario pakviesti ar pašalinto atkurti negalima; pranešime nurodoma, kad reikia padidinti vietas (Valdymas → Abonementas). Valdymas → Darbuotojai rodo „X / Y“ vietų.
++- Taisyklė vykdoma duomenų bazės triggeriu (`company_members_seat_limit`, `0023_seats.sql`), todėl jos neapeina tiesioginės užklausos.
++- **Esami nariai niekada nepašalinami automatiškai.** Jei vietų sumažinama (pvz. Paddle portale), tiesiog nebegalima pridėti naujų, kol vietų nepakanka. Apmokėtų vietų negalima pasirinkti mažiau nei dabar užimta (tikrinama keičiant planą).
++- Paddle webhook atnaujina `subscriptions.seats`, todėl padidinus vietas jos iškart atsiranda.
++
+ ## Dokumentų vienetas (sąmatos ir sutartys)
+ 
+ Skaičiuojama **vieną kartą kiekvienam dokumentui**: kai naujas dokumentas (sąmata, sutartis ar jų **kopija**) pirmą kartą išsaugomas **su turiniu** (sąmatai bent viena eilutė su pavadinimu, sutarčiai netuščias tekstas). Tai apima ir skiltį **Sąmata** (skaičiuoklė), ir **Dokumentus** (siunčiamus klientui).
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/app/(app)/valdymas/abonementas/page.tsx new3/santechnitas-pro-main/src/app/(app)/valdymas/abonementas/page.tsx
+--- base3/santechnitas-pro-main/src/app/(app)/valdymas/abonementas/page.tsx	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/app/(app)/valdymas/abonementas/page.tsx	2026-11-24 06:39:19.130390921 +0000
+@@ -3,7 +3,7 @@
+ import { requireContext } from "@/lib/auth/context";
+ import { paddleClientConfig } from "@/lib/billing/paddle";
+ import { getBilling } from "@/lib/billing/queries";
+-import { planById } from "@/lib/plans";
++import { MIN_SEATS, planById } from "@/lib/plans";
+ import { getPlanUsage } from "@/lib/plans-usage";
+ 
+ export const dynamic = "force-dynamic";
+@@ -20,6 +20,7 @@
+   const live = !!s && ["active", "trialing", "past_due"].includes(s.status);
+   const trialLeft = Math.ceil((new Date(ctx.company!.trialEndsAt).getTime() - Date.now()) / 86_400_000);
+   const plan = planById(ctx.plan);
++  const usedSeats = usage?.seats.used ?? b.activeMembers;
+   const carsOver = usage && usage.cars.limit >= 0 && usage.cars.used > usage.cars.limit;
+ 
+   return (
+@@ -41,14 +42,13 @@
+         )}
+         {s?.cancelAtPeriodEnd && <p className="mt-2 text-sm font-medium text-amber-800">Prenumerata atšaukta ir nebus pratęsta.</p>}
+         {s?.status === "past_due" && <p role="alert" className="mt-2 text-sm font-medium text-danger">Paskutinis apmokėjimas nepavyko. Atnaujinkite kortelę Paddle portale.</p>}
+-        {live && b.activeMembers > s!.seats && (
+-          <p className="mt-2 text-sm text-amber-800">Aktyvių darbuotojų ({b.activeMembers}) daugiau nei apmokėtų vietų ({s!.seats}). Padidinkite vietų skaičių žemiau.</p>
+-        )}
+       </section>
+ 
+       {usage && usage.plan && (
+         <section className="space-y-3 rounded-card bg-white p-4 shadow-card sm:p-5">
+           <h2 className="text-lg font-bold">Šio mėnesio naudojimas</h2>
++          <UsageMeter label="Darbuotojų vietos" used={usage.seats.used} limit={usage.seats.limit} hard />
++          {usage.seats.used >= usage.seats.limit && <p className="text-sm text-amber-800">Visos vietos užimtos: naujų narių pakviesti negalima. Padidinkite vietų skaičių žemiau.</p>}
+           {usage.documents.limit > 0 && <UsageMeter label="Naujos sąmatos ir sutartys" used={usage.documents.used} limit={usage.documents.limit} hard={usage.documents.hard} />}
+           {usage.telegram.limit > 0 ? (
+             <UsageMeter label="Telegram žinutės" used={usage.telegram.used} limit={usage.telegram.limit} hard={usage.telegram.hard} />
+@@ -63,7 +63,7 @@
+ 
+       <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
+         <h2 className="mb-3 text-lg font-bold">{live ? "Keisti planą" : "Pasirinkti planą"}</h2>
+-        <BillingPanel token={token} env={env} current={live ? { plan: s!.plan, interval: s!.interval, seats: s!.seats } : null} defaultSeats={b.activeMembers} />
++        <BillingPanel token={token} env={env} current={live ? { plan: s!.plan, interval: s!.interval, seats: s!.seats } : null} defaultSeats={Math.max(usedSeats, MIN_SEATS)} minSeats={usedSeats} />
+       </section>
+ 
+       {b.payments.length > 0 && (
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/app/(app)/valdymas/darbuotojai/page.tsx new3/santechnitas-pro-main/src/app/(app)/valdymas/darbuotojai/page.tsx
+--- base3/santechnitas-pro-main/src/app/(app)/valdymas/darbuotojai/page.tsx	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/app/(app)/valdymas/darbuotojai/page.tsx	2026-11-24 06:38:59.255578925 +0000
+@@ -1,11 +1,13 @@
+ import MembersAdmin from "@/components/admin/MembersAdmin";
+ import { requireContext } from "@/lib/auth/context";
+ import { getMembers } from "@/lib/admin/queries";
++import { getPlanUsage } from "@/lib/plans-usage";
+ import { todayKey } from "@/lib/dates";
+ 
+ export const dynamic = "force-dynamic";
+ 
+ export default async function DarbuotojaiPage() {
+   const ctx = await requireContext();
+-  return <MembersAdmin members={await getMembers(ctx)} selfId={ctx.userId} companyMode={ctx.company?.timeMode ?? "hours"} today={todayKey()} />;
++  const [members, usage] = await Promise.all([getMembers(ctx), getPlanUsage(ctx)]);
++  return <MembersAdmin members={members} selfId={ctx.userId} companyMode={ctx.company?.timeMode ?? "hours"} today={todayKey()} seats={usage ? { used: usage.seats.used, limit: usage.seats.limit } : null} />;
+ }
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/components/admin/MembersAdmin.tsx new3/santechnitas-pro-main/src/components/admin/MembersAdmin.tsx
+--- base3/santechnitas-pro-main/src/components/admin/MembersAdmin.tsx	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/components/admin/MembersAdmin.tsx	2026-11-24 06:39:19.129446965 +0000
+@@ -3,6 +3,8 @@
+ import { useState, useTransition } from "react";
+ import { Euro, Mail, Timer, UserMinus, UserPlus, Undo2 } from "lucide-react";
+ import { TIME_MODE_LABEL, type TimeMode } from "@/lib/work/types";
++import Link from "next/link";
++import UsageMeter from "@/components/plans/UsageMeter";
+ import { inviteMember, removeMember, restoreMember, setCompanyTimeMode, setMemberRate, setMemberRole, setMemberTimeMode } from "@/lib/admin/actions";
+ import { formatMoney } from "@/lib/money";
+ import { ROLE_LABEL, type MemberRow } from "@/lib/admin/types";
+@@ -103,7 +105,7 @@
+   );
+ }
+ 
+-export default function MembersAdmin({ members, selfId, companyMode, today }: { members: MemberRow[]; selfId: string; companyMode: TimeMode; today: string }) {
++export default function MembersAdmin({ members, selfId, companyMode, today, seats }: { members: MemberRow[]; selfId: string; companyMode: TimeMode; today: string; seats: { used: number; limit: number } | null }) {
+   const [email, setEmail] = useState("");
+   const [role, setRole] = useState<"worker" | "admin">("worker");
+   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+@@ -127,6 +129,8 @@
+     });
+   };
+ 
++  // Vietos = aktyvūs nariai ir laukiantys pakvietimai. Skaičių ir ribą tikrina duomenų bazė; čia tik parodoma.
++  const seatsFull = !!seats && seats.used >= seats.limit;
+   const current = members.filter((m) => m.status !== "removed");
+   const removed = members.filter((m) => m.status === "removed");
+ 
+@@ -153,9 +157,18 @@
+       </section>
+ 
+       <section className="rounded-card bg-white p-4 shadow-card sm:p-5">
++        {seats && (
++          <div className="mb-3">
++            <UsageMeter label="Darbuotojų vietos" used={seats.used} limit={seats.limit} hard />
++            <p className="mt-1 text-xs text-muted">Vieta = aktyvus narys arba laukiantis pakvietimas (įskaitant administratorius).{" "}
++              <Link href="/valdymas/abonementas" className="font-semibold text-accent-dark underline">{seatsFull ? "Padidinti vietų skaičių" : "Abonementas"}</Link>
++            </p>
++          </div>
++        )}
+         <details>
+           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-lg font-bold"><UserPlus size={22} aria-hidden /> Pridėti darbuotoją</summary>
+           <div className="mt-3 space-y-3">
++            {seatsFull && <p role="status" className="rounded-2xl bg-amber-50 p-3 text-sm font-medium text-amber-800">Visos apmokėtos vietos užimtos. Norėdami pakviesti daugiau, padidinkite vietų skaičių skiltyje Abonementas arba pašalinkite nenaudojamą narį.</p>}
+             <Field label="El. paštas"><input type="email" inputMode="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} /></Field>
+             <Field label="Vaidmuo">
+               <select value={role} onChange={(e) => setRole(e.target.value as "worker" | "admin")} className={inputCls}>
+@@ -164,7 +177,7 @@
+               </select>
+             </Field>
+             <p className="text-sm text-muted">Laiškas nesiunčiamas. Pasakykite darbuotojui užsiregistruoti tuo pačiu el. paštu, ir jis automatiškai prisijungs prie jūsų įmonės.</p>
+-            <button disabled={pending || !email.trim()} onClick={invite} className={`${primaryBtn} w-full`}>{pending ? "Kviečiama..." : "Pakviesti"}</button>
++            <button disabled={pending || !email.trim() || seatsFull} onClick={invite} className={`${primaryBtn} w-full`}>{pending ? "Kviečiama..." : "Pakviesti"}</button>
+           </div>
+         </details>
+       </section>
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/components/billing/BillingPanel.tsx new3/santechnitas-pro-main/src/components/billing/BillingPanel.tsx
+--- base3/santechnitas-pro-main/src/components/billing/BillingPanel.tsx	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/components/billing/BillingPanel.tsx	2026-11-24 06:39:19.130164359 +0000
+@@ -44,12 +44,14 @@
+  * Planas, darbuotojų skaičius ir apmokėjimas (Paddle). Su aktyvia prenumerata: plano / vietų keitimas ir Paddle portalas.
+  * Apmokamų darbuotojų skaičius yra mažiausiai MIN_SEATS.
+  */
+-export default function BillingPanel({ token, env, current, defaultSeats = MIN_SEATS }: { token: string; env: "sandbox" | "production"; current: CurrentSub; defaultSeats?: number }) {
++export default function BillingPanel({ token, env, current, defaultSeats = MIN_SEATS, minSeats = MIN_SEATS }: { token: string; env: "sandbox" | "production"; current: CurrentSub; defaultSeats?: number; minSeats?: number }) {
++  // Negalima pasirinkti mažiau vietų, nei dabar užimta (aktyvūs nariai ir laukiantys pakvietimai).
++  const floor = Math.max(MIN_SEATS, minSeats);
+   const router = useRouter();
+   const live = !!current;
+   const [plan, setPlan] = useState<PlanId>(current?.plan ?? "pro");
+   const [interval, setInterval_] = useState<Interval>(current?.interval ?? "month");
+-  const clamp = (n: number) => Math.min(MAX_SEATS, Math.max(MIN_SEATS, n));
++  const clamp = (n: number) => Math.min(MAX_SEATS, Math.max(floor, n));
+   const [seatsText, setSeatsText] = useState(String(clamp(current?.seats ?? defaultSeats)));
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState("");
+@@ -58,7 +60,7 @@
+   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+ 
+   const seats = Math.floor(Number(seatsText.replace(",", ".")));
+-  const seatsOk = Number.isInteger(seats) && seats >= MIN_SEATS && seats <= MAX_SEATS;
++  const seatsOk = Number.isInteger(seats) && seats >= floor && seats <= MAX_SEATS;
+   const chosen = planById(plan)!;
+   const unit = interval === "month" ? chosen.priceMonth : chosen.priceYear;
+   const total = seatsOk ? seats * unit : 0;
+@@ -82,7 +84,7 @@
+     setError("");
+     setInfo("");
+     if (!token) return setError("Apmokėjimas dar nesukonfigūruotas (trūksta PADDLE_CLIENT_TOKEN).");
+-    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${MIN_SEATS} iki ${MAX_SEATS}.`);
++    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${floor} iki ${MAX_SEATS}.`);
+     setBusy(true);
+     const r = await startCheckout(plan, interval, seats);
+     if (!r.ok) { setBusy(false); return setError(r.error); }
+@@ -98,7 +100,7 @@
+   const change = async () => {
+     setError("");
+     setInfo("");
+-    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${MIN_SEATS} iki ${MAX_SEATS}.`);
++    if (!seatsOk) return setError(`Darbuotojų skaičius turi būti nuo ${floor} iki ${MAX_SEATS}.`);
+     setBusy(true);
+     const r = await changePlan(plan, seats);
+     setBusy(false);
+@@ -143,8 +145,8 @@
+       </div>
+ 
+       <div className="mt-3 flex items-center justify-between gap-3">
+-        <span className="font-medium">Darbuotojų skaičius <span className="text-xs font-normal text-muted">(nuo {MIN_SEATS})</span></span>
+-        <QtyStepper label="Darbuotojų skaičius" value={seatsText} onChange={setSeatsText} onStep={(t) => setSeatsText(String(clamp(Number(t) || MIN_SEATS)))} />
++        <span className="font-medium">Darbuotojų skaičius <span className="text-xs font-normal text-muted">(nuo {floor})</span></span>
++        <QtyStepper label="Darbuotojų skaičius" value={seatsText} onChange={setSeatsText} onStep={(t) => setSeatsText(String(clamp(Number(t) || floor)))} />
+       </div>
+       <p className="mt-3 text-lg font-extrabold">
+         Iš viso: {seatsOk ? `${total} €` : "–"} <span className="text-sm font-normal text-muted">{interval === "month" ? "per mėnesį" : "per metus"} be PVM; galutinę sumą su PVM parodys apmokėjimo langas</span>
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/lib/billing/actions.ts new3/santechnitas-pro-main/src/lib/billing/actions.ts
+--- base3/santechnitas-pro-main/src/lib/billing/actions.ts	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/lib/billing/actions.ts	2026-11-24 06:39:19.129881868 +0000
+@@ -18,6 +18,18 @@
+ }
+ 
+ /* eslint-disable @typescript-eslint/no-explicit-any */
++/** Paddle klaida žmogaus kalba: administratorius mato, ką taisyti (Paddle klaidų tekste slaptų duomenų nėra). */
++function paddleErrorText(status: number, code: string, detail: string): string {
++  const tail = [code, detail].filter(Boolean).join(": ");
++  let hint = "Nepavyko susisiekti su apmokėjimo sistema. Bandykite dar kartą.";
++  if (status === 401 || code.startsWith("authentication")) hint = "Paddle atmetė API raktą. Patikrinkite PADDLE_API_KEY (ar jis iš tos pačios aplinkos kaip PADDLE_ENV, ar neatšauktas).";
++  else if (status === 403 || code === "forbidden") hint = "API raktas neturi teisių. Paddle → Developer tools → Authentication: raktui suteikite transakcijų (write), prenumeratų ir klientų portalo teises.";
++  else if (status === 404 || code === "entity_not_found") hint = "Paddle nerado objekto. Patikrinkite kainos ID (turi būti pri_..., ne pro_...) ir ar jis iš sandbox, kai PADDLE_ENV=sandbox.";
++  else if (code.includes("default_checkout_url")) hint = "Paddle → Checkout → Checkout settings: nustatykite Default payment link (pvz. https://jūsų-adresas/valdymas/abonementas).";
++  else if (status >= 400 && status < 500) hint = "Paddle atmetė užklausą. Patikrinkite kainos nustatymus (kiekis: mažiausiai 3, daugiausiai 500).";
++  return tail ? `${hint} (Paddle: ${tail})` : hint;
++}
++
+ async function paddleFetch(method: "POST" | "PATCH", path: string, body: unknown): Promise<{ ok: true; data: any } | Fail> {
+   const key = process.env.PADDLE_API_KEY;
+   if (!key) return fail("Apmokėjimas dar nesukonfigūruotas (trūksta PADDLE_API_KEY).");
+@@ -29,8 +41,10 @@
+     });
+     const json: any = await res.json().catch(() => null);
+     if (!res.ok || !json?.data) {
++      const code = String(json?.error?.code ?? "");
++      const detail = String(json?.error?.detail ?? "").slice(0, 300);
+       console.error("Paddle API klaida:", method, path, res.status, JSON.stringify(json?.error ?? json));
+-      return fail("Nepavyko susisiekti su apmokėjimo sistema. Bandykite dar kartą.");
++      return fail(paddleErrorText(res.status, code, detail));
+     }
+     return { ok: true, data: json.data };
+   } catch (e) {
+@@ -46,6 +60,13 @@
+   return { plan, interval, seats };
+ }
+ 
++/** Užimtos vietos: aktyvūs nariai ir laukiantys pakvietimai (kaip 0023_seats.sql). */
++async function seatsInUse(db: Awaited<ReturnType<typeof createClient>>, companyId: string): Promise<number> {
++  const { count } = await db.from("company_members").select("id", { count: "exact", head: true }).eq("company_id", companyId).in("status", ["invited", "active"]);
++  return count ?? 0;
++}
++const seatsTooFew = (used: number) => fail(`Šiuo metu užimta ${used} vietų (aktyvūs nariai ir laukiantys pakvietimai). Pasirinkite bent ${used} arba pirmiausia pašalinkite narius skiltyje Darbuotojai.`);
++
+ /**
+  * Sukuria Paddle transakciją SERVERYJE (įmonės ID įrašomas čia, o ne naršyklėje, kad jo nebūtų galima pakeisti),
+  * o naršyklė ją atidaro kaip apmokėjimo langą. Kiekis = darbuotojų (apmokamų vietų) skaičius.
+@@ -60,6 +81,8 @@
+   if (!priceId) return fail("Šio plano apmokėjimas dar nesukonfigūruotas (trūksta kainos ID).");
+ 
+   const db = await createClient();
++  const used = await seatsInUse(db, g.companyId);
++  if (c.seats < used) return seatsTooFew(used);
+   const { data: sub } = await db.from("subscriptions").select("status, provider_customer_id").eq("company_id", g.companyId).maybeSingle();
+   if (sub && ["active", "trialing", "past_due"].includes(sub.status as string)) {
+     return fail("Prenumerata jau aktyvi. Planą keiskite mygtuku „Pakeisti planą“.");
+@@ -91,6 +114,8 @@
+   if (interval !== "month" && interval !== "year") return fail("Nepavyko nustatyti dabartinio laikotarpio.");
+   const c = checkChoice(plan, interval, seats);
+   if ("ok" in c) return c;
++  const used = await seatsInUse(db, g.companyId);
++  if (c.seats < used) return seatsTooFew(used);
+ 
+   const priceId = priceIdFor(c.plan, c.interval);
+   if (!priceId) return fail("Šio plano apmokėjimas dar nesukonfigūruotas (trūksta kainos ID).");
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/lib/plans-usage.ts new3/santechnitas-pro-main/src/lib/plans-usage.ts
+--- base3/santechnitas-pro-main/src/lib/plans-usage.ts	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/lib/plans-usage.ts	2026-11-24 06:38:59.255395990 +0000
+@@ -4,7 +4,7 @@
+ import { isPlanId } from "@/lib/plans";
+ 
+ export type UsageLine = { used: number; limit: number; hard: boolean };
+-export type PlanUsage = { plan: PlanId | null; documents: UsageLine; telegram: UsageLine; cars: UsageLine };
++export type PlanUsage = { plan: PlanId | null; documents: UsageLine; telegram: UsageLine; cars: UsageLine; seats: UsageLine };
+ 
+ const line = (v: unknown): UsageLine => {
+   const o = (v ?? {}) as { used?: unknown; limit?: unknown; hard?: unknown };
+@@ -20,6 +20,6 @@
+     if (error) console.error("plan_usage:", error.message);
+     return null;
+   }
+-  const d = data as { plan?: unknown; documents?: unknown; telegram?: unknown; cars?: unknown };
+-  return { plan: isPlanId(d.plan) ? d.plan : null, documents: line(d.documents), telegram: line(d.telegram), cars: line(d.cars) };
++  const d = data as { plan?: unknown; documents?: unknown; telegram?: unknown; cars?: unknown; seats?: unknown };
++  return { plan: isPlanId(d.plan) ? d.plan : null, documents: line(d.documents), telegram: line(d.telegram), cars: line(d.cars), seats: line(d.seats) };
+ }
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/src/lib/plans.ts new3/santechnitas-pro-main/src/lib/plans.ts
+--- base3/santechnitas-pro-main/src/lib/plans.ts	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/src/lib/plans.ts	2026-11-24 06:38:59.255177046 +0000
+@@ -26,6 +26,9 @@
+ 
+ /** Mažiausias apmokamų darbuotojų skaičius (Paddle kainos kiekio minimumas). */
+ export const MIN_SEATS = 3;
++/** Vietų skaičius nemokamo bandymo metu ir nemokamos prieigos (complimentary) atveju. Turi sutapti su 0023_seats.sql. */
++export const TRIAL_SEATS = 10;
++export const COMPLIMENTARY_SEATS = 1000;
+ 
+ const CORE = [
+   "Objektai, darbai ir kalendorius",
+@@ -102,3 +105,20 @@
+ }
+ 
+ export const priceLabel = (p: Plan, interval: "month" | "year") => `${interval === "month" ? p.priceMonth : p.priceYear} €`;
++
++/**
++ * Vietų limitas (tos pačios taisyklės kaip SQL funkcijoje _company_seat_limit, 0023_seats.sql):
++ * nemokama prieiga = 1000; aktyvi / vėluojanti / bandomoji prenumerata = apmokėtos vietos; galiojantis bandymas = 10; kitaip 0.
++ * Vieta = aktyvus narys arba laukiantis pakvietimas (įskaitant administratorius).
++ */
++export function seatLimit(input: {
++  complimentary: boolean;
++  trialEndsAt: string | Date;
++  subscription: { status: string; seats: number } | null;
++  now?: Date;
++}): number {
++  if (input.complimentary) return COMPLIMENTARY_SEATS;
++  const st = input.subscription?.status;
++  if (st === "trialing" || st === "active" || st === "past_due") return Math.max(1, input.subscription!.seats || 1);
++  return new Date(input.trialEndsAt).getTime() > (input.now ?? new Date()).getTime() ? TRIAL_SEATS : 0;
++}
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/supabase/migrations/0023_seats.sql new3/santechnitas-pro-main/supabase/migrations/0023_seats.sql
+--- base3/santechnitas-pro-main/supabase/migrations/0023_seats.sql	1970-01-01 00:00:00.000000000 +0000
++++ new3/santechnitas-pro-main/supabase/migrations/0023_seats.sql	2026-11-24 06:38:59.208489596 +0000
+@@ -0,0 +1,72 @@
++-- DarboRitmas · 0023 · Darbuotojų (vietų) ribojimas pagal planą
++-- Paleisti po 0022_plans.sql.
++--
++-- Vieta = vienas aktyvus narys arba laukiantis pakvietimas (įskaitant administratorius ir direktorių).
++-- Vietų limitas:  apmokėta prenumerata (aktyvi / vėluojanti / bandomoji) = subscriptions.seats;  nemokamas bandymas = 10;
++-- nemokama prieiga (complimentary) = 1000;  prieigos nėra = taisyklė netaikoma (kurti neleidžia RLS).
++-- Pasiekus limitą naujo nario pakviesti ar pašalinto atkurti negalima. Esami nariai niekada nepašalinami automatiškai
++-- (pvz. sumažinus vietas Paddle portale): tik naujų pridėti nebegalima, kol vietų nepakanka.
++
++create function public._company_seat_limit(cid uuid) returns integer
++language sql stable security definer set search_path = public as $$
++  select case
++           when c.complimentary then 1000
++           when s.status in ('trialing', 'active', 'past_due') then greatest(coalesce(s.seats, 1), 1)
++           when c.trial_ends_at > now() then 10
++           else 0
++         end
++    from public.companies c
++    left join public.subscriptions s on s.company_id = c.id
++   where c.id = cid
++$$;
++revoke execute on function public._company_seat_limit(uuid) from public, anon, authenticated;
++grant  execute on function public._company_seat_limit(uuid) to service_role;
++
++create function public.company_members_seat_limit() returns trigger
++language plpgsql security definer set search_path = public as $$
++declare v_limit integer; v_used integer;
++begin
++  if new.status = 'removed' then return new; end if;                                -- vietos neužima
++  if tg_op = 'UPDATE' and old.status <> 'removed' then return new; end if;          -- invited -> active vietų skaičiaus nekeičia
++  if public._company_plan(new.company_id) is null then return new; end if;          -- prieigos nėra: sprendžia RLS
++
++  perform pg_advisory_xact_lock(hashtextextended('seat:' || new.company_id::text, 0));
++  v_limit := public._company_seat_limit(new.company_id);
++  select count(*) into v_used from public.company_members m
++   where m.company_id = new.company_id and m.status in ('invited', 'active') and m.id is distinct from new.id;
++
++  if v_used >= v_limit then
++    raise exception 'Visos apmokėtos vietos užimtos (% iš %). Padidinkite darbuotojų skaičių skiltyje Valdymas → Abonementas arba pašalinkite nenaudojamą narį.', v_used, v_limit
++      using errcode = 'P0001';
++  end if;
++  return new;
++end $$;
++create trigger company_members_seat_limit before insert or update of status on public.company_members
++  for each row execute function public.company_members_seat_limit();
++
++-- Naudojimo suvestinė (kaip 0022) + vietos.
++create or replace function public.plan_usage(cid uuid) returns jsonb
++language plpgsql stable security definer set search_path = public as $$
++declare v_plan text; v_period date := public.usage_period();
++begin
++  if not public.is_company_admin(cid) then return null; end if;
++  v_plan := public._company_plan(cid);
++  return jsonb_build_object(
++    'plan', v_plan,
++    'documents', jsonb_build_object(
++      'used',  (select count(*) from public.usage_events where company_id = cid and kind = 'document' and period = v_period),
++      'limit', (select value from public.plan_limits where plan = v_plan and key = 'documents'),
++      'hard',  (select hard  from public.plan_limits where plan = v_plan and key = 'documents')),
++    'telegram', jsonb_build_object(
++      'used',  (select count(*) from public.usage_events where company_id = cid and kind = 'telegram' and period = v_period),
++      'limit', (select value from public.plan_limits where plan = v_plan and key = 'telegram'),
++      'hard',  (select hard  from public.plan_limits where plan = v_plan and key = 'telegram')),
++    'cars', jsonb_build_object(
++      'used',  (select count(*) from public.cars where company_id = cid and active),
++      'limit', (select value from public.plan_limits where plan = v_plan and key = 'cars'),
++      'hard',  true),
++    'seats', jsonb_build_object(
++      'used',  (select count(*) from public.company_members where company_id = cid and status in ('invited', 'active')),
++      'limit', public._company_seat_limit(cid),
++      'hard',  true));
++end $$;
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/supabase/migrations/README.md new3/santechnitas-pro-main/supabase/migrations/README.md
+--- base3/santechnitas-pro-main/supabase/migrations/README.md	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/supabase/migrations/README.md	2026-11-24 17:53:36.608129188 +0000
+@@ -15,3 +15,4 @@
+ | 0020_documents | sąmatos ir sutartys klientui (dokumentai) |
+ | 0021_paddle | Paddle mokėjimų lentelės (vietoj nenaudoto Stripe) |
+ | 0022_plans | planai, limitai, naudojimo skaitiklis, sąmatų užrakinimas |
++| 0023_seats | darbuotojų (vietų) ribojimas pagal apmokėtą vietų skaičių |
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/supabase/tests/plans_test.sql new3/santechnitas-pro-main/supabase/tests/plans_test.sql
+--- base3/santechnitas-pro-main/supabase/tests/plans_test.sql	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/supabase/tests/plans_test.sql	2026-11-24 17:53:36.605747208 +0000
+@@ -153,4 +153,33 @@
+ reset role;
+ select tp.ok((select count(*) from public.notification_outbox where event_type = 'office_note' and user_id = tp.id('A1')) = 1, 'pastaba biurui sukuria pranešimą administratoriui');
+ 
++-- ================================================================ darbuotojų vietos (0023_seats.sql)
++reset role;
++update public.subscriptions set seats = 3, status = 'active' where company_id = tp.id('CX');
++select tp.as_user('A1');
++select tp.ok((public.plan_usage(tp.id('CX')) -> 'seats' ->> 'used')::int = 2, 'užimtos vietos: 2 aktyvūs nariai');
++select tp.ok((public.plan_usage(tp.id('CX')) -> 'seats' ->> 'limit')::int = 3, 'vietų limitas = apmokėtos vietos');
++insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n1@x.lt', 'worker', 'invited', tp.id('A1'));
++select tp.err($$insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n2@x.lt', 'worker', 'invited', tp.id('A1'))$$, 'P0001', 'vietos');
++-- laukiantis pakvietimas užima vietą, jo atšaukimas ją atlaisvina
++delete from public.company_members where email = 'n1@x.lt';
++insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n2@x.lt', 'worker', 'invited', tp.id('A1'));
++-- pašalinto nario vieta atlaisvinama, bet atkurti jį galima tik jei yra vietų
++update public.company_members set status = 'removed' where user_id = tp.id('W');
++insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n3@x.lt', 'worker', 'invited', tp.id('A1'));
++select tp.err($$update public.company_members set status = 'active' where user_id = tp.id('W')$$, 'P0001', 'vietos');
++-- didinant apmokėtas vietas (Paddle webhook) atkurti galima
++reset role;
++update public.subscriptions set seats = 4 where company_id = tp.id('CX');
++select tp.as_user('A1');
++update public.company_members set status = 'active' where user_id = tp.id('W');
++select tp.ok((public.plan_usage(tp.id('CX')) -> 'seats' ->> 'used')::int = 4, 'po atkūrimo užimtos 4 vietos');
++-- sumažinus vietas esami nariai nepašalinami, bet naujų pridėti nebegalima
++reset role;
++update public.subscriptions set seats = 1 where company_id = tp.id('CX');
++select tp.as_user('A1');
++select tp.ok((select count(*) from public.company_members where company_id = tp.id('CX') and status = 'active') = 2, 'sumažinus vietas esami nariai lieka');
++select tp.err($$insert into public.company_members (company_id, email, role, status, invited_by) values (tp.id('CX'), 'n4@x.lt', 'worker', 'invited', tp.id('A1'))$$, 'P0001', 'vietos');
++reset role;
++
+ select 'PLANŲ TESTAI PRAĖJO' as rezultatas;
+diff -ruN '--exclude=node_modules' '--exclude=*#U0*' '--exclude=1' '--exclude=now()' base3/santechnitas-pro-main/tests/unit/plans.test.ts new3/santechnitas-pro-main/tests/unit/plans.test.ts
+--- base3/santechnitas-pro-main/tests/unit/plans.test.ts	2026-11-22 14:54:00.000000000 +0000
++++ new3/santechnitas-pro-main/tests/unit/plans.test.ts	2026-11-24 17:53:36.606452011 +0000
+@@ -1,7 +1,7 @@
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ import { readFileSync } from "node:fs";
+-import { PLANS, canUse, limitOf, minPlanFor, planOf, usageLevel } from "../../src/lib/plans";
++import { COMPLIMENTARY_SEATS, PLANS, TRIAL_SEATS, canUse, limitOf, minPlanFor, planOf, seatLimit, usageLevel } from "../../src/lib/plans";
+ import { planFromPriceId, priceEnvName } from "../../src/lib/billing/config";
+ 
+ const NOW = new Date("2026-11-20T10:00:00Z");
+@@ -66,3 +66,20 @@
+   assert.equal(planFromPriceId(null, env), null);
+   assert.equal(priceEnvName("bazinis", "year"), "PADDLE_PRICE_BAZINIS_YEARLY");
+ });
++
++test("seatLimit: apmokėtos vietos, bandymas, nemokama prieiga, nieko", () => {
++  assert.equal(seatLimit({ complimentary: true, trialEndsAt: past, subscription: null, now: NOW }), COMPLIMENTARY_SEATS);
++  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "active", seats: 7 }, now: NOW }), 7);
++  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "past_due", seats: 3 }, now: NOW }), 3);
++  assert.equal(seatLimit({ complimentary: false, trialEndsAt: future, subscription: null, now: NOW }), TRIAL_SEATS);
++  assert.equal(seatLimit({ complimentary: false, trialEndsAt: future, subscription: { status: "canceled", seats: 9 }, now: NOW }), TRIAL_SEATS);
++  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "canceled", seats: 9 }, now: NOW }), 0);
++  assert.equal(seatLimit({ complimentary: false, trialEndsAt: past, subscription: { status: "active", seats: 0 }, now: NOW }), 1);
++});
++
++// Vietų konstantos turi sutapti su 0023_seats.sql.
++test("TRIAL_SEATS ir COMPLIMENTARY_SEATS sutampa su 0023_seats.sql", () => {
++  const sql = readFileSync(new URL("../../supabase/migrations/0023_seats.sql", import.meta.url), "utf8");
++  assert.equal(Number(/when c\.complimentary then (\d+)/.exec(sql)?.[1]), COMPLIMENTARY_SEATS);
++  assert.equal(Number(/c\.trial_ends_at > now\(\) then (\d+)/.exec(sql)?.[1]), TRIAL_SEATS);
++});

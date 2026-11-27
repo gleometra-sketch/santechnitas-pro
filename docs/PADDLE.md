@@ -13,7 +13,7 @@ Trys planai (Bazinis, Pro, Verslui), kaina **už vieną darbuotoją**, kiekis nu
 ## Nustatymas (pirmiausia SANDBOX)
 
 1. Sukurkite Paddle **sandbox** paskyrą.
-2. Supabase SQL Editor paleiskite `0021_paddle.sql` ir `0022_plans.sql` (šia tvarka, po 0020).
+2. Supabase SQL Editor paleiskite `0021_paddle.sql`, `0022_plans.sql` ir `0023_seats.sql` (šia tvarka, po 0020).
 3. Paddle → **Catalog → Products**: trys produktai (Bazinis, Pro, Verslui), kiekvienas su dviem kainomis: **1 mėn.** ir **1 m.** (3 / 30, 5 / 50, 8 / 80 €, **kaina už vieną darbuotoją**). Kiekvienai kainai leiskite **kiekį: mažiausiai 3, daugiausiai 500**.
 4. Paddle → **Developer tools → Authentication**: sukurkite **API raktą** (leidimai: transakcijos, prenumeratos, klientų portalo sesijos, klientai) ir **client-side token** (`test_...`).
 5. Paddle → **Developer tools → Notifications → New destination**: URL `https://JŪSŲ-ADRESAS/api/paddle/webhook`, įvykiai: `subscription.created`, `subscription.activated`, `subscription.updated`, `subscription.trialing`, `subscription.past_due`, `subscription.paused`, `subscription.resumed`, `subscription.canceled`, `transaction.completed`, `transaction.payment_failed`. Nukopijuokite **Secret key**.
@@ -23,11 +23,11 @@ Trys planai (Bazinis, Pro, Verslui), kaina **už vieną darbuotoją**, kiekis nu
 
 ## Perėjimas prie tikrų mokėjimų (LIVE)
 
-Paddle turi patvirtinti jūsų paskyrą ir **svetainės domeną** (Paddle → Checkout → Website approval). Tada: tie patys produktai ir šešios kainos LIVE aplinkoje, naujas API raktas, client-side token (`live_...`) ir webhook endpoint su nauju slaptu raktu; pakeiskite `PADDLE_ENV=production` ir visus Paddle kintamuosius; atlikite mažą tikrą apmokėjimą ir grąžinkite pinigus per Paddle. Nieko nekurkite LIVE aplinkoje, kol sandbox neišbandytas.
+Paddle turi patvirtinti jūsų paskyrą ir **svetainės domeną** (Paddle → Checkout → Website approval). Prieš tai užpildykite įmonės rekvizitus ir patikrinkite juridinius puslapius (`docs/JURIDINIAI.md`): sąlygos, grąžinimai (14 dienų) ir privatumo politika privalo būti viešai prieinami. Tada: tie patys produktai ir šešios kainos LIVE aplinkoje, naujas API raktas, client-side token (`live_...`) ir webhook endpoint su nauju slaptu raktu; pakeiskite `PADDLE_ENV=production` ir visus Paddle kintamuosius; atlikite mažą tikrą apmokėjimą ir grąžinkite pinigus per Paddle. Nieko nekurkite LIVE aplinkoje, kol sandbox neišbandytas.
 
 ## Žinomi apribojimai
 
 - **`changePlan` (PATCH /subscriptions) neišbandytas su tikru Paddle.** Pasitikrinkite sandbox: ar Paddle priima kainų keitimą su `proration_billing_mode` ir ar webhook'as atnaujina `plan_id`. Laikotarpio (mėnesinis ↔ metinis) toje pačioje prenumeratoje keisti negalima.
-- Apmokėtų vietų skaičius **darbuotojų dar neriboja**: saugomas `subscriptions.seats`, puslapyje rodomas įspėjimas, jei aktyvių darbuotojų daugiau. Pakviesti naujo darbuotojo programa neblokuoja.
+- **Vietų ribojimas** (`0023_seats.sql`): naujų narių pakviesti negalima, kai užimtos visos apmokėtos vietos; esami nariai nepašalinami. Žr. `SAMATOS-IR-PLANAI.md`.
 - Pranešimo administratoriui apie nepavykusį apmokėjimą kol kas nėra (Paddle pats siunčia priminimus, puslapyje rodomas įspėjimas).
 - Pasikeitus kainai Paddle, atnaujinkite ir `src/lib/plans.ts` (rodomos kainos).

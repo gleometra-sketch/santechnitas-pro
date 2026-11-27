@@ -32,7 +32,7 @@ export function RegisterForm() {
       <label className="flex items-start gap-3">
         <input type="checkbox" name="consent" className="mt-1 h-5 w-5 accent-[#1456E8]" />
         <span className="text-sm">
-          Susipažinau su <Link href="/privatumas" className={link}>privatumo politika</Link>.
+          Sutinku su <Link href="/salygos" className={link}>naudojimo sąlygomis</Link> ir susipažinau su <Link href="/privatumas" className={link}>privatumo politika</Link>.
         </span>
       </label>
       <FormMessage state={state} />
