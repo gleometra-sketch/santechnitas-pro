@@ -129,6 +129,12 @@ async function importEstimate(db: Awaited<ReturnType<typeof createClient>>, comp
 }
 
 export async function saveDocument(input: unknown): Promise<DocResult> {
+  // Sutartis savų sąmatos eilučių neturi (jos nerodomos), o naujo juodraščio formoje yra viena tuščia eilutė: ją išmetame,
+  // kad nekiltų klaida „Užpildykite visų eilučių aprašymus“. Sąmatoms tuščios eilutės lieka klaida.
+  if (input && typeof input === "object" && (input as { kind?: unknown }).kind === "contract" && Array.isArray((input as { items?: unknown }).items)) {
+    const raw = input as { items: unknown[] };
+    input = { ...raw, items: raw.items.filter((i) => i && typeof i === "object" && typeof (i as { description?: unknown }).description === "string" && (i as { description: string }).description.trim() !== "") };
+  }
   const p = docSchema.safeParse(input);
   if (!p.success) return fail(p.error.issues[0].message);
   const d = p.data;

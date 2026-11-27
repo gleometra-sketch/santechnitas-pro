@@ -46,7 +46,7 @@ export default function AdminTabs() {
         ref={scroller}
         onScroll={measure}
         aria-label="Valdymo skiltys"
-        className="flex gap-1 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible"
       >
         {TABS.map((t) => {
           const active = pathname.startsWith(t.href);
@@ -63,8 +63,8 @@ export default function AdminTabs() {
           );
         })}
       </nav>
-      {edge.left && <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 rounded-l-2xl bg-gradient-to-r from-white to-transparent" />}
-      {edge.right && <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-2xl bg-gradient-to-l from-white to-transparent" />}
+      {edge.left && <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 sm:hidden rounded-l-2xl bg-gradient-to-r from-white to-transparent" />}
+      {edge.right && <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 sm:hidden rounded-r-2xl bg-gradient-to-l from-white to-transparent" />}
     </div>
   );
 }
