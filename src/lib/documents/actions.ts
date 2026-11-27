@@ -204,6 +204,7 @@ const profileSchema = z.object({
   legal_name: z.string().trim().max(200), code: z.string().trim().max(30), vat_code: z.string().trim().max(30),
   address: z.string().trim().max(300), phone: z.string().trim().max(40), email: z.string().trim().max(200), iban: z.string().trim().max(40),
   director: z.string().trim().max(120).optional().default(""), director_title: z.string().trim().max(60).optional().default(""),
+  signature: z.union([z.literal(""), z.string().max(250000).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/)]).optional(),
 });
 export async function saveCompanyProfile(input: unknown): Promise<DocResult> {
   const p = profileSchema.safeParse(input);

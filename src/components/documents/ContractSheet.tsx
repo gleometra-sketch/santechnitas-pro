@@ -30,13 +30,17 @@ function Signatures({ doc, roman }: { doc: PublicDocument; roman: string | null 
           <p className="mt-3 font-bold">{s.legal_name ?? ""}</p>
           {sellerLines.map((l) => <p key={l} className="break-words">{l}</p>)}
         </div>
-        <div className="order-2 pt-4 sm:order-3 sm:pt-10 print:order-3 print:pt-10">
+        <div className="order-2 pt-4 sm:order-3 sm:self-end sm:pt-10 print:order-3 print:self-end print:pt-10">
           <ClientSignatureSlot canSign={doc.status === "sent" && !doc.expired} signature={doc.signature} />
           <div className="border-t border-black" />
           <p>(parašas)</p>
           <p>{doc.clientName}</p>
         </div>
-        <div className="order-4 pt-10">
+        <div className="order-4 flex flex-col justify-end pt-10 sm:self-end print:self-end">
+          {s.signature && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={s.signature} alt="Rangovo parašas" className="mb-1 aspect-[3/1] w-full max-w-[18rem] object-contain object-left" />
+          )}
           <div className="border-t border-black" />
           <p>(parašas)</p>
           <p>{s.director?.trim() || s.legal_name || ""}</p>

@@ -42,9 +42,9 @@ export async function getDocumentDetail(ctx: SessionContext, id: string): Promis
 }
 
 export async function getCompanyProfile(ctx: SessionContext): Promise<Seller & { legal_name: string | null }> {
-  const fallback = { legal_name: ctx.company?.name ?? null, code: null, vat_code: null, address: null, phone: null, email: null, iban: null, director: null, director_title: null };
+  const fallback = { legal_name: ctx.company?.name ?? null, code: null, vat_code: null, address: null, phone: null, email: null, iban: null, director: null, director_title: null, signature: null };
   if (!ctx.company) return fallback;
-  const { data } = await (await createClient()).from("company_profiles").select("legal_name, code, vat_code, address, phone, email, iban, director, director_title").eq("company_id", ctx.company.id).maybeSingle();
+  const { data } = await (await createClient()).from("company_profiles").select("legal_name, code, vat_code, address, phone, email, iban, director, director_title, signature").eq("company_id", ctx.company.id).maybeSingle();
   return data ? { ...data, legal_name: data.legal_name ?? ctx.company.name } : fallback;
 }
 
